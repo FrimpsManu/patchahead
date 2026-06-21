@@ -19,6 +19,8 @@ class BreakingChange:
     risk_level: str  # LOW | MEDIUM | HIGH
     evidence: list = field(default_factory=list)
     source: str = "deterministic"  # deterministic | llm
+    old_symbol: str = ""  # for rename changes, e.g. "total"
+    new_symbol: str = ""  # for rename changes, e.g. "amount"
 
     def to_dict(self):
         return asdict(self)

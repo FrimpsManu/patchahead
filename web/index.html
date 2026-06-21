@@ -10,7 +10,7 @@
 <style>
   :root{
     --ink:#0d1017; --panel:#141923; --panel-2:#1a2030; --line:#262d3b;
-    --text:#e7edf6; --muted:#8a96a9; --faint:#5c6678;
+    --text:#eef3fb; --muted:#9aa6ba; --faint:#74809a;
     --broken:#ff6262; --broken-dim:#3a1d22;
     --fixed:#2fd39b; --fixed-dim:#123128;
     --agent:#8b7cff; --agent-dim:#211f3a;
@@ -26,9 +26,9 @@
       var(--ink);
     color:var(--text); font-family:var(--disp);
     -webkit-font-smoothing:antialiased; line-height:1.5;
-    padding:0 0 80px;
+    padding:0 0 80px; overflow-x:hidden;
   }
-  .wrap{max-width:1120px; margin:0 auto; padding:0 24px}
+  .wrap{max-width:1140px; margin:0 auto; padding:0 28px}
 
   /* ---- top bar ---- */
   header.bar{display:flex; align-items:center; gap:18px; padding:26px 0 22px; flex-wrap:wrap}
@@ -56,44 +56,45 @@
   .sub{color:var(--muted); font-size:15px; max-width:620px; margin:0 0 26px}
 
   /* ---- pipeline (signature) ---- */
-  .pipe{display:flex; align-items:stretch; gap:0; border:1px solid var(--line);
-    border-radius:14px; background:linear-gradient(180deg,var(--panel),#10141d);
-    padding:16px 8px; overflow-x:auto}
-  .node{flex:1 0 0; min-width:120px; display:flex; flex-direction:column; align-items:center;
-    gap:9px; position:relative; padding:6px 6px 4px}
-  .node:not(:last-child)::after{content:""; position:absolute; top:24px; right:-2px; width:calc(100% - 30px);
-    height:2px; background:var(--line); transform:translateX(50%); z-index:0}
+  .pipe{display:grid; grid-template-columns:repeat(6,1fr); align-items:start;
+    border:1px solid var(--line); border-radius:14px;
+    background:linear-gradient(180deg,var(--panel),#10141d);
+    padding:20px 12px 16px; position:relative; overflow:hidden}
+  .node{display:flex; flex-direction:column; align-items:center; gap:11px;
+    position:relative; padding:0 6px; min-width:0}
+  .node:not(:last-child)::after{content:""; position:absolute; top:19px; left:50%;
+    width:100%; height:2px; background:var(--line); z-index:0}
   .node.lit:not(:last-child)::after{background:linear-gradient(90deg,var(--agent),var(--line))}
-  .bead{width:34px;height:34px;border-radius:9px; border:1px solid var(--line);
+  .bead{width:38px;height:38px;border-radius:10px; border:1px solid var(--line);
     background:var(--panel-2); display:grid; place-items:center; font-family:var(--mono);
-    font-size:13px; color:var(--faint); z-index:1; transition:.25s; font-weight:700}
+    font-size:15px; color:var(--faint); z-index:1; position:relative; transition:.25s; font-weight:700}
   .node.lit .bead{color:var(--agent); border-color:var(--agent); box-shadow:0 0 0 4px var(--agent-dim)}
   .node.run .bead{animation:pulse 1s infinite}
   .node.red .bead{color:var(--broken); border-color:var(--broken); box-shadow:0 0 0 4px var(--broken-dim)}
   .node.green .bead{color:var(--fixed); border-color:var(--fixed); box-shadow:0 0 0 4px var(--fixed-dim)}
-  .node small{font-family:var(--mono); font-size:10.5px; color:var(--muted); text-align:center;
-    letter-spacing:.02em; white-space:nowrap}
+  .node small{font-family:var(--mono); font-size:12px; color:var(--muted); text-align:center;
+    letter-spacing:.01em; line-height:1.3; max-width:100%}
   .node.lit small{color:var(--text)}
   @keyframes pulse{0%,100%{box-shadow:0 0 0 3px var(--agent-dim)}50%{box-shadow:0 0 0 8px #8b7cff22}}
 
   /* ---- result grid ---- */
-  .grid{display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:18px}
+  .grid{display:grid; grid-template-columns:1fr 1fr; gap:18px; margin-top:20px}
   .card{border:1px solid var(--line); border-radius:13px; background:var(--panel);
-    padding:18px 18px 16px; opacity:0; transform:translateY(8px); transition:.4s}
+    padding:20px 20px 18px; opacity:0; transform:translateY(8px); transition:.4s}
   .card.show{opacity:1; transform:none}
   .card.wide{grid-column:1 / -1}
-  .eyebrow{font-family:var(--mono); font-size:11px; letter-spacing:.14em; text-transform:uppercase;
-    color:var(--faint); margin:0 0 12px; display:flex; align-items:center; gap:9px}
+  .eyebrow{font-family:var(--mono); font-size:11.5px; letter-spacing:.13em; text-transform:uppercase;
+    color:var(--faint); margin:0 0 14px; display:flex; align-items:center; gap:9px}
   .eyebrow .n{color:var(--agent)}
-  h3.t{margin:0 0 4px; font-size:16px; font-weight:600; letter-spacing:-.01em}
+  h3.t{margin:0 0 4px; font-size:17px; font-weight:600; letter-spacing:-.01em}
 
-  .kv{font-family:var(--mono); font-size:13px; display:grid; grid-template-columns:96px 1fr;
-    gap:6px 14px; margin-top:6px}
+  .kv{font-family:var(--mono); font-size:14px; display:grid; grid-template-columns:100px 1fr;
+    gap:8px 14px; margin-top:8px}
   .kv dt{color:var(--faint)} .kv dd{margin:0; color:var(--text)}
-  .badge{font-family:var(--mono); font-size:11px; padding:2px 8px; border-radius:6px; font-weight:700}
+  .badge{font-family:var(--mono); font-size:11.5px; padding:2px 8px; border-radius:6px; font-weight:700}
   .badge.high{color:var(--broken); background:var(--broken-dim)}
   .badge.med{color:var(--warn); background:#3a2c12}
-  .b2g{display:flex; align-items:center; gap:10px; font-family:var(--mono); font-size:13px; margin-top:10px}
+  .b2g{display:flex; align-items:center; gap:10px; font-family:var(--mono); font-size:13.5px; margin-top:12px}
   .b2g code{padding:3px 8px; border-radius:6px}
   .was{color:var(--broken); background:var(--broken-dim); text-decoration:line-through; text-decoration-color:#ff626288}
   .now{color:var(--fixed); background:var(--fixed-dim)}
@@ -101,12 +102,12 @@
 
   .meter{height:7px; border-radius:100px; background:var(--panel-2); overflow:hidden; margin-top:7px}
   .meter > i{display:block; height:100%; width:0; background:linear-gradient(90deg,var(--agent),var(--fixed)); transition:width .8s ease}
-  .lines{font-family:var(--mono); font-size:12px; color:var(--muted); margin-top:11px; display:grid; gap:3px}
-  .lines code{color:var(--text)}
+  .lines{font-family:var(--mono); font-size:13px; color:var(--muted); margin-top:12px; display:grid; gap:4px}
+  .lines code{color:var(--text); white-space:pre; overflow:hidden; text-overflow:ellipsis; display:block; max-width:100%}
 
   /* diff */
-  .diff{font-family:var(--mono); font-size:12.5px; background:#0b0e15; border:1px solid var(--line);
-    border-radius:10px; padding:12px 0; overflow-x:auto; line-height:1.65}
+  .diff{font-family:var(--mono); font-size:13.5px; background:#0b0e15; border:1px solid var(--line);
+    border-radius:10px; padding:14px 0; overflow-x:auto; line-height:1.65}
   .diff .ln{padding:0 16px; white-space:pre; display:block}
   .diff .add{color:var(--fixed); background:#103027}
   .diff .del{color:var(--broken); background:#311a1e}
@@ -116,17 +117,17 @@
   /* tests */
   .tests{display:grid; grid-template-columns:1fr auto 1fr; align-items:center; gap:8px; margin-top:6px}
   .tbox{border:1px solid var(--line); border-radius:11px; padding:14px; text-align:center}
-  .tbox .state{font-family:var(--disp); font-weight:700; font-size:15px}
+  .tbox .state{font-family:var(--disp); font-weight:700; font-size:16px}
   .tbox .lbl{font-family:var(--mono); font-size:11px; color:var(--faint); text-transform:uppercase; letter-spacing:.1em; margin-bottom:6px}
-  .tbox .msg{font-family:var(--mono); font-size:11.5px; color:var(--muted); margin-top:5px; word-break:break-word}
+  .tbox .msg{font-family:var(--mono); font-size:12px; color:var(--muted); margin-top:6px; word-break:break-word}
   .tbox.fail{border-color:#54262b; background:var(--broken-dim)} .tbox.fail .state{color:var(--broken)}
   .tbox.pass{border-color:#1c4a3b; background:var(--fixed-dim)} .tbox.pass .state{color:var(--fixed)}
   .flip{font-size:22px; color:var(--faint)}
 
   /* trace */
-  .wf{display:grid; gap:6px; margin-top:4px}
-  .wf .row{display:grid; grid-template-columns:150px 1fr 48px; align-items:center; gap:10px;
-    font-family:var(--mono); font-size:11.5px}
+  .wf{display:grid; gap:7px; margin-top:4px}
+  .wf .row{display:grid; grid-template-columns:168px 1fr 52px; align-items:center; gap:10px;
+    font-family:var(--mono); font-size:12.5px}
   .wf .nm{color:var(--muted)}
   .wf .track{height:9px; background:var(--panel-2); border-radius:100px; overflow:hidden}
   .wf .track > i{display:block; height:100%; background:var(--agent); border-radius:100px; width:0; transition:width .5s}
@@ -134,14 +135,14 @@
   .wf .ms{color:var(--faint); text-align:right}
 
   /* pr */
-  .check{font-family:var(--mono); font-size:12.5px; color:var(--muted); display:grid; gap:7px; margin:10px 0 0}
+  .check{font-family:var(--mono); font-size:13px; color:var(--muted); display:grid; gap:8px; margin:10px 0 0}
   .check span{color:var(--faint)}
-  .gate{display:inline-flex; align-items:center; gap:8px; font-family:var(--mono); font-size:12px;
-    color:var(--broken); background:var(--broken-dim); padding:6px 11px; border-radius:8px; margin-top:12px}
+  .gate{display:inline-flex; align-items:center; gap:8px; font-family:var(--mono); font-size:12.5px;
+    color:var(--broken); background:var(--broken-dim); padding:7px 12px; border-radius:8px; margin-top:12px}
   details.md{margin-top:13px}
-  details.md summary{font-family:var(--mono); font-size:12px; color:var(--agent); cursor:pointer}
-  details.md pre{font-family:var(--mono); font-size:11.5px; color:var(--muted); background:#0b0e15;
-    border:1px solid var(--line); border-radius:9px; padding:13px; overflow:auto; max-height:340px; white-space:pre-wrap}
+  details.md summary{font-family:var(--mono); font-size:12.5px; color:var(--agent); cursor:pointer}
+  details.md pre{font-family:var(--mono); font-size:12px; color:var(--muted); background:#0b0e15;
+    border:1px solid var(--line); border-radius:9px; padding:14px; overflow:auto; max-height:340px; white-space:pre-wrap}
 
   .empty{color:var(--faint); font-family:var(--mono); font-size:13px; text-align:center;
     padding:30px; border:1px dashed var(--line); border-radius:12px}

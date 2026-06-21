@@ -9,15 +9,19 @@ do not get a loud ``TypeError`` -- they get something quieter and worse:
 a response with no ``total_pages``, which raises ``KeyError`` and (in
 sloppier code) can silently sync incomplete data. This is exactly the
 class of "semantic" breakage Dependabot can't see.
+
+v2 also RENAMES the order money field ``total`` -> ``amount`` (a second,
+independent breaking change), so code reading ``order["total"]`` raises
+``KeyError`` as well.
 """
 
 _ORDERS = [
-    {"id": 1, "customer": "Ada", "total": 42.00},
-    {"id": 2, "customer": "Linus", "total": 13.50},
-    {"id": 3, "customer": "Grace", "total": 88.10},
-    {"id": 4, "customer": "Alan", "total": 27.75},
-    {"id": 5, "customer": "Edsger", "total": 64.20},
-    {"id": 6, "customer": "Margaret", "total": 9.99},
+    {"id": 1, "customer": "Ada", "amount": 42.00},
+    {"id": 2, "customer": "Linus", "amount": 13.50},
+    {"id": 3, "customer": "Grace", "amount": 88.10},
+    {"id": 4, "customer": "Alan", "amount": 27.75},
+    {"id": 5, "customer": "Edsger", "amount": 64.20},
+    {"id": 6, "customer": "Margaret", "amount": 9.99},
 ]
 
 _PAGE_SIZE = 2

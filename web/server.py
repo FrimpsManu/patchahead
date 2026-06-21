@@ -24,7 +24,7 @@ sys.path.insert(0, os.path.join(ROOT, "src"))
 from fastapi import FastAPI  # noqa: E402
 from fastapi.responses import HTMLResponse, JSONResponse  # noqa: E402
 
-from patchahead import agent, observability as obs, paths  # noqa: E402
+from patchahead import agent, observability as obs, paths, scenarios  # noqa: E402
 
 app = FastAPI(title="PatchAhead", docs_url=None, redoc_url=None)
 
@@ -56,11 +56,18 @@ def index():
         return HTMLResponse(f.read())
 
 
+@app.get("/api/scenarios")
+def list_scenarios():
+    return JSONResponse([{"id": s.id, "label": s.label} for s in scenarios.SCENARIOS.values()])
+
+
 @app.post("/api/run")
-def run():
-    agent.reset_demo()
-    report = agent.run()
-    return JSONResponse(_report_payload(report))
+def run(scenario: str = scenarios.DEFAULT):
+    agent.reset_demo(scenario)
+    report = agent.run(scenario)
+    payload = _report_payload(report)
+    payload["scenario"] = scenarios.get(scenario).id
+    return JSONResponse(payload)
 
 
 @app.get("/api/report")

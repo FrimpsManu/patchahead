@@ -14,10 +14,11 @@ from patchahead import paths
 from patchahead.schemas import TestRun
 
 
-def run_tests(api_version: str = "v2") -> TestRun:
+def run_tests(api_version: str = "v2", test_path=None) -> TestRun:
     env = dict(os.environ)
     env["ORDERS_API_VERSION"] = api_version
-    cmd = [sys.executable, "-m", "pytest", str(paths.TEST_PATH), "-q", "--no-header",
+    target = str(test_path) if test_path else str(paths.TEST_PATH)
+    cmd = [sys.executable, "-m", "pytest", target, "-q", "--no-header",
            "-p", "no:cacheprovider"]
 
     start = time.time()

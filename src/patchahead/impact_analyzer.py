@@ -21,6 +21,19 @@ _PATTERNS = {
 }
 
 
+def _patterns_for(breaking_change: BreakingChange):
+    if breaking_change.change_type in ("field_rename", "method_rename"):
+        old_symbol = breaking_change.old_symbol or "total"
+        s = re.escape(old_symbol)
+        # quoted access ("total" / 'total'), attribute access (.total), get("total")
+        return [
+            rf'["\']{s}["\']',
+            rf"\.{s}\b",
+            rf'get\(\s*["\']{s}["\']',
+        ]
+    return _PATTERNS.get(breaking_change.change_type, [])
+
+
 def _enclosing_function(lines, idx):
     for j in range(idx, -1, -1):
         m = re.match(r"\s*def\s+(\w+)\s*\(", lines[j])
@@ -30,7 +43,7 @@ def _enclosing_function(lines, idx):
 
 
 def analyze(breaking_change: BreakingChange, app_dir: Path) -> ImpactReport:
-    patterns = _PATTERNS.get(breaking_change.change_type, [])
+    patterns = _patterns_for(breaking_change)
     affected_files, affected_functions, matches = [], [], []
 
     for py in sorted(Path(app_dir).glob("*.py")):
@@ -50,9 +63,9 @@ def analyze(breaking_change: BreakingChange, app_dir: Path) -> ImpactReport:
 
     confidence = min(1.0, 0.4 + 0.15 * len(matches)) if matches else 0.0
     reason = (
-        f"Found {len(matches)} usage(s) of the removed page-based contract "
-        f"({breaking_change.change_type}). The sync loop reads fields that no "
-        f"longer exist in the new response."
+        f"Found {len(matches)} usage(s) of the old contract "
+        f"({breaking_change.change_type}). The affected code reads fields or "
+        f"calls that the new upstream response no longer provides."
         if matches
         else "No affected usage found."
     )

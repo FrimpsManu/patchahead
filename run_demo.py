@@ -17,7 +17,7 @@ import sys
 ROOT = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(ROOT, "src"))
 
-from patchahead import agent, observability as obs, test_runner  # noqa: E402
+from patchahead import agent, observability as obs, scenarios, test_runner  # noqa: E402
 
 NOCOLOR = bool(os.environ.get("NO_COLOR"))
 
@@ -59,28 +59,30 @@ def banner():
     print(bold("  └" + "─" * 56 + "┘"))
 
 
-def main():
-    banner()
+def run_one(scenario_id):
+    sc = scenarios.get(scenario_id)
+    print()
+    print(bold(cyan(f"  ▶ scenario: {sc.label}  ")) + c(f"[{sc.id}]", "90"))
 
     # ---- 1. Baseline: original code works against upstream v1 --------------
-    agent.reset_demo()
+    agent.reset_demo(sc.id)
     header(1, "Downstream tests pass against upstream v1")
-    v1 = test_runner.run_tests(api_version="v1")
+    v1 = test_runner.run_tests(api_version="v1", test_path=sc.test_path)
     print("    " + (green("PASS") if v1.passed else red("FAIL")) + f"  {v1.summary}")
-    print(f"    {c('orders synced via page/total_pages — all good on v1', '90')}")
+    print(f"    {c('original code works against the v1 contract', '90')}")
 
     # ---- 2..5 run the agent against v2 -------------------------------------
-    agent.reset_demo()
+    agent.reset_demo(sc.id)
     print()
     print("    " + c("running PatchAhead agent (instrumented)…", "90"))
-    report = agent.run()
+    report = agent.run(sc.id)
     bc, impact, patch = report.breaking_change, report.impact, report.patch
 
     header(2, "Upstream ships v2 — the same tests now fail")
     print("    " + red("FAIL") + f"  {report.tests_before.summary}")
     for t in report.tests_before.failing_tests[:3]:
         print(f"    {red('✗')} {t}")
-    print(f"    {c('downstream still reads page/total_pages, which v2 removed', '90')}")
+    print(f"    {c('downstream still uses the v1 contract, which v2 changed', '90')}")
 
     header(3, "PatchAhead analyzes the breaking change")
     print(f"    change_type : {yellow(bc.change_type)}    risk : {yellow(bc.risk_level)}")
@@ -120,8 +122,25 @@ def main():
     print()
     verdict = green("✔ DEMO PASSED") if report.succeeded else red("✘ DEMO DID NOT REACH GREEN")
     print(bold(verdict) + c("   (failed on v2 → patched → passed on v2)", "90"))
-    print()
+    agent.reset_demo(sc.id)
     return 0 if report.succeeded else 1
+
+
+def main():
+    banner()
+    arg = sys.argv[1] if len(sys.argv) > 1 else scenarios.DEFAULT
+    if arg == "all":
+        ids = list(scenarios.SCENARIOS.keys())
+    elif arg in scenarios.SCENARIOS:
+        ids = [arg]
+    else:
+        print(red(f"unknown scenario '{arg}'. options: ") + ", ".join(scenarios.SCENARIOS) + ", all")
+        return 2
+    code = 0
+    for sid in ids:
+        code |= run_one(sid)
+    print()
+    return code
 
 
 if __name__ == "__main__":

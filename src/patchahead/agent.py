@@ -15,25 +15,28 @@ from patchahead import (
     patch_generator,
     paths,
     pr_summary,
+    scenarios,
     test_runner,
 )
 from patchahead.schemas import MigrationReport
 
 
-def reset_demo():
-    """Restore the downstream file to its original (broken-on-v2) state."""
-    paths.ORDER_SYNC_FILE.write_text(paths.BASELINE_FILE.read_text())
+def reset_demo(scenario_id: str = scenarios.DEFAULT):
+    """Restore a scenario's downstream file to its original (broken-on-v2) state."""
+    sc = scenarios.get(scenario_id)
+    sc.target_file.write_text(sc.baseline_file.read_text())
 
 
-def run() -> MigrationReport:
+def run(scenario_id: str = scenarios.DEFAULT) -> MigrationReport:
     paths.OUTPUTS.mkdir(parents=True, exist_ok=True)
+    sc = scenarios.get(scenario_id)
 
     with obs.transaction("patchahead.migration_run") as txn:
         with obs.span("parse_changelog"):
-            bc = changelog_parser.parse(paths.CHANGELOG_FILE.read_text())
+            bc = changelog_parser.parse(sc.changelog_file.read_text())
 
         with obs.span("run_tests_before", api="v2"):
-            before = test_runner.run_tests(api_version="v2")
+            before = test_runner.run_tests(api_version="v2", test_path=sc.test_path)
 
         with obs.span("analyze_impact"):
             impact = impact_analyzer.analyze(bc, paths.DOWNSTREAM_APP_DIR)
@@ -49,7 +52,7 @@ def run() -> MigrationReport:
             paths.PATCH_FILE.write_text(patch.diff)
 
         with obs.span("run_tests_after", api="v2"):
-            after = test_runner.run_tests(api_version="v2")
+            after = test_runner.run_tests(api_version="v2", test_path=sc.test_path)
 
         with obs.span("generate_pr_summary"):
             summary_md = pr_summary.render(bc, impact, patch, before, after)
@@ -74,6 +77,7 @@ def run() -> MigrationReport:
 
         obs.set_tags(
             txn,
+            scenario=sc.id,
             change_type=bc.change_type,
             risk_level=bc.risk_level,
             tests_before="pass" if before.passed else "fail",

@@ -6,16 +6,16 @@ Syncs ALL orders from the upstream Orders API. Written against the v1
 
 
 def sync_all_orders(api_client):
-    cursor = None
+    page = 1
     all_orders = []
 
     while True:
-        response = api_client.get_orders(cursor=cursor)
+        response = api_client.get_orders(page=page)
         all_orders.extend(response["orders"])
 
-        if not response.get("has_more"):
+        if page >= response["total_pages"]:
             break
 
-        cursor = response.get("next_cursor")
+        page += 1
 
     return all_orders

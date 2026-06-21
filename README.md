@@ -49,8 +49,10 @@ PatchAhead:
 
 ```bash
 pip install -r requirements.txt
-python run_demo.py        # the full story, end-to-end, ~1s, offline
-python evals/run_evals.py # classifier evals
+python run_demo.py            # pagination scenario (default), ~1s, offline
+python run_demo.py field_rename   # a different change type, same pipeline
+python run_demo.py all            # run every scenario back to back
+python evals/run_evals.py     # classifier evals
 ```
 
 Artifacts land in `outputs/`: `patch.diff`, `pr_summary.md`, `run_log.json`.
@@ -141,11 +143,15 @@ page→cursor migration before"). Degrades to an in-process seed list otherwise.
 
 ## Scope & honest claims
 
-- For the hackathon we implemented one realistic breaking-change scenario:
-  **page-based → cursor-based pagination.**
-- The architecture generalizes to OpenAPI diffs, SDK changelogs, and
-  integration-test failures (the classifier already handles field/method
-  renames; see `evals/`).
+- We implemented **two** breaking-change types end to end through the same
+  pipeline: **page-based → cursor-based pagination** and a **field rename**
+  (`total` → `amount`). Both are real `python run_demo.py` scenarios and are
+  selectable in the dashboard.
+- Adding a change type is data, not new control flow (see `scenarios.py`): point
+  at a changelog, a baseline file, the file to patch, and a test.
+- The architecture generalizes further to OpenAPI diffs, SDK changelogs, and
+  integration-test failures (the classifier also recognizes method renames and
+  endpoint changes; see `evals/`).
 - PatchAhead does not auto-merge. The LLM proposes, tests verify, humans approve.
 
 ---

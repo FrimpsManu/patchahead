@@ -76,6 +76,52 @@ def _llm_function_body(breaking_change, old_source):
 
 
 def generate(breaking_change: BreakingChange, impact: ImpactReport) -> PatchResult:
+    if breaking_change.change_type in ("field_rename", "method_rename"):
+        return _rename_patch(breaking_change, impact)
+    return _pagination_patch(breaking_change, impact)
+
+
+def _rename_patch(breaking_change: BreakingChange, impact: ImpactReport) -> PatchResult:
+    """Rename a symbol (e.g. a field) across the affected file."""
+    if not impact.affected_files:
+        raise ValueError(
+            f"No affected files found for rename `{breaking_change.old_symbol}` -> `{breaking_change.new_symbol}`"
+        )
+
+    target = Path(impact.affected_files[0])
+    old_source = target.read_text()
+    old_sym = breaking_change.old_symbol or "total"
+    new_sym = breaking_change.new_symbol or "amount"
+
+    # Only rewrite quoted accesses ("total"/'total') and attribute access (.total)
+    # so we never touch unrelated identifiers like `total_revenue` or `totals`.
+    new_source = old_source
+    for pat, repl in (
+        (rf'"{re.escape(old_sym)}"', f'"{new_sym}"'),
+        (rf"'{re.escape(old_sym)}'", f"'{new_sym}'"),
+        (rf"\.{re.escape(old_sym)}\b", f".{new_sym}"),
+    ):
+        new_source = re.sub(pat, repl, new_source)
+
+    diff = _unified(old_source, new_source, target.name)
+    explanation = (
+        f"Renamed every reference to the `{old_sym}` field to `{new_sym}` in the "
+        f"affected file. Only quoted/attribute accesses were changed; unrelated "
+        f"identifiers were left untouched. No signatures changed."
+    )
+
+    return PatchResult(
+        diff=diff,
+        files_changed=[str(target)],
+        patch_explanation=explanation,
+        risk_level=breaking_change.risk_level,
+        new_contents={str(target): new_source},
+        source="deterministic",
+        fallback_used=False,
+    )
+
+
+def _pagination_patch(breaking_change: BreakingChange, impact: ImpactReport) -> PatchResult:
     target = Path(impact.affected_files[0])
     old_source = target.read_text()
     func = impact.affected_functions[0] if impact.affected_functions else "sync_all_orders"
@@ -94,14 +140,7 @@ def generate(breaking_change: BreakingChange, impact: ImpactReport) -> PatchResu
         new_source, ok = _replace_function(old_source, func, _CURSOR_BODY)
         fallback_used = True
 
-    diff = "".join(
-        difflib.unified_diff(
-            old_source.splitlines(keepends=True),
-            new_source.splitlines(keepends=True),
-            fromfile=f"a/{target.name}",
-            tofile=f"b/{target.name}",
-        )
-    )
+    diff = _unified(old_source, new_source, target.name)
 
     explanation = (
         "Rewrote the pagination loop in `sync_all_orders` to use cursor-based "
@@ -117,6 +156,17 @@ def generate(breaking_change: BreakingChange, impact: ImpactReport) -> PatchResu
         new_contents={str(target): new_source},
         source="llm" if (llm.enabled() and not fallback_used) else "deterministic",
         fallback_used=fallback_used,
+    )
+
+
+def _unified(old_source: str, new_source: str, name: str) -> str:
+    return "".join(
+        difflib.unified_diff(
+            old_source.splitlines(keepends=True),
+            new_source.splitlines(keepends=True),
+            fromfile=f"a/{name}",
+            tofile=f"b/{name}",
+        )
     )
 
 

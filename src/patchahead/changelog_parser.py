@@ -64,6 +64,12 @@ def parse(changelog_text: str) -> BreakingChange:
         source="deterministic",
     )
 
+    # For rename-type changes, pull `old` -> `new` symbols from the notes.
+    if change_type in ("field_rename", "method_rename"):
+        m = re.search(r"`(\w+)`\s*(?:->|→)\s*`(\w+)`", changelog_text)
+        if m:
+            bc.old_symbol, bc.new_symbol = m.group(1), m.group(2)
+
     # Optional Claude enrichment (never changes structure on failure).
     text = llm.complete(
         system="You summarize one upstream API breaking change in <=2 sentences. Plain text only.",
