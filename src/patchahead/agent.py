@@ -53,7 +53,7 @@ def run() -> MigrationReport:
 
         with obs.span("generate_pr_summary"):
             summary_md = pr_summary.render(bc, impact, patch, before, after)
-            paths.PR_SUMMARY_FILE.write_text(summary_md)
+            paths.PR_SUMMARY_FILE.write_text(summary_md, encoding="utf-8")
 
         with obs.span("persist_memory"):
             memory.remember(bc)
