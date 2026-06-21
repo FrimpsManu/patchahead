@@ -1,0 +1,7 @@
+# Core (required for the deterministic golden demo)
+pytest>=7.0
+
+# Optional — enable richer features. The demo runs fully without these.
+#   pip install anthropic     # Claude reasoning / patch generation  (PATCHAHEAD_USE_LLM=1)
+#   pip install sentry-sdk    # Sentry tracing of the agent workflow  (SENTRY_DSN=...)
+#   pip install redis         # similar-migration memory             (REDIS_URL=...)

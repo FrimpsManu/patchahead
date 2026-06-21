@@ -1,0 +1,5 @@
+{
+  "name": "pagination_change",
+  "changelog": "### Pagination is now cursor-based\nThe endpoint moved from page-based pagination. **Before:** page and total_pages. **After:** cursor, next_cursor, has_more. total_pages was removed.",
+  "expected_change_type": "pagination"
+}

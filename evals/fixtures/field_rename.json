@@ -1,0 +1,5 @@
+{
+  "name": "field_rename",
+  "changelog": "### Customer field renamed\nThe field renamed `name` -> `full_name` on the customer object. Update any code reading `customer.name`.",
+  "expected_change_type": "field_rename"
+}

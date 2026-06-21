@@ -1,0 +1,5 @@
+{
+  "name": "method_migration",
+  "changelog": "### Client method renamed\nThe method renamed `fetch_orders()` to `list_orders()`. The deprecated method was removed in v2.",
+  "expected_change_type": "method_rename"
+}

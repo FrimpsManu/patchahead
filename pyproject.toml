@@ -1,0 +1,18 @@
+[project]
+name = "patchahead"
+version = "0.1.0"
+description = "Fix breaking API changes before they break production."
+requires-python = ">=3.10"
+dependencies = ["pytest>=7.0"]
+
+[project.optional-dependencies]
+llm = ["anthropic>=0.40"]
+observability = ["sentry-sdk>=2.0"]
+memory = ["redis>=5.0"]
+
+[tool.pytest.ini_options]
+addopts = "-q --no-header -p no:cacheprovider"
+testpaths = ["demo/downstream/tests"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
