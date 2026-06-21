@@ -5,3 +5,4 @@ pytest>=7.0
 #   pip install anthropic     # Claude reasoning / patch generation  (PATCHAHEAD_USE_LLM=1)
 #   pip install sentry-sdk    # Sentry tracing of the agent workflow  (SENTRY_DSN=...)
 #   pip install redis         # similar-migration memory             (REDIS_URL=...)
+#   pip install fastapi uvicorn   # web dashboard  (python web/server.py)

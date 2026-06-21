@@ -55,6 +55,18 @@ python evals/run_evals.py # classifier evals
 
 Artifacts land in `outputs/`: `patch.diff`, `pr_summary.md`, `run_log.json`.
 
+### Web dashboard (demo UI)
+
+```bash
+pip install fastapi uvicorn
+python web/server.py        # -> http://127.0.0.1:8000
+```
+
+Press **Run migration**. The dashboard runs the real agent and shows the
+pipeline (parse → test → analyze → patch → test → PR), the live red→green
+test flip, the unified diff, the span waterfall, and the reviewable PR — the
+same workflow as the CLI, in one screen for judges.
+
 ---
 
 ## The five questions, answered by the product (not the pitch)

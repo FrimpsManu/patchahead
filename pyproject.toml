@@ -9,6 +9,7 @@ dependencies = ["pytest>=7.0"]
 llm = ["anthropic>=0.40"]
 observability = ["sentry-sdk>=2.0"]
 memory = ["redis>=5.0"]
+web = ["fastapi>=0.110", "uvicorn>=0.29"]
 
 [tool.pytest.ini_options]
 addopts = "-q --no-header -p no:cacheprovider"

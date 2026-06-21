@@ -26,6 +26,14 @@ _GREY = "\033[90m"
 _RESET = "\033[0m"
 _NOCOLOR = bool(os.environ.get("NO_COLOR"))
 
+# In-memory waterfall of the most recent run, so any surface (CLI, web
+# dashboard) can show the trace even when no Sentry DSN is configured.
+_RECORDED = []
+
+
+def recorded_spans():
+    return list(_RECORDED)
+
 
 def _c(text, code=_GREY):
     if _NOCOLOR:
@@ -45,6 +53,7 @@ def backend():
 @contextlib.contextmanager
 def transaction(name="patchahead.migration_run", **tags):
     init()
+    _RECORDED.clear()
     if ENABLED:
         with sentry_sdk.start_transaction(op="task", name=name) as txn:
             for k, v in tags.items():
@@ -58,20 +67,22 @@ def transaction(name="patchahead.migration_run", **tags):
 @contextlib.contextmanager
 def span(name, **data):
     start = time.time()
-    if ENABLED:
-        with sentry_sdk.start_span(op="patchahead.step", description=name) as sp:
-            for k, v in data.items():
-                sp.set_data(k, v)
-            try:
-                yield sp
-            except Exception as exc:
-                sentry_sdk.capture_exception(exc)
-                raise
-    else:
-        try:
+    try:
+        if ENABLED:
+            with sentry_sdk.start_span(op="patchahead.step", description=name) as sp:
+                for k, v in data.items():
+                    sp.set_data(k, v)
+                try:
+                    yield sp
+                except Exception as exc:
+                    sentry_sdk.capture_exception(exc)
+                    raise
+        else:
             yield None
-        finally:
-            dur = int((time.time() - start) * 1000)
+    finally:
+        dur = int((time.time() - start) * 1000)
+        _RECORDED.append({"name": name, "ms": dur})
+        if not ENABLED:
             print(_c(f"    ↪ span {name:<22} {dur:>5} ms"))
 
 
