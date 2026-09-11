@@ -47,7 +47,6 @@ jobs:
         run: ruff check src tests evals
       - name: ruff format --check
         run: ruff format --check src tests evals
-        continue-on-error: true  # advisory until the codebase is fully formatted
 
   evals:
     name: evals
@@ -92,11 +91,17 @@ jobs:
             --no-artifacts
       - name: the example repository must be unchanged afterwards
         run: git diff --exit-code examples/
-      - name: an unsupported change must exit 3
+      - name: an unsupported change must exit 3, not 0
         run: |
           printf '### Orders endpoint moved\n\nThe endpoint moved to /v2/orders.\n' > /tmp/change.md
-          patchahead analyze --repo examples/orders-service --change /tmp/change.md && exit 1
-          test $? -ne 0
+          set +e
+          patchahead analyze --repo examples/orders-service --change /tmp/change.md
+          actual=$?
+          set -e
+          if [ "$actual" -ne 3 ]; then
+            echo "expected exit 3 (unsupported change), got $actual"
+            exit 1
+          fi
 
   package:
     name: packaging

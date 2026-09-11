@@ -41,9 +41,7 @@ class MethodRenameHandler(MigrationHandler):
     def supports(self, change: BreakingChange) -> bool:
         return change.kind in self.kinds and change.target.is_rename
 
-    def analyze(
-        self, change: BreakingChange, index: RepoIndex, config: Config
-    ) -> ImpactReport:
+    def analyze(self, change: BreakingChange, index: RepoIndex, config: Config) -> ImpactReport:
         old = change.target.symbol
         owner = base_name(change.target.owner)
         findings: list[ImpactFinding] = []

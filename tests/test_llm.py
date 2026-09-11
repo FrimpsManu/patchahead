@@ -47,7 +47,7 @@ def sync(api, log):
     return out
 '''
 
-MIGRATED = '''def sync(api, log):
+MIGRATED = """def sync(api, log):
     cursor = None
     out = []
     while True:
@@ -57,7 +57,7 @@ MIGRATED = '''def sync(api, log):
         if not r.get("has_more"):
             break
         cursor = r.get("next_cursor")
-    return out'''
+    return out"""
 
 
 class StubClient:
@@ -163,9 +163,7 @@ class TestAcceptedProposals:
     def test_a_valid_proposal_is_applied_and_diffed(self, scene):
         stub = StubClient(
             response(
-                functions=[
-                    {"path": "app/sync.py", "function": "sync", "new_source": MIGRATED}
-                ]
+                functions=[{"path": "app/sync.py", "function": "sync", "new_source": MIGRATED}]
             )
         )
 
@@ -211,9 +209,7 @@ class TestRejectedProposals:
     def test_a_file_outside_the_impact_report_is_refused(self, scene):
         stub = StubClient(
             response(
-                functions=[
-                    {"path": "app/other.py", "function": "sync", "new_source": MIGRATED}
-                ]
+                functions=[{"path": "app/other.py", "function": "sync", "new_source": MIGRATED}]
             )
         )
 
@@ -224,9 +220,7 @@ class TestRejectedProposals:
     def test_a_function_it_was_not_given_is_refused(self, scene):
         stub = StubClient(
             response(
-                functions=[
-                    {"path": "app/sync.py", "function": "other", "new_source": MIGRATED}
-                ]
+                functions=[{"path": "app/sync.py", "function": "other", "new_source": MIGRATED}]
             )
         )
 
@@ -236,9 +230,7 @@ class TestRejectedProposals:
         """The prototype's exact failure mode, now a hard rejection."""
         renamed = MIGRATED.replace("def sync(", "def sync_all_orders(")
         stub = StubClient(
-            response(
-                functions=[{"path": "app/sync.py", "function": "sync", "new_source": renamed}]
-            )
+            response(functions=[{"path": "app/sync.py", "function": "sync", "new_source": renamed}])
         )
 
         result = propose(scene, stub)
@@ -249,9 +241,7 @@ class TestRejectedProposals:
     def test_a_changed_signature_is_refused(self, scene):
         changed = MIGRATED.replace("def sync(api, log):", "def sync(api):")
         stub = StubClient(
-            response(
-                functions=[{"path": "app/sync.py", "function": "sync", "new_source": changed}]
-            )
+            response(functions=[{"path": "app/sync.py", "function": "sync", "new_source": changed}])
         )
 
         assert "changed the function signature" in propose(scene, stub).error
@@ -270,9 +260,7 @@ class TestRejectedProposals:
     def test_extra_top_level_statements_are_refused(self, scene):
         sneaky = MIGRATED + "\n\n\nimport os\nos.system('echo hi')\n"
         stub = StubClient(
-            response(
-                functions=[{"path": "app/sync.py", "function": "sync", "new_source": sneaky}]
-            )
+            response(functions=[{"path": "app/sync.py", "function": "sync", "new_source": sneaky}])
         )
 
         result = propose(scene, stub)

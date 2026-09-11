@@ -169,8 +169,7 @@ class StructuredChangeParser(ChangeParser):
         for entry in entries:
             if not isinstance(entry, dict):
                 raise IngestError(
-                    f"{document.path}: each change must be an object, got "
-                    f"{type(entry).__name__}"
+                    f"{document.path}: each change must be an object, got {type(entry).__name__}"
                 )
             changes.append(change_from_mapping(entry, document.path, self.name))
 

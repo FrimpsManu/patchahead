@@ -21,7 +21,10 @@ class TestClassification:
     @pytest.mark.parametrize(
         "text, expected",
         [
-            ("### Pagination is now cursor-based\nUse `next_cursor` and `has_more`.", ChangeKind.PAGINATION_PAGE_TO_CURSOR),
+            (
+                "### Pagination is now cursor-based\nUse `next_cursor` and `has_more`.",
+                ChangeKind.PAGINATION_PAGE_TO_CURSOR,
+            ),
             ("### Field renamed\nThe field renamed `total` -> `amount`.", ChangeKind.FIELD_RENAME),
             ("### Method renamed\nThe method renamed `a` -> `b`.", ChangeKind.METHOD_RENAME),
             ("### Arg\nThe keyword argument `x` was renamed to `y`.", ChangeKind.KWARG_RENAME),
@@ -92,7 +95,9 @@ class TestSymbolExtraction:
         assert "could not extract" in change.classification_reason
 
     def test_strips_a_receiver_prefix_from_the_symbol(self):
-        change = parse_text("### Field renamed\nThe field renamed `customer.name` -> `full_name`.")[0]
+        change = parse_text("### Field renamed\nThe field renamed `customer.name` -> `full_name`.")[
+            0
+        ]
 
         assert change.target.symbol == "name"
 

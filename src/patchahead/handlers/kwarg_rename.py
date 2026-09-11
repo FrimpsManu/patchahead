@@ -43,9 +43,7 @@ class KwargRenameHandler(MigrationHandler):
     def supports(self, change: BreakingChange) -> bool:
         return change.kind in self.kinds and change.target.is_rename
 
-    def analyze(
-        self, change: BreakingChange, index: RepoIndex, config: Config
-    ) -> ImpactReport:
+    def analyze(self, change: BreakingChange, index: RepoIndex, config: Config) -> ImpactReport:
         old = change.target.symbol
         # For this family the owner is the *called function*, not a receiver.
         target_function = change.target.owner.rsplit(".", 1)[-1]
@@ -58,9 +56,7 @@ class KwargRenameHandler(MigrationHandler):
                 if keyword_range is None:
                     continue
 
-                confidence, reason, patchable, blocked = self._grade(
-                    call.name, target_function
-                )
+                confidence, reason, patchable, blocked = self._grade(call.name, target_function)
                 receiver = f"{call.receiver}." if call.receiver else ""
                 findings.append(
                     ImpactFinding(
@@ -92,9 +88,7 @@ class KwargRenameHandler(MigrationHandler):
             skipped_files=dict(index.skipped),
         )
 
-    def _grade(
-        self, called: str, target_function: str
-    ) -> tuple[Confidence, str, bool, str]:
+    def _grade(self, called: str, target_function: str) -> tuple[Confidence, str, bool, str]:
         if target_function and called == target_function:
             return (
                 Confidence.HIGH,

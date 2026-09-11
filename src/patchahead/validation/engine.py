@@ -84,9 +84,7 @@ class ValidationEngine:
         result = ValidationResult()
 
         result.gates.append(self._syntax_gate(proposal, workspace))
-        result.gates.append(
-            self._scope_gate(proposal, workspace, options.preexisting_changes)
-        )
+        result.gates.append(self._scope_gate(proposal, workspace, options.preexisting_changes))
 
         # Do not execute repository code if the patch is already known bad.
         if any(gate.failed for gate in result.gates):
@@ -96,9 +94,7 @@ class ValidationEngine:
                 GateName.REGRESSION_TESTS,
                 GateName.MIGRATION_ASSERTION,
             ):
-                result.gates.append(
-                    GateResult(name=name, status=GateStatus.SKIPPED, detail=reason)
-                )
+                result.gates.append(GateResult(name=name, status=GateStatus.SKIPPED, detail=reason))
             return result
 
         if not options.run_tests:
@@ -108,9 +104,7 @@ class ValidationEngine:
                 GateName.REGRESSION_TESTS,
                 GateName.MIGRATION_ASSERTION,
             ):
-                result.gates.append(
-                    GateResult(name=name, status=GateStatus.SKIPPED, detail=reason)
-                )
+                result.gates.append(GateResult(name=name, status=GateStatus.SKIPPED, detail=reason))
             return result
 
         command = options.test_command or self.config.test_command
@@ -207,8 +201,7 @@ class ValidationEngine:
                 name=GateName.SCOPE,
                 status=GateStatus.FAILED,
                 detail=(
-                    f"{len(actual)} files changed, above the `max_changed_files` "
-                    f"limit of {limit}"
+                    f"{len(actual)} files changed, above the `max_changed_files` limit of {limit}"
                 ),
                 duration_ms=duration,
             )
@@ -230,8 +223,7 @@ class ValidationEngine:
             name=GateName.SCOPE,
             status=GateStatus.PASSED,
             detail=(
-                f"{len(actual)} file(s) changed, all named by the plan; "
-                f"{diff_lines} diff line(s)"
+                f"{len(actual)} file(s) changed, all named by the plan; {diff_lines} diff line(s)"
             ),
             duration_ms=duration,
         )
@@ -376,9 +368,7 @@ class ValidationEngine:
 
     # -- gate 5: migration assertion --------------------------------------
 
-    def _assertion_gate(
-        self, targeted: GateResult, baseline: TestRun | None
-    ) -> GateResult:
+    def _assertion_gate(self, targeted: GateResult, baseline: TestRun | None) -> GateResult:
         """Did the specific breakage actually get fixed?
 
         Requires evidence on both sides: the targeted tests failed before, and

@@ -161,6 +161,7 @@ def _is_increment(node: ast.AST, name: str) -> bool:
 
 def _functions(tree: ast.Module):
     """Every function definition, with its dotted name."""
+
     def walk(node: ast.AST, prefix: list[str]):
         for child in ast.iter_child_nodes(node):
             if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
@@ -248,7 +249,7 @@ def _match_loop(
     if guard is None:
         return None, (
             f"found a `{contract.page_param}=` paginated call but no `if ...: break` "
-            f"guarded by `{response_var}[\"{contract.total_pages_key}\"]`, so the loop's "
+            f'guarded by `{response_var}["{contract.total_pages_key}"]`, so the loop\'s '
             f"termination condition could not be identified"
         )
 
@@ -358,9 +359,7 @@ class PaginationHandler(MigrationHandler):
         "per change document). It cannot verify that from the code.",
     )
 
-    def analyze(
-        self, change: BreakingChange, index: RepoIndex, config: Config
-    ) -> ImpactReport:
+    def analyze(self, change: BreakingChange, index: RepoIndex, config: Config) -> ImpactReport:
         contract = change.pagination
         findings: list[ImpactFinding] = []
 
@@ -380,7 +379,7 @@ class PaginationHandler(MigrationHandler):
                         symbol=loop.symbol,
                         matched_contract=(
                             f"while True: ... {contract.page_param}={loop.page_var} ... "
-                            f"{loop.response_var}[\"{contract.total_pages_key}\"] ... "
+                            f'{loop.response_var}["{contract.total_pages_key}"] ... '
                             f"{loop.page_var} += 1"
                         ),
                         access=AccessKind.PAGE_LOOP,
@@ -419,9 +418,7 @@ class PaginationHandler(MigrationHandler):
             for access in module.subscripts + module.get_calls:  # type: ignore[operator]
                 if access.key != contract.total_pages_key:
                     continue
-                if any(
-                    abs(access.range.line - line) < 12 for line in migratable_lines
-                ):
+                if any(abs(access.range.line - line) < 12 for line in migratable_lines):
                     continue  # already covered by a migratable loop
                 findings.append(
                     ImpactFinding(
@@ -435,8 +432,7 @@ class PaginationHandler(MigrationHandler):
                         ),
                         symbol=access.symbol,
                         matched_contract=(
-                            f'{access.receiver or "<expr>"}'
-                            f'["{contract.total_pages_key}"]'
+                            f'{access.receiver or "<expr>"}["{contract.total_pages_key}"]'
                         ),
                         access=AccessKind.SUBSCRIPT,
                         reason=(
@@ -510,16 +506,14 @@ class PaginationHandler(MigrationHandler):
                     ),
                     (
                         loop.guard_range,
-                        f"{loop.page_var} ... {loop.response_var}"
-                        f'["{contract.total_pages_key}"]',
+                        f'{loop.page_var} ... {loop.response_var}["{contract.total_pages_key}"]',
                         f'not {loop.response_var}.get("{contract.has_more_key}")',
                         "terminate on has_more instead of the page count",
                     ),
                     (
                         loop.advance_range,
                         f"{loop.page_var} += 1",
-                        f'{cursor_var} = {loop.response_var}.get'
-                        f'("{contract.next_cursor_key}")',
+                        f'{cursor_var} = {loop.response_var}.get("{contract.next_cursor_key}")',
                         "advance by cursor instead of incrementing the page",
                     ),
                 ]
@@ -557,14 +551,11 @@ class PaginationHandler(MigrationHandler):
                 )
 
         if not plan.transformations:
-            plan.blocked_reason = (
-                "no pagination loop matching the supported shape was found. "
-                + (
-                    "PatchAhead found page-based code it could not safely rewrite; "
-                    "see the skipped list for why, and consider `--use-llm`."
-                    if report.findings
-                    else "No page-based pagination was found in this repository."
-                )
+            plan.blocked_reason = "no pagination loop matching the supported shape was found. " + (
+                "PatchAhead found page-based code it could not safely rewrite; "
+                "see the skipped list for why, and consider `--use-llm`."
+                if report.findings
+                else "No page-based pagination was found in this repository."
             )
         return plan
 

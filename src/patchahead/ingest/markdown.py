@@ -129,9 +129,34 @@ _BOLD_FIELD = re.compile(r"\*\*(?P<label>[A-Za-z][\w /-]*?)\s*:?\*\*[:\s]*(?P<va
 _RISK = re.compile(r"risk:?\s*(high|medium|low)", re.IGNORECASE)
 
 _STOPWORDS = {
-    "the", "a", "an", "is", "was", "were", "to", "from", "in", "on", "of",
-    "and", "or", "now", "new", "old", "this", "that", "it", "be", "been",
-    "before", "after", "migration", "risk", "breaking", "change", "changes",
+    "the",
+    "a",
+    "an",
+    "is",
+    "was",
+    "were",
+    "to",
+    "from",
+    "in",
+    "on",
+    "of",
+    "and",
+    "or",
+    "now",
+    "new",
+    "old",
+    "this",
+    "that",
+    "it",
+    "be",
+    "been",
+    "before",
+    "after",
+    "migration",
+    "risk",
+    "breaking",
+    "change",
+    "changes",
 }
 
 
@@ -264,9 +289,7 @@ def _extract_rename(text: str, kind: ChangeKind = ChangeKind.UNKNOWN) -> tuple[s
     """
     # (notation priority, position, old, new)
     candidates: list[tuple[int, int, str, str]] = []
-    for priority, pattern in enumerate(
-        (_ARROW_RENAME, _RENAMED_TO, _TO_RENAME, _NOUN_RENAME)
-    ):
+    for priority, pattern in enumerate((_ARROW_RENAME, _RENAMED_TO, _TO_RENAME, _NOUN_RENAME)):
         for match in pattern.finditer(text):
             old, new = match.group("old"), match.group("new")
             if old.lower() in _STOPWORDS or new.lower() in _STOPWORDS:
@@ -313,9 +336,7 @@ def _extract_owner(text: str, symbol: str, kind: ChangeKind) -> str:
         if match:
             return match.group(1)
         # "the `timeout_seconds` keyword argument on `fetch_orders`"
-        match = re.search(
-            rf"`{escaped}`[^`\n]{{0,60}}?\bon\s+`(\w+)`", text, re.IGNORECASE
-        )
+        match = re.search(rf"`{escaped}`[^`\n]{{0,60}}?\bon\s+`(\w+)`", text, re.IGNORECASE)
         if match:
             return match.group(1)
         return ""
@@ -352,8 +373,14 @@ def _extract_labeled(text: str, *labels: str) -> str:
 def _collect_evidence(section: _Section, kind: ChangeKind, symbol: str) -> list[Evidence]:
     """Quote the lines that justify the classification, with line numbers."""
     interesting = [
-        "renamed", "removed", "migration", "breaking", "deprecated",
-        "before", "after", "instead of",
+        "renamed",
+        "removed",
+        "migration",
+        "breaking",
+        "deprecated",
+        "before",
+        "after",
+        "instead of",
     ]
     if symbol:
         interesting.append(symbol.lower())
@@ -433,8 +460,7 @@ def parse_section(section: _Section, source: str = "markdown") -> BreakingChange
 
     if kind.is_actionable and kind is not ChangeKind.PAGINATION_PAGE_TO_CURSOR and not old:
         reason = (
-            f"{reason}; could not extract the old and new names, so no migration "
-            f"can be planned"
+            f"{reason}; could not extract the old and new names, so no migration can be planned"
         )
 
     change = BreakingChange(

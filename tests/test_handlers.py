@@ -65,7 +65,7 @@ class TestRegistry:
 
 
 class TestFieldRename:
-    SOURCE = '''
+    SOURCE = """
         import logging
 
         LOG_LABEL = "total"
@@ -74,7 +74,7 @@ class TestFieldRename:
             subtotal = df.total
             message = "total"
             return sum(o["total"] for o in orders) + subtotal
-    '''
+    """
 
     def test_only_real_field_accesses_are_found(self, make_index):
         index = make_index({"a.py": self.SOURCE})
@@ -83,8 +83,7 @@ class TestFieldRename:
 
         found = {(f.reference.line, f.access.value) for f in report.findings}
         assert found == {(6, "attribute"), (8, "subscript")}, (
-            "string constants on lines 3 and 7 are not field accesses and must "
-            "never be reported"
+            "string constants on lines 3 and 7 are not field accesses and must never be reported"
         )
 
     def test_attribute_on_an_unrelated_receiver_is_reported_but_not_patched(self, make_index):

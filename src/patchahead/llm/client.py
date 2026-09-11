@@ -54,10 +54,7 @@ def available() -> tuple[bool, str]:
     try:
         import anthropic  # noqa: F401
     except ImportError:
-        return False, (
-            "the `anthropic` package is not installed "
-            "(pip install 'patchahead[llm]')"
-        )
+        return False, ("the `anthropic` package is not installed (pip install 'patchahead[llm]')")
     if not (os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("ANTHROPIC_AUTH_TOKEN")):
         return False, "no ANTHROPIC_API_KEY (or ANTHROPIC_AUTH_TOKEN) is set"
     return True, ""
@@ -126,8 +123,7 @@ class LLMClient:
             details = getattr(message, "stop_details", None)
             category = getattr(details, "category", "") if details else ""
             raise LLMError(
-                "the model declined to answer"
-                + (f" (category: {category})" if category else "")
+                "the model declined to answer" + (f" (category: {category})" if category else "")
             )
 
         text = "".join(

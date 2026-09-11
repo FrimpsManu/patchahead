@@ -218,9 +218,7 @@ class TestMigrationAssertionGate:
     @pytest.mark.slow
     def test_red_to_green_passes_the_assertion(self, workspace):
         workspace.write("app/a.py", "def f():\n    return 999\n")
-        baseline = TestRun(
-            command="c", returncode=1, failing_tests=["tests/test_a.py::test_f"]
-        )
+        baseline = TestRun(command="c", returncode=1, failing_tests=["tests/test_a.py::test_f"])
         proposal = proposal_for(
             workspace,
             "app/a.py",

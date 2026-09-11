@@ -59,9 +59,7 @@ class MigrationHandler(ABC):
         return change.kind in self.kinds
 
     @abstractmethod
-    def analyze(
-        self, change: BreakingChange, index: RepoIndex, config: Config
-    ) -> ImpactReport:
+    def analyze(self, change: BreakingChange, index: RepoIndex, config: Config) -> ImpactReport:
         """Find every use of the old contract, with graded confidence."""
 
     @abstractmethod

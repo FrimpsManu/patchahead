@@ -82,11 +82,17 @@ def build_parser() -> argparse.ArgumentParser:
     verbosity_parent = argparse.ArgumentParser(add_help=False)
     verbosity_group = verbosity_parent.add_mutually_exclusive_group()
     verbosity_group.add_argument(
-        "-v", "--verbose", action="count", default=0,
+        "-v",
+        "--verbose",
+        action="count",
+        default=0,
         help="more detail; repeat (-vv) for debug logging",
     )
     verbosity_group.add_argument(
-        "-q", "--quiet", action="store_true", help="only errors",
+        "-q",
+        "--quiet",
+        action="store_true",
+        help="only errors",
     )
     verbosity_parent.add_argument(
         "--log-level",
@@ -100,19 +106,26 @@ def build_parser() -> argparse.ArgumentParser:
 
     def add_common(sub: argparse.ArgumentParser) -> None:
         sub.add_argument(
-            "--repo", required=True, metavar="PATH",
+            "--repo",
+            required=True,
+            metavar="PATH",
             help="path to the Python repository to analyze",
         )
         sub.add_argument(
-            "--change", required=True, metavar="PATH",
+            "--change",
+            required=True,
+            metavar="PATH",
             help="path to the change document (.md, .txt, .rst, .json, .yaml)",
         )
         sub.add_argument(
-            "--json", action="store_true", dest="as_json",
+            "--json",
+            action="store_true",
+            dest="as_json",
             help="emit machine-readable JSON on stdout instead of text",
         )
         sub.add_argument(
-            "--min-confidence", choices=["high", "medium", "low"],
+            "--min-confidence",
+            choices=["high", "medium", "low"],
             help="lowest finding confidence to act on (default: medium)",
         )
 
@@ -139,11 +152,13 @@ def build_parser() -> argparse.ArgumentParser:
     )
     add_common(migrate)
     migrate.add_argument(
-        "--dry-run", action="store_true",
+        "--dry-run",
+        action="store_true",
         help="stop after planning; do not patch or run tests",
     )
     migrate.add_argument(
-        "--use-llm", action="store_true",
+        "--use-llm",
+        action="store_true",
         help=(
             "when a deterministic migration is not possible, let an LLM propose "
             "one. Sends the affected functions to the Anthropic API. The same "
@@ -151,33 +166,42 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     migrate.add_argument(
-        "--no-tests", action="store_true", dest="no_tests",
+        "--no-tests",
+        action="store_true",
+        dest="no_tests",
         help=(
             "skip the gates that execute your test command. The migration cannot "
             "be verified without them."
         ),
     )
     migrate.add_argument(
-        "--no-diff", action="store_true", help="do not print the diff",
+        "--no-diff",
+        action="store_true",
+        help="do not print the diff",
     )
     migrate.add_argument(
-        "--output-dir", metavar="PATH",
+        "--output-dir",
+        metavar="PATH",
         help="where to write the diff, plan, and result (default: .patchahead)",
     )
     migrate.add_argument(
-        "--no-artifacts", action="store_true",
+        "--no-artifacts",
+        action="store_true",
         help="do not write any files to the output directory",
     )
     migrate.add_argument(
-        "--keep-workspace", action="store_true",
+        "--keep-workspace",
+        action="store_true",
         help="leave the patched temporary copy on disk and print its path",
     )
     migrate.add_argument(
-        "--test-command", metavar="CMD",
+        "--test-command",
+        metavar="CMD",
         help="override the repository's configured test command",
     )
     migrate.add_argument(
-        "--pr-summary", metavar="PATH",
+        "--pr-summary",
+        metavar="PATH",
         help="write a Markdown pull-request summary to this path",
     )
 
@@ -208,9 +232,7 @@ def _resolve_config(args: argparse.Namespace) -> Config:
     config = load_config(Path(args.repo))
     if config.source_path:
         log.debug("using configuration from %s", config.source_path)
-    minimum = (
-        Confidence(args.min_confidence) if getattr(args, "min_confidence", None) else None
-    )
+    minimum = Confidence(args.min_confidence) if getattr(args, "min_confidence", None) else None
     return config.merged_with_cli(
         test_command=getattr(args, "test_command", None),
         output_dir=getattr(args, "output_dir", None),
@@ -219,8 +241,7 @@ def _resolve_config(args: argparse.Namespace) -> Config:
 
 
 def _cmd_handlers(args: argparse.Namespace) -> int:
-    print(f"PatchAhead {__version__} supports {len(handlers.registered())} migration "
-          f"families.\n")
+    print(f"PatchAhead {__version__} supports {len(handlers.registered())} migration families.\n")
     for handler in handlers.registered():
         print(f"  {handler.name}")
         print(f"    {handler.summary}")
@@ -288,9 +309,7 @@ def _cmd_migrate(args: argparse.Namespace) -> int:
         try:
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(
-                "\n\n---\n\n".join(
-                    reporting.render_pr_markdown(result) for result in run.results
-                ),
+                "\n\n---\n\n".join(reporting.render_pr_markdown(result) for result in run.results),
                 encoding="utf-8",
             )
             print(f"pr summary written to {reporting.relative(str(path))}", file=sys.stderr)

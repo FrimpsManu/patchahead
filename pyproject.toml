@@ -33,7 +33,9 @@ llm = ["anthropic>=0.40"]
 yaml = ["PyYAML>=6.0"]
 sentry = ["sentry-sdk>=2.0"]
 web = ["fastapi>=0.110", "uvicorn>=0.29"]
-dev = ["pytest>=7.4", "ruff>=0.6", "build>=1.2"]
+# `httpx2` is what starlette's TestClient needs; without it the web tests
+# error at import rather than skipping, which is not a useful failure.
+dev = ["pytest>=7.4", "ruff>=0.6", "build>=1.2", "httpx2>=0.28"]
 all = [
   "patchahead[llm]",
   "patchahead[yaml]",

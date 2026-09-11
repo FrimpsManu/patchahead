@@ -109,7 +109,5 @@ def run_tests(
         duration_ms=duration,
         errored=errored,
     )
-    log.debug(
-        "test run finished in %dms: rc=%d, %s", duration, completed.returncode, run.summary
-    )
+    log.debug("test run finished in %dms: rc=%d, %s", duration, completed.returncode, run.summary)
     return run

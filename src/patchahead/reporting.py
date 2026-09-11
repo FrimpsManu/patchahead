@@ -82,14 +82,12 @@ def render_change(change: BreakingChange, style: Style) -> list[str]:
     lines = [
         style(change.title, "bold"),
         f"  kind        {style(change.kind.value, 'cyan')}",
-        f"  severity    {change.severity.value}"
-        f"    confidence {change.confidence.value}",
+        f"  severity    {change.severity.value}    confidence {change.confidence.value}",
     ]
     if change.target.is_rename:
         owner = f" on `{change.target.owner}`" if change.target.owner else ""
         lines.append(
-            f"  rename      `{change.target.symbol}` -> "
-            f"`{change.target.replacement}`{owner}"
+            f"  rename      `{change.target.symbol}` -> `{change.target.replacement}`{owner}"
         )
     if change.old_behavior:
         lines.append(f"  before      {change.old_behavior}")
@@ -174,8 +172,7 @@ def render_analysis(result: AnalysisResult, verbose: bool = False, stream=None) 
     if verbose and result.timings:
         lines.append(
             style(
-                "timings: "
-                + ", ".join(f"{k}={v}ms" for k, v in sorted(result.timings.items())),
+                "timings: " + ", ".join(f"{k}={v}ms" for k, v in sorted(result.timings.items())),
                 "dim",
             )
         )
@@ -231,8 +228,7 @@ def render_migration(
     if verbose and result.timings:
         lines.append(
             style(
-                "  timings: "
-                + ", ".join(f"{k}={v}ms" for k, v in sorted(result.timings.items())),
+                "  timings: " + ", ".join(f"{k}={v}ms" for k, v in sorted(result.timings.items())),
                 "dim",
             )
         )
@@ -290,8 +286,7 @@ def render_pr_markdown(result: MigrationResult) -> str:
         "",
         f"- **Kind:** `{change.kind.value}`",
         f"- **Severity:** {change.severity.value}",
-        f"- **Reading confidence:** {change.confidence.value} "
-        f"({change.classification_reason})",
+        f"- **Reading confidence:** {change.confidence.value} ({change.classification_reason})",
     ]
     if change.old_behavior:
         lines.append(f"- **Before:** {change.old_behavior}")
@@ -321,9 +316,7 @@ def render_pr_markdown(result: MigrationResult) -> str:
         unpatched = [f for f in report.findings if not f.patchable]
         if unpatched:
             lines += ["", "**Reported but not changed:**", ""]
-            lines += [
-                f"- `{f.reference}` -- {f.unpatchable_reason or f.reason}" for f in unpatched
-            ]
+            lines += [f"- `{f.reference}` -- {f.unpatchable_reason or f.reason}" for f in unpatched]
     else:
         lines.append("_No affected code was found._")
 
@@ -345,9 +338,7 @@ def render_pr_markdown(result: MigrationResult) -> str:
     if result.validation:
         lines += ["| Gate | Status | Detail |", "|---|---|---|"]
         for gate in result.validation.gates:
-            lines.append(
-                f"| `{gate.name.value}` | {gate.status.value} | {gate.detail} |"
-            )
+            lines.append(f"| `{gate.name.value}` | {gate.status.value} | {gate.detail} |")
     else:
         lines.append("_Validation did not run._")
 

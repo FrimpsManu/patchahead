@@ -76,11 +76,11 @@ class TestScopeTracking:
     def test_methods_get_a_dotted_symbol(self):
         module = analyze_source(
             dedent(
-                '''
+                """
                 class Reporter:
                     def total(self, order):
                         return order["total"]
-                '''
+                """
             ),
             "a.py",
         )
@@ -90,12 +90,12 @@ class TestScopeTracking:
     def test_nested_functions_nest_the_symbol(self):
         module = analyze_source(
             dedent(
-                '''
+                """
                 def outer():
                     def inner(order):
                         return order["total"]
                     return inner
-                '''
+                """
             ),
             "a.py",
         )
@@ -150,12 +150,12 @@ class TestEdits:
 
     def test_preserves_everything_outside_the_edited_range(self):
         source = dedent(
-            '''
+            """
             # a comment
 
             def f(order):   # trailing comment
                 return order["total"]
-            '''
+            """
         )
         patched = apply_edits(source, [TextEdit(4, 17, 4, 24, '"amount"')])
 

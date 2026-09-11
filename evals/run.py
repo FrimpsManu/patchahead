@@ -214,9 +214,7 @@ def run_impact() -> SuiteResult:
 
         handler = handlers.find_handler(change)
         if handler is None:
-            suite.cases.append(
-                CaseResult(case["id"], False, "no handler accepted the change")
-            )
+            suite.cases.append(CaseResult(case["id"], False, "no handler accepted the change"))
             continue
 
         report = handler.analyze(change, index, config)
@@ -312,15 +310,11 @@ def run_migrations() -> SuiteResult:
                 else:
                     problems.append(f"expected success, got {result.outcome.value}")
             elif result.succeeded:
-                problems.append(
-                    f"expected NOT to succeed, but it did ({result.outcome.value})"
-                )
+                problems.append(f"expected NOT to succeed, but it did ({result.outcome.value})")
 
             expected_outcome = case.get("expect_outcome")
             if expected_outcome and result.outcome.value != expected_outcome:
-                problems.append(
-                    f"outcome: expected {expected_outcome}, got {result.outcome.value}"
-                )
+                problems.append(f"outcome: expected {expected_outcome}, got {result.outcome.value}")
 
             # Minimality: text the migration must not have changed. Only
             # added/removed lines count -- a unified diff also carries unchanged
@@ -373,8 +367,7 @@ def render(suites: list[SuiteResult]) -> str:
     for suite in suites:
         status = "PASS" if suite.ok else "FAIL"
         lines.append(
-            f"[{status}] {suite.name}: {suite.passed}/{suite.total} cases "
-            f"({suite.duration_ms}ms)"
+            f"[{status}] {suite.name}: {suite.passed}/{suite.total} cases ({suite.duration_ms}ms)"
         )
         for key, value in suite.metrics.items():
             lines.append(f"         {key}: {value}")
@@ -395,7 +388,9 @@ def main(argv: list[str] | None = None) -> int:
     # `choices` is deliberately not used here: with `nargs="*"`, argparse
     # validates the empty default against it and rejects "run everything".
     parser.add_argument(
-        "suites", nargs="*", metavar="SUITE",
+        "suites",
+        nargs="*",
+        metavar="SUITE",
         help=f"suites to run, any of: {', '.join(SUITES)} (default: all)",
     )
     parser.add_argument("--json", action="store_true", dest="as_json")
@@ -403,9 +398,7 @@ def main(argv: list[str] | None = None) -> int:
 
     unknown = [name for name in args.suites if name not in SUITES]
     if unknown:
-        parser.error(
-            f"unknown suite(s): {', '.join(unknown)}. Choose from: {', '.join(SUITES)}"
-        )
+        parser.error(f"unknown suite(s): {', '.join(unknown)}. Choose from: {', '.join(SUITES)}")
 
     selected = args.suites or list(SUITES)
     results = [SUITES[name]() for name in selected]

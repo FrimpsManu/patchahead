@@ -145,9 +145,7 @@ def find_function_span(module, symbol: str) -> FunctionSpan | None:
         return None
 
     lines = module.source.splitlines(keepends=True)
-    start_line = min(
-        [node.lineno] + [d.lineno for d in getattr(node, "decorator_list", [])]
-    )
+    start_line = min([node.lineno] + [d.lineno for d in getattr(node, "decorator_list", [])])
     end_line = node.end_lineno or node.lineno
     source = "".join(lines[start_line - 1 : end_line])
     return FunctionSpan(
@@ -355,8 +353,7 @@ class LLMProposer:
             risk=Risk.HIGH,
             rationale=(
                 "Proposed by an LLM because the deterministic handler could not "
-                "recognize the code shape. "
-                + str(parsed.get("reasoning") or "")
+                "recognize the code shape. " + str(parsed.get("reasoning") or "")
             ).strip(),
         )
 
@@ -464,9 +461,7 @@ class LLMProposer:
             )
 
         definitions = [
-            node
-            for node in tree.body
-            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+            node for node in tree.body if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
         ]
         if len(tree.body) != len(definitions) or len(definitions) != 1:
             return ProposalRejection(

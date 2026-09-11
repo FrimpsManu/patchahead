@@ -68,13 +68,9 @@ class EngineOptions:
 def _index(repository: Repository, timer: Timer) -> RepoIndex:
     with timer.stage("index"):
         index = repository.index()
-    log.info(
-        "indexed %d Python file(s) under %s", index.file_count, repository.root
-    )
+    log.info("indexed %d Python file(s) under %s", index.file_count, repository.root)
     if index.skipped:
-        log.warning(
-            "%d file(s) could not be analyzed; run with -v to see why", len(index.skipped)
-        )
+        log.warning("%d file(s) could not be analyzed; run with -v to see why", len(index.skipped))
     return index
 
 
@@ -149,9 +145,7 @@ def analyze(
     changes = _load_changes(change_path, timer)
     index = _index(repository, timer)
 
-    result = AnalysisResult(
-        repo=str(repository.root), change_document=str(change_path)
-    )
+    result = AnalysisResult(repo=str(repository.root), change_document=str(change_path))
     for change in changes:
         result.reports.append(_analyze_one(change, index, repository.config, timer))
 
@@ -244,9 +238,7 @@ def _run_migration(
     for change in changes:
         index = workspace.index()
         if index.skipped and not run.warnings:
-            run.warnings.append(
-                f"{len(index.skipped)} file(s) were skipped and not analyzed"
-            )
+            run.warnings.append(f"{len(index.skipped)} file(s) were skipped and not analyzed")
         result = _patch_one(change, workspace, index, repository, options, timer, full_baseline)
         run.results.append(result)
         if result.proposal is not None and result.proposal.ok:
@@ -323,9 +315,7 @@ def _baseline_for(
     for path in combined.changed_files:
         workspace.restore(path)
     try:
-        return runner.run_tests(
-            workspace, scoped_command, timeout=config.test_timeout_seconds
-        )
+        return runner.run_tests(workspace, scoped_command, timeout=config.test_timeout_seconds)
     finally:
         for path, contents in current.items():
             workspace.write(path, contents)
@@ -337,9 +327,7 @@ def _combine(results: list[MigrationResult], workspace: Workspace) -> PatchPropo
     assert first is not None
     plan = MigrationPlan(
         change=first.plan.change,
-        handler="+".join(
-            dict.fromkeys(r.proposal.plan.handler for r in results if r.proposal)
-        ),
+        handler="+".join(dict.fromkeys(r.proposal.plan.handler for r in results if r.proposal)),
         risk=max(
             (r.proposal.plan.risk for r in results if r.proposal),
             key=lambda risk: ["low", "medium", "high"].index(risk.value),
@@ -378,9 +366,7 @@ def _combine(results: list[MigrationResult], workspace: Workspace) -> PatchPropo
     return PatchProposal(
         plan=plan,
         files=files,
-        diff=edit_utils.combined_diff(
-            [(f.path, f.old_source, f.new_source) for f in files]
-        ),
+        diff=edit_utils.combined_diff([(f.path, f.old_source, f.new_source) for f in files]),
         engine="+".join(dict.fromkeys(r.proposal.engine for r in results if r.proposal)),
         explanation=plan.rationale,
     )
@@ -515,9 +501,7 @@ def _llm_or_blocked(
             " Re-run with `--use-llm` to let a model propose a migration for this "
             "shape; the same validation gates still apply."
         )
-        return PatchProposal(
-            plan=plan, engine="deterministic", error=plan.blocked_reason + hint
-        )
+        return PatchProposal(plan=plan, engine="deterministic", error=plan.blocked_reason + hint)
 
     from patchahead.llm import LLMProposer, available
 
@@ -528,16 +512,12 @@ def _llm_or_blocked(
         return PatchProposal(
             plan=plan,
             engine="llm",
-            error=(
-                f"{plan.blocked_reason} `--use-llm` cannot run: {why_not}."
-            ),
+            error=(f"{plan.blocked_reason} `--use-llm` cannot run: {why_not}."),
         )
 
     index = workspace.index()
     with timer.stage("llm_propose"):
-        proposal = LLMProposer(config).propose(
-            change, report, index, workspace, plan, baseline
-        )
+        proposal = LLMProposer(config).propose(change, report, index, workspace, plan, baseline)
     return proposal
 
 

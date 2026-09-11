@@ -62,13 +62,12 @@ class FieldRenameHandler(MigrationHandler):
 
     name = "field_rename"
     kinds = (ChangeKind.FIELD_RENAME,)
-    summary = "Rename a response/data field: obj[\"old\"], obj.get(\"old\"), obj.old"
+    summary = 'Rename a response/data field: obj["old"], obj.get("old"), obj.old'
     limitations = (
-        "Only constant string keys. `order[key]` with a variable key is reported, "
-        "never rewritten.",
+        "Only constant string keys. `order[key]` with a variable key is reported, never rewritten.",
         "Attribute access on a receiver that does not match the declared owner is "
         "graded LOW and left for a human.",
-        "Does not follow the field through assignment: `t = order[\"total\"]` is "
+        'Does not follow the field through assignment: `t = order["total"]` is '
         "renamed, but a later use of `t` is not traced.",
     )
 
@@ -77,9 +76,7 @@ class FieldRenameHandler(MigrationHandler):
 
     # -- analysis ----------------------------------------------------------
 
-    def analyze(
-        self, change: BreakingChange, index: RepoIndex, config: Config
-    ) -> ImpactReport:
+    def analyze(self, change: BreakingChange, index: RepoIndex, config: Config) -> ImpactReport:
         old = change.target.symbol
         owner = base_name(change.target.owner)
         findings: list[ImpactFinding] = []

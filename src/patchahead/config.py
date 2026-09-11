@@ -224,13 +224,9 @@ def from_mapping(data: dict[str, Any], source_path: str = "") -> Config:
             raise ConfigError(f"`output_dir` must be a non-empty string, got {value!r}")
         config.output_dir = value.strip()
     if "test_timeout_seconds" in data:
-        config.test_timeout_seconds = _as_int(
-            data["test_timeout_seconds"], "test_timeout_seconds"
-        )
+        config.test_timeout_seconds = _as_int(data["test_timeout_seconds"], "test_timeout_seconds")
     if "max_workspace_files" in data:
-        config.max_workspace_files = _as_int(
-            data["max_workspace_files"], "max_workspace_files"
-        )
+        config.max_workspace_files = _as_int(data["max_workspace_files"], "max_workspace_files")
     return config
 
 
