@@ -1,8 +1,21 @@
 """Method/function rename: ``client.fetch_orders()`` -> ``client.list_orders()``.
 
-Simpler than a field rename, because a call is a much more specific construct
-than a word. ``fetch_orders`` appearing as a method call on some object is
-strong evidence on its own; the receiver only raises confidence further.
+A call is a more specific construct than a bare word, so ``fetch_orders`` used
+as a method call is decent evidence on its own. But "decent on its own" stops
+mattering the moment the change document names a receiver: ``client`` and
+``analytics`` are different objects, and only one of them got the new method.
+
+========================================  ==========  ====================
+Site (change document names ``client``)   Confidence  Patched by default?
+========================================  ==========  ====================
+``client.fetch_orders()``                 HIGH        yes
+``self.client.fetch_orders()``            HIGH        yes
+``analytics.fetch_orders()``              LOW         no -- reported
+``fetch_orders()`` (bare, no receiver)    LOW         no -- reported
+========================================  ==========  ====================
+
+With no declared owner, any receiver is graded MEDIUM and patched -- there is
+nothing to check against, and the document is asserting the name is unique.
 
 The edit replaces the callee name token and nothing else, so arguments,
 formatting, and any chained call are preserved exactly.
@@ -12,7 +25,7 @@ from __future__ import annotations
 
 import logging
 
-from patchahead.analysis import base_name
+from patchahead.analysis import receiver_matches_owner
 from patchahead.analysis.index import RepoIndex
 from patchahead.config import Config
 from patchahead.domain.change import BreakingChange, ChangeKind, Confidence
@@ -34,8 +47,11 @@ class MethodRenameHandler(MigrationHandler):
         "(`callback = client.fetch_orders`) is reported but not rewritten.",
         "Does not rename the definition. This family is for calls into an "
         "upstream SDK, not for renaming a function the repository owns.",
-        "A local function that merely shares the upstream name is graded MEDIUM "
-        "when the change document names no owner.",
+        "When the change names a receiver, only that receiver is patched. "
+        "`analytics.fetch_orders()` is reported but never rewritten for a "
+        "`client.fetch_orders` rename.",
+        "A module that defines a function with the same name locally is left "
+        "alone entirely -- those calls are to its own code.",
     )
 
     def supports(self, change: BreakingChange) -> bool:
@@ -43,7 +59,9 @@ class MethodRenameHandler(MigrationHandler):
 
     def analyze(self, change: BreakingChange, index: RepoIndex, config: Config) -> ImpactReport:
         old = change.target.symbol
-        owner = base_name(change.target.owner)
+        # Only an *asserted* receiver constrains which call sites may be patched.
+        owner = change.target.owner if change.target.owner_is_explicit else ""
+        hint = "" if change.target.owner_is_explicit else change.target.owner
         findings: list[ImpactFinding] = []
 
         for path in index.non_test_paths():
@@ -56,9 +74,8 @@ class MethodRenameHandler(MigrationHandler):
             for call in module.calls:
                 if call.name != old:
                     continue
-                receiver = base_name(call.receiver)
                 confidence, reason, patchable, blocked = self._grade(
-                    receiver, owner, defines_locally
+                    call.receiver, owner, defines_locally, hint
                 )
                 findings.append(
                     ImpactFinding(
@@ -120,29 +137,49 @@ class MethodRenameHandler(MigrationHandler):
         )
 
     def _grade(
-        self, receiver: str, owner: str, defines_locally: bool
+        self, receiver: str, owner: str, defines_locally: bool, hint: str = ""
     ) -> tuple[Confidence, str, bool, str]:
+        """Grade one call site.
+
+        Returns ``(confidence, reason, patchable, blocked_reason)``.
+        """
         if defines_locally:
             return (
                 Confidence.LOW,
-                f"this module also defines `{receiver or 'a function'}` with the "
-                f"renamed name, so these calls are probably to local code, not to "
-                f"the upstream SDK",
+                "this module also defines a function with the renamed name, so "
+                "these calls are probably to local code, not to the upstream SDK",
                 False,
                 "the module defines a function with this name locally",
             )
-        if owner and receiver == owner:
+        if owner and receiver_matches_owner(receiver, owner):
             return (
                 Confidence.HIGH,
                 f"method call on `{owner}`, the receiver the change document names",
                 True,
                 "",
             )
+        if owner:
+            return (
+                Confidence.LOW,
+                f"call to the renamed method, but on "
+                f"`{receiver or '<no receiver>'}` rather than `{owner}`, which the "
+                f"change document names as the receiver",
+                False,
+                f"receiver is `{receiver or '<no receiver>'}`, not the declared receiver `{owner}`",
+            )
+        if hint and receiver_matches_owner(receiver, hint):
+            return (
+                Confidence.HIGH,
+                f"method call on `{receiver}`, matching the receiver used in the "
+                f"change document's example",
+                True,
+                "",
+            )
         if receiver:
             return (
-                Confidence.HIGH if not owner else Confidence.MEDIUM,
-                f"method call with the renamed name on `{receiver}`"
-                + (f" (the change names `{owner}`)" if owner else ""),
+                Confidence.MEDIUM,
+                f"method call with the renamed name on `{receiver}`; the change "
+                f"document asserts no receiver, so this could not be narrowed",
                 True,
                 "",
             )

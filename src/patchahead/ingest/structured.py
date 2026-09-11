@@ -96,10 +96,14 @@ def change_from_mapping(data: dict[str, Any], path: str, source: str) -> Breakin
     raw_target = data.get("target") or {}
     if not isinstance(raw_target, dict):
         raise IngestError(f"{path}: change {title!r} has a non-mapping `target`")
+    owner = str(raw_target.get("owner", "") or "")
     target = SymbolTarget(
         symbol=str(raw_target.get("symbol", "") or ""),
         replacement=str(raw_target.get("replacement", "") or ""),
-        owner=str(raw_target.get("owner", "") or ""),
+        owner=owner,
+        # Someone typed this into a field named `owner`. That is an assertion by
+        # construction, so a receiver mismatch refuses rather than guessing.
+        owner_is_explicit=bool(owner),
     )
 
     raw_pagination = data.get("pagination")

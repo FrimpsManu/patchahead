@@ -54,7 +54,26 @@ A directory copy is used rather than `git worktree`, because a worktree captures
 *committed* state. Analyzing something other than what the user is looking at
 would be a surprising default.
 
-### 2. Patches are range edits, not regenerated files
+### 2. Columns are converted from bytes to characters at one boundary
+
+`ast` reports `col_offset` as an offset into the line's **UTF-8 encoding**;
+Python strings are indexed by **character**. They agree only while a line is
+pure ASCII. Slicing source with a raw `col_offset` therefore cuts at the wrong
+place on any line containing non-ASCII text — a line starting
+`name = "José"` produced `order[""amount"`, which is not even valid Python.
+
+The conversion happens in `analysis/python_ast.py`, at the single point where
+`ast` data enters the system: every `SourceRange` the module emits is already
+character-based, so no consumer downstream has to know `ast` counts differently.
+Helpers that compute a column arithmetically (`_attribute_name_range`,
+`_keyword_name_range`) do the arithmetic in byte space and convert only the
+result, because that is the space `end_col_offset` and `str.encode()` share.
+
+A handler that builds a range from a raw `ast` node must pass
+`ModuleAnalysis.columns` to `SourceRange.of`. There is one such handler
+(pagination), and the adversarial eval covers it.
+
+### 3. Patches are range edits, not regenerated files
 
 Handlers emit `TextEdit(line, col, end_line, end_col, new_text)` derived from
 `ast` node positions. `apply_edits` applies them to the original text from the
@@ -68,7 +87,7 @@ literally a one-token diff.
 Overlapping edits are rejected rather than merged: two handlers disagreeing
 about the same range is a bug, and a plausible-looking merge would hide it.
 
-### 3. Confidence is graded, and grading decides what gets patched
+### 4. Confidence is graded, and grading decides what gets patched
 
 Every `ImpactFinding` carries `confidence` (high/medium/low), a `reason` in
 plain English, and `patchable`. The `min_confidence` setting is the threshold
@@ -79,12 +98,20 @@ does not have. Three buckets can be explained to a reviewer and asserted against
 fixtures.
 
 Grading is what makes name-matching safe enough to act on. PatchAhead does no
-type inference; `receiver_name` yields a *name*, not a type. A subscript with a
-matching constant key is strong evidence (that is how API responses arrive in
-Python); an attribute on an unrelated receiver is weak, and is reported rather
-than rewritten.
+type inference; `receiver_name` yields a *name*, not a type.
 
-### 4. Handlers are a registry, not a branch
+The decisive rule is the receiver check. When a change document **asserts** an
+owner, a site whose receiver is not that owner is graded LOW and never patched
+— `customer["total"]` survives an `order.total` rename, and so does `o["total"]`
+in `for o in orders`. That second case is a false negative PatchAhead accepts on
+purpose: proving `o` is an `order` needs type inference, and a missed site is
+recoverable in a way a wrong edit is not.
+
+An owner *inferred* from an illustrative snippet is treated differently — it
+raises confidence on a match and lowers it on a mismatch, but never vetoes. See
+`SymbolTarget.owner_is_explicit` and `docs/migrations.md`.
+
+### 5. Handlers are a registry, not a branch
 
 `find_handler(change)` returns the first registered handler that supports the
 change. Nothing outside `patchahead.handlers` has an `if change.kind == ...`
@@ -93,7 +120,7 @@ exactly one handler, every handler is identifiable — and the test suite runs i
 so a half-added family fails CI rather than shipping as a kind nothing can
 migrate.
 
-### 5. Changes from one document are patched together and validated once
+### 6. Changes from one document are patched together and validated once
 
 A release note usually describes several breaking changes, and they are
 frequently interdependent: renaming `fetch_orders` to `list_orders` leaves the
@@ -126,11 +153,22 @@ broken by three upstream changes must still be able to migrate the first one, so
 a test that was already red stays red without failing the gate. Only tests this
 patch turned from passing to failing count.
 
-**Gate 5 needs evidence on both sides.** A patch can leave a green suite green
-without having fixed anything. If the tests already passed, the gate reports
-SKIPPED with that reason rather than claiming a success it cannot evidence —
-and `ValidationResult.verified` (which `succeeded` is defined in terms of)
-requires that a test gate actually ran.
+**Gate 5 needs evidence on both sides, and it defines success.** A patch can
+leave a green suite green without having fixed anything.
+`ValidationResult.verified` — which `MigrationResult.succeeded` is defined in
+terms of — requires this gate to have *passed*, meaning a test that failed
+before the patch passes after it:
+
+| Before -> after | Gate 5 | Outcome |
+|---|---|---|
+| red -> green | PASSED | `migrated` |
+| green -> green | SKIPPED | `patched_unverified` |
+| no runnable tests | SKIPPED | `patched_unverified` |
+| a test this patch broke | gate 4 fails first | `validation_failed` |
+
+The gate prefers the targeted run's evidence and falls back to the full suite,
+because a test command that cannot be narrowed to specific files still produces
+perfectly good red-to-green proof — it is just spread across the whole run.
 
 ## Where the LLM sits
 
@@ -140,9 +178,14 @@ plan with `blocked_reason` set.
 
 The model receives the breaking change, the failing test output, and the source
 of the functions the findings point at. It returns JSON. That JSON is checked
-against the impact report, parsed as Python, and checked for name and signature
-changes — and then goes through the same five gates. It is a proposal engine;
-the gates are the authority.
+against the impact report, parsed as Python, and compared against a
+`FunctionContract` extracted from the original — `async`-ness, name, every
+parameter with its kind and annotation, defaults, return annotation, and
+decorators. Anything but a body rewrite is discarded in full; the model is not
+asked to try again. Whatever survives goes through the same five gates.
+
+The contract is enforced structurally rather than requested in the prompt,
+because a prompt is a request and a comparison is a guarantee.
 
 ## Performance
 

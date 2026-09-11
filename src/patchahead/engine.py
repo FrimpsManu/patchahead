@@ -37,7 +37,7 @@ from patchahead.domain.result import (
     MigrationRun,
     Outcome,
 )
-from patchahead.domain.validation import TestRun
+from patchahead.domain.validation import GateName, TestRun
 from patchahead.ingest import parse_file
 from patchahead.observability import Timer
 from patchahead.testing import discovery, runner
@@ -280,13 +280,17 @@ def _run_migration(
         if not validation.passed:
             result.outcome = Outcome.VALIDATION_FAILED
             result.message = f"migration not accepted: {validation.summary()}"
-        elif not validation.tests_ran:
-            # No gate objected, but nothing executed the tests either. Saying
-            # "migrated" here would claim verification that did not happen.
+        elif not validation.verified:
+            # No gate objected, but nothing *proved* the break was fixed: either
+            # no tests ran, or they were already green and so cannot evidence a
+            # migration. Saying "migrated" would claim verification that did not
+            # happen -- the distinction the whole validation subsystem exists for.
+            assertion = validation.get(GateName.MIGRATION_ASSERTION)
+            why = assertion.detail if assertion else "no migration evidence"
             result.outcome = Outcome.PATCHED_UNVERIFIED
             result.message = (
-                f"patched {changed} file(s), but no tests ran, so the migration is "
-                f"unverified. Review the diff before applying it."
+                f"patched {changed} file(s), but the migration is unverified: {why} "
+                f"Review the diff before applying it."
             )
         else:
             result.outcome = Outcome.MIGRATED

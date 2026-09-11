@@ -23,6 +23,14 @@ Three suites, each measuring something different:
     ``pytest`` subprocesses, real validation gates. Includes cases that must
     *not* succeed.
 
+``adversarial``
+    Cases written to fool it. Same measurement as ``impact``, but the dataset is
+    chosen to break things rather than to demonstrate them: unrelated objects
+    sharing a field name, strings that merely contain it, Unicode before an edit
+    site, nested scopes, comprehensions, decorated async methods,
+    already-migrated code. It also checks the *patched source*, because a site
+    list can be right while the edit is still wrong.
+
 Every number this prints is computed from a run that just happened. Nothing is
 recorded, cached, or asserted from a previous version.
 """
@@ -43,7 +51,8 @@ if str(ROOT / "src") not in sys.path:
     sys.path.insert(0, str(ROOT / "src"))
 
 from patchahead import engine, handlers  # noqa: E402
-from patchahead.analysis import analyze_source  # noqa: E402
+from patchahead.analysis import analyze_source, apply_edits  # noqa: E402
+from patchahead.analysis.edits import is_parseable  # noqa: E402
 from patchahead.analysis.index import RepoIndex  # noqa: E402
 from patchahead.config import Config  # noqa: E402
 from patchahead.domain.change import (  # noqa: E402
@@ -186,12 +195,16 @@ def _change_from(spec: dict) -> BreakingChange:
             symbol=spec.get("symbol", ""),
             replacement=spec.get("replacement", ""),
             owner=spec.get("owner", ""),
+            # Default True: a dataset that writes an `owner` is asserting it,
+            # the same way a structured change document does. A case that wants
+            # the looser inferred-owner grading sets it to false explicitly.
+            owner_is_explicit=spec.get("owner_explicit", True),
         ),
         pagination=PaginationContract(**spec.get("pagination", {})),
     )
 
 
-def run_impact() -> SuiteResult:
+def _run_site_suite(suite_name: str) -> SuiteResult:
     """Precision and recall against hand-labelled sites.
 
     A *site* is ``path:line``. Recall is over the sites that should have been
@@ -199,14 +212,14 @@ def run_impact() -> SuiteResult:
     labelled ``expect_reported_only`` must be found but not patched -- finding
     them is correct, patching them is the false positive.
     """
-    suite = SuiteResult(name="impact")
+    suite = SuiteResult(name=suite_name)
     start = time.perf_counter()
     config = Config()
     true_positives = false_positives = false_negatives = 0
     missed_reports = 0
     wrongly_patched = 0
 
-    for case in load("impact"):
+    for case in load(suite_name):
         change = _change_from(case["change"])
         index = RepoIndex(root=Path("/eval"), config=config)
         for path, source in case["files"].items():
@@ -239,6 +252,28 @@ def run_impact() -> SuiteResult:
             if site not in reported:
                 problems.append(f"did not report {site}")
                 missed_reports += 1
+
+        # Applying the plan and checking the result catches edits that land on
+        # the right line and still mangle it -- a byte-vs-character column error
+        # produces exactly that.
+        required = case.get("expect_source_contains")
+        if required:
+            for path in {t.path for t in plan.transformations} or set(case["files"]):
+                result = apply_edits(case["files"][path], plan.edits_for(path))
+                ok, error = is_parseable(result, path)
+                if not ok:
+                    problems.append(f"patched {path} does not parse: {error}")
+                for snippet in required:
+                    if snippet not in result:
+                        problems.append(f"patched {path} lost {snippet!r}")
+
+        expected_symbols = case.get("expect_symbols")
+        if expected_symbols:
+            actual = sorted(
+                {t.symbol for t in plan.transformations} or {f.symbol for f in report.findings}
+            )
+            if actual != sorted(expected_symbols):
+                problems.append(f"symbols {actual}, expected {sorted(expected_symbols)}")
 
         suite.cases.append(
             CaseResult(
@@ -355,9 +390,19 @@ def run_migrations() -> SuiteResult:
 # entry point
 # --------------------------------------------------------------------------
 
+
+def run_impact() -> SuiteResult:
+    return _run_site_suite("impact")
+
+
+def run_adversarial() -> SuiteResult:
+    return _run_site_suite("adversarial")
+
+
 SUITES = {
     "classification": run_classification,
     "impact": run_impact,
+    "adversarial": run_adversarial,
     "migrations": run_migrations,
 }
 

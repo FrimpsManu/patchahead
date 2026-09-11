@@ -9,6 +9,56 @@ It is not a sandbox, and this document does not claim it is.
 
 ---
 
+## Three different things, often confused
+
+Most confusion about this tool's safety comes from collapsing three separate
+questions into one. They have three different answers.
+
+### 1. Where does *PatchAhead* write?
+
+**Only two places, both predictable.** The temporary workspace it created, and
+the output directory (`.patchahead/` by default, disabled with
+`--no-artifacts`). It never writes into your repository. `analyze` writes
+nothing at all.
+
+This is enforced structurally: `Repository` — the object representing the
+directory you pointed at — has **no write method**. Guaranteed.
+
+### 2. What does the *workspace* isolate?
+
+**Filesystem writes inside the copied tree. Nothing else.**
+
+The workspace is `shutil.copytree` into a temp directory. It means a patch, or a
+test that writes files, cannot corrupt your source. That is the entire extent of
+it. The workspace is **not** a process boundary, a network boundary, a
+filesystem boundary, or a privilege boundary:
+
+| Isolated by the workspace | **Not** isolated |
+|---|---|
+| Writes to the copied tree | Writes anywhere else on disk |
+| Your source files | Your home directory, `/tmp`, mounted volumes |
+| — | Network access |
+| — | Environment variables, including secrets |
+| — | Process privileges — it runs as you |
+| — | Anything the test command chooses to do |
+
+A test that runs `rm -rf ~/notes` will delete your notes. The workspace does not
+prevent that and was never able to.
+
+### 3. What can the *test command* do?
+
+**Anything you can do.** It is a subprocess launched with `shell=True`, with
+your user, your environment, and your network. PatchAhead chooses *when* to run
+it and *where its working directory is*. It has no say in what it does.
+
+The command is read from the analyzed repository's own `pyproject.toml`.
+
+**These three are independent.** "PatchAhead never writes to your repository"
+(true, guaranteed) does not imply "running PatchAhead on this repository is
+safe" (depends entirely on what its test command does).
+
+---
+
 ## What PatchAhead guarantees
 
 These are enforced by the code, and tested.
@@ -64,17 +114,16 @@ event is sent.
 The whole claim is "tests verify". Verifying means running them.
 
 `migrate` runs the configured `test_command` inside the workspace, in a
-subprocess, with your user's privileges. It can read your filesystem, reach the
-network, and read your environment variables.
+subprocess, with your user's privileges. Per §2 above, the workspace confines
+writes to the copied tree and nothing else: no container, no seccomp, no user
+namespace, no network policy, no privilege drop.
 
-- The workspace is a **copy**, so the test run cannot corrupt your source. It is
-  not otherwise isolated: no container, no seccomp, no user namespace.
 - `test_command` comes from the repository's own `pyproject.toml`. **Cloning an
   untrusted repository and running `patchahead migrate` on it executes whatever
   that file says.** Read it first. This is the same trust decision as running
   `pytest` in a cloned repository, and PatchAhead does not make it smaller.
-- `--no-tests` skips execution entirely. The result is honestly labelled
-  `patched_unverified`.
+- `--no-tests` skips execution entirely. The result is then labelled
+  `patched_unverified`, never `migrated`.
 
 Bare `python` and `pytest` in a test command resolve to the environment
 PatchAhead is running in (its interpreter's directory is prepended to `PATH`),

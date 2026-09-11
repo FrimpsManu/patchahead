@@ -24,7 +24,9 @@ A proposal is rejected, not repaired, when it:
 * is not valid JSON matching the expected shape,
 * names a file the impact report did not implicate,
 * fails to parse as Python,
-* changes the enclosing function's name or signature,
+* changes anything about the function's contract -- ``async``-ness, name,
+  parameters and their kinds, defaults, annotations, return annotation, or
+  decorators (see :class:`FunctionContract`),
 * or changes more of the file than the plan allowed.
 
 Then the ordinary validation gates run on it like any other patch. The model is
@@ -66,11 +68,18 @@ that use the old contract, and the failing test output.
 
 Rules, all mandatory:
 1. Change as little as possible. Rewrite only what the breaking change requires.
-2. Never change a function's name or its parameter list.
+2. Reproduce the function's entire signature line exactly as given, including
+   `async`, the name, every parameter and its order, positional-only (`/`) and
+   keyword-only (`*`) markers, defaults, type annotations, and the return
+   annotation. Reproduce every decorator, unchanged and in the same order.
+   Only the function body may differ.
 3. Never add imports, helper functions, comments, or type annotations that the \
 migration does not require.
 4. Never reformat, reorder, or "improve" code you are not migrating.
 5. If you cannot make the change safely, say so instead of guessing.
+
+Rule 2 is checked structurally, not by reading your answer. A reply that
+changes any part of the contract is discarded in full.
 
 Reply with a single JSON object and nothing else. No prose, no markdown fences.
 
@@ -118,7 +127,7 @@ class FunctionSpan:
     col: int
     end_col: int
     source: str
-    signature: str
+    contract: FunctionContract
 
 
 def find_function_span(module, symbol: str) -> FunctionSpan | None:
@@ -156,21 +165,108 @@ def find_function_span(module, symbol: str) -> FunctionSpan | None:
         col=0,
         end_col=len(lines[end_line - 1].rstrip("\n")) if end_line <= len(lines) else 0,
         source=source,
-        signature=_signature(node),
+        contract=FunctionContract.of(node),
     )
 
 
-def _signature(node: ast.AST) -> str:
-    """A normalized signature string, used to detect signature changes."""
-    args = node.args  # type: ignore[attr-defined]
-    parts = [a.arg for a in getattr(args, "posonlyargs", [])]
-    parts += [a.arg for a in args.args]
-    if args.vararg:
-        parts.append(f"*{args.vararg.arg}")
-    parts += [a.arg for a in args.kwonlyargs]
-    if args.kwarg:
-        parts.append(f"**{args.kwarg.arg}")
-    return f"{node.name}({', '.join(parts)})"  # type: ignore[attr-defined]
+def _expr(node: ast.expr | None) -> str | None:
+    """Normalized source for an annotation or default, or ``None`` if absent.
+
+    ``ast.unparse`` normalizes formatting, so this compares what the expression
+    *means* rather than how it was typed -- ``int|None`` and ``int | None`` are
+    the same contract, while ``int`` and ``str`` are not.
+    """
+    return None if node is None else ast.unparse(node)
+
+
+@dataclass(frozen=True)
+class FunctionContract:
+    """Everything about a function that callers depend on, except its body.
+
+    A migration rewrites a function's *implementation*. Anything in here
+    changing means the function's callers, its type checker, or its framework
+    registration may break -- which is a different and much larger change than
+    the one PatchAhead asked for, and not one a model may make on its own.
+
+    The prototype's check compared only the name and the parameter names, so a
+    model could quietly drop ``async``, remove a default, change an annotation,
+    or delete a decorator and still be accepted.
+    """
+
+    name: str
+    is_async: bool
+    #: (kind, name, annotation) for every parameter, in order. ``kind``
+    #: distinguishes positional-only / normal / ``*args`` / keyword-only /
+    #: ``**kwargs``, so moving a parameter between them is caught.
+    parameters: tuple[tuple[str, str, str | None], ...]
+    #: Defaults for positional parameters, as normalized source.
+    defaults: tuple[str, ...]
+    #: Defaults for keyword-only parameters; ``None`` where one is required.
+    kw_defaults: tuple[str | None, ...]
+    returns: str | None
+    decorators: tuple[str, ...]
+
+    @classmethod
+    def of(cls, node: ast.FunctionDef | ast.AsyncFunctionDef) -> FunctionContract:
+        args = node.args
+        parameters: list[tuple[str, str, str | None]] = []
+        for argument in getattr(args, "posonlyargs", []):
+            parameters.append(("positional-only", argument.arg, _expr(argument.annotation)))
+        for argument in args.args:
+            parameters.append(("positional", argument.arg, _expr(argument.annotation)))
+        if args.vararg:
+            parameters.append(("*args", args.vararg.arg, _expr(args.vararg.annotation)))
+        for argument in args.kwonlyargs:
+            parameters.append(("keyword-only", argument.arg, _expr(argument.annotation)))
+        if args.kwarg:
+            parameters.append(("**kwargs", args.kwarg.arg, _expr(args.kwarg.annotation)))
+
+        return cls(
+            name=node.name,
+            is_async=isinstance(node, ast.AsyncFunctionDef),
+            parameters=tuple(parameters),
+            defaults=tuple(ast.unparse(d) for d in args.defaults),
+            kw_defaults=tuple(_expr(d) for d in args.kw_defaults),
+            returns=_expr(node.returns),
+            decorators=tuple(ast.unparse(d) for d in node.decorator_list),
+        )
+
+    def render(self) -> str:
+        """A one-line rendering, for naming the difference in a rejection."""
+        params = ", ".join(
+            f"{name}: {annotation}" if annotation else name
+            for _, name, annotation in self.parameters
+        )
+        prefix = "async def" if self.is_async else "def"
+        suffix = f" -> {self.returns}" if self.returns else ""
+        return f"{prefix} {self.name}({params}){suffix}"
+
+    def difference(self, other: FunctionContract) -> str:
+        """The first way ``other`` differs from this contract, or ``""``."""
+        if self.name != other.name:
+            return f"renamed the function: `{self.name}` became `{other.name}`"
+        if self.is_async != other.is_async:
+            was = "async" if self.is_async else "sync"
+            now = "async" if other.is_async else "sync"
+            return f"changed the function from {was} to {now}"
+        if self.parameters != other.parameters:
+            return f"changed the parameters: `{self.render()}` became `{other.render()}`"
+        if self.defaults != other.defaults:
+            return (
+                f"changed positional defaults: {list(self.defaults)} became {list(other.defaults)}"
+            )
+        if self.kw_defaults != other.kw_defaults:
+            return (
+                f"changed keyword-only defaults: {list(self.kw_defaults)} became "
+                f"{list(other.kw_defaults)}"
+            )
+        if self.returns != other.returns:
+            return f"changed the return annotation: {self.returns!r} became {other.returns!r}"
+        if self.decorators != other.decorators:
+            return (
+                f"changed the decorators: {list(self.decorators)} became {list(other.decorators)}"
+            )
+        return ""
 
 
 def _strip_fences(text: str) -> str:
@@ -400,8 +496,8 @@ class LLMProposer:
             plan.transformations.append(
                 Transformation(
                     reference=_reference(path, span),
-                    old=f"{span.signature} (original body)",
-                    new=f"{span.signature} (LLM-proposed body)",
+                    old=f"{span.contract.render()} (original body)",
+                    new=f"{span.contract.render()} (LLM-proposed body)",
                     symbol=name,
                     confidence=Confidence.LOW,
                     edit=edits_by_path[path][-1],
@@ -470,20 +566,11 @@ class LLMProposer:
                 f"got {len(tree.body)} top-level statement(s)",
             )
 
-        definition = definitions[0]
-        short_name = span.name.rsplit(".", 1)[-1]
-        if definition.name != short_name:
+        difference = span.contract.difference(FunctionContract.of(definitions[0]))
+        if difference:
             return ProposalRejection(
-                "the model renamed the function",
-                f"`{short_name}` became `{definition.name}`",
-            )
-        # `span.signature` is already built from the short name by `_signature`.
-        proposed_signature = _signature(definition)
-        expected_signature = span.signature
-        if proposed_signature != expected_signature:
-            return ProposalRejection(
-                "the model changed the function signature",
-                f"`{expected_signature}` became `{proposed_signature}`",
+                "the model changed the function's contract, not just its body",
+                difference,
             )
         return None
 

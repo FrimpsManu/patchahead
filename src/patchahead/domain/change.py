@@ -144,18 +144,43 @@ class SymbolTarget:
     function being called (``fetch_orders(timeout_seconds=...)`` -> owner
     ``fetch_orders``). ``owner`` is the main tool for suppressing false
     positives, and it is optional because release notes often omit it.
+
+    ``owner_is_explicit`` records *how strongly* the document asserted the
+    owner, and it decides whether a receiver mismatch refuses or merely lowers
+    confidence. The distinction is real:
+
+    * "the field on each ``order`` object was renamed" and
+      "``client.fetch_orders`` -> ``client.list_orders``" **assert** ownership.
+      A mismatched receiver is then evidence of a *different* object, and the
+      site is reported rather than patched.
+    * "**Before:** ``client.fetch_orders(limit=10)``" is the vendor's
+      illustrative variable name. It says nothing about what a downstream
+      repository calls its variable, and treating it as a constraint would
+      refuse to migrate ``api_client.fetch_orders()`` -- the same SDK call,
+      spelled with a different local name.
+
+    Structured change documents always set this to ``True``: someone typed the
+    owner into a field named ``owner``, which is an assertion by construction.
     """
 
     symbol: str = ""
     replacement: str = ""
     owner: str = ""
+    #: Whether the document *asserted* the owner rather than it being inferred
+    #: from an illustrative snippet. See the class docstring.
+    owner_is_explicit: bool = False
 
     @property
     def is_rename(self) -> bool:
         return bool(self.symbol and self.replacement and self.symbol != self.replacement)
 
     def to_dict(self) -> dict[str, Any]:
-        return {"symbol": self.symbol, "replacement": self.replacement, "owner": self.owner}
+        return {
+            "symbol": self.symbol,
+            "replacement": self.replacement,
+            "owner": self.owner,
+            "owner_is_explicit": self.owner_is_explicit,
+        }
 
 
 @dataclass

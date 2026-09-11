@@ -57,7 +57,12 @@ import logging
 from dataclasses import dataclass, field
 
 from patchahead.analysis.index import RepoIndex
-from patchahead.analysis.python_ast import ModuleAnalysis, SourceRange
+from patchahead.analysis.python_ast import (
+    ColumnMap,
+    ModuleAnalysis,
+    SourceRange,
+    iter_own_scope,
+)
 from patchahead.config import Config
 from patchahead.domain.change import BreakingChange, ChangeKind, Confidence, PaginationContract
 from patchahead.domain.impact import AccessKind, CodeReference, ImpactFinding, ImpactReport
@@ -183,7 +188,11 @@ def find_page_loops(
     loops: list[PageLoop] = []
     rejections: list[LoopRejection] = []
 
+    columns = module.columns or ColumnMap(module.source)
+
     for symbol, function in _functions(module.tree):
+        # Names bound anywhere at or below this function, so a generated cursor
+        # variable cannot collide with one a nested scope already uses.
         bound = {
             node.id
             for node in ast.walk(function)
@@ -191,11 +200,14 @@ def find_page_loops(
         }
         bound |= {argument.arg for argument in function.args.args}
 
-        for loop in (n for n in ast.walk(function) if isinstance(n, ast.While)):
+        # Own scope only. A loop inside a nested `def` belongs to that function,
+        # and `_functions` yields it separately -- walking into it here would
+        # match the same loop twice and emit overlapping edits for it.
+        for loop in (n for n in iter_own_scope(function) if isinstance(n, ast.While)):
             if not _is_true_literal(loop.test):
                 continue
 
-            match, reason = _match_loop(function, loop, symbol, contract, bound)
+            match, reason = _match_loop(function, loop, symbol, contract, bound, columns)
             if match is not None:
                 loops.append(match)
             elif reason:
@@ -210,6 +222,7 @@ def _match_loop(
     symbol: str,
     contract: PaginationContract,
     bound: set[str],
+    columns: ColumnMap,
 ) -> tuple[PageLoop | None, str]:
     """Match one ``while True`` loop against the recognized shape."""
     # (C) a call passing the page parameter, assigned to a name.
@@ -268,7 +281,7 @@ def _match_loop(
 
     # (A) the initializer, before the loop, in the enclosing function.
     init: ast.stmt | None = None
-    for node in ast.walk(function):
+    for node in iter_own_scope(function):
         if (
             isinstance(node, ast.Assign)
             and len(node.targets) == 1
@@ -318,10 +331,10 @@ def _match_loop(
             page_var=page_var,
             response_var=response_var,
             symbol=symbol,
-            init_range=SourceRange.of(init),
-            call_keyword_range=SourceRange.of(call_keyword),
-            guard_range=SourceRange.of(guard),
-            advance_range=SourceRange.of(advance),
+            init_range=SourceRange.of(init, columns),
+            call_keyword_range=SourceRange.of(call_keyword, columns),
+            guard_range=SourceRange.of(guard, columns),
+            advance_range=SourceRange.of(advance, columns),
             loop_line=loop.lineno,
             bound_names=bound,
         ),

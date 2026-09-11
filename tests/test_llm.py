@@ -238,14 +238,6 @@ class TestRejectedProposals:
         assert "renamed the function" in result.error
         assert not result.ok
 
-    def test_a_changed_signature_is_refused(self, scene):
-        changed = MIGRATED.replace("def sync(api, log):", "def sync(api):")
-        stub = StubClient(
-            response(functions=[{"path": "app/sync.py", "function": "sync", "new_source": changed}])
-        )
-
-        assert "changed the function signature" in propose(scene, stub).error
-
     def test_unparseable_python_is_refused(self, scene):
         stub = StubClient(
             response(

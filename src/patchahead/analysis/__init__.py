@@ -12,6 +12,7 @@ from patchahead.analysis.python_ast import (
     MODULE_SCOPE,
     AttributeAccess,
     CallSite,
+    ColumnMap,
     GetCallAccess,
     ModuleAnalysis,
     ParseError,
@@ -19,6 +20,8 @@ from patchahead.analysis.python_ast import (
     SubscriptAccess,
     analyze_source,
     base_name,
+    iter_own_scope,
+    receiver_matches_owner,
     receiver_name,
 )
 
@@ -26,6 +29,7 @@ __all__ = [
     "MODULE_SCOPE",
     "AttributeAccess",
     "CallSite",
+    "ColumnMap",
     "EditError",
     "GetCallAccess",
     "ModuleAnalysis",
@@ -41,6 +45,8 @@ __all__ = [
     "discover_python_files",
     "is_parseable",
     "is_test_path",
+    "iter_own_scope",
+    "receiver_matches_owner",
     "receiver_name",
     "unified_diff",
 ]

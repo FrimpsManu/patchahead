@@ -305,3 +305,102 @@ class TestUnrunnableTestCommand:
 
         assert result.verified is False, "nothing ran, so nothing was verified"
         assert result.tests_ran is False
+
+
+class TestMigrationSemantics:
+    """The four required outcomes, stated as a table.
+
+    ==========================  =====================  ==========
+    Before -> after             Outcome                succeeded
+    ==========================  =====================  ==========
+    red -> green                MIGRATED               True
+    green -> green              PATCHED_UNVERIFIED     False
+    no runnable tests           PATCHED_UNVERIFIED     False
+    a test this patch broke     VALIDATION_FAILED      False
+    ==========================  =====================  ==========
+    """
+
+    def _validate(self, workspace, *, baseline, full_baseline, expected_tests, new_source):
+        proposal = proposal_for(workspace, "app/a.py", new_source, expected_tests=expected_tests)
+        return ValidationEngine(Config()).validate(
+            proposal,
+            workspace,
+            ValidationOptions(baseline=baseline, full_baseline=full_baseline),
+        )
+
+    @pytest.mark.slow
+    def test_red_before_green_after_is_verified(self, workspace):
+        workspace.write("app/a.py", "def f():\n    return 999\n")
+        baseline = TestRun(command="c", returncode=1, failing_tests=["tests/test_a.py::test_f"])
+
+        result = self._validate(
+            workspace,
+            baseline=baseline,
+            full_baseline=baseline,
+            expected_tests=["tests/test_a.py"],
+            new_source="def f():\n    return 1\n",
+        )
+
+        assert result.get(GateName.MIGRATION_ASSERTION).status is GateStatus.PASSED
+        assert result.verified is True
+
+    @pytest.mark.slow
+    def test_green_before_green_after_is_not_verified(self, workspace):
+        """No gate objects, but nothing proved the migration did anything."""
+        baseline = TestRun(command="c", returncode=0)
+
+        result = self._validate(
+            workspace,
+            baseline=baseline,
+            full_baseline=baseline,
+            expected_tests=["tests/test_a.py"],
+            new_source="def f():\n    return 1\n",
+        )
+
+        assert result.passed is True, "no gate failed"
+        assert result.verified is False, "but nothing verified it"
+        assert "already passed" in result.get(GateName.MIGRATION_ASSERTION).detail
+
+    def test_no_runnable_tests_is_not_verified(self, workspace):
+        result = ValidationEngine(Config()).validate(
+            proposal_for(workspace, "app/a.py", "def f():\n    return 9\n"),
+            workspace,
+            ValidationOptions(run_tests=False),
+        )
+
+        assert result.verified is False
+        assert result.get(GateName.MIGRATION_ASSERTION).status is GateStatus.SKIPPED
+
+    @pytest.mark.slow
+    def test_a_regression_fails_validation_outright(self, workspace):
+        baseline = TestRun(command="c", returncode=0, failing_tests=[])
+
+        result = self._validate(
+            workspace,
+            baseline=baseline,
+            full_baseline=baseline,
+            expected_tests=["tests/test_a.py"],
+            new_source="def f():\n    return 999\n",
+        )
+
+        assert result.passed is False
+        assert result.verified is False
+        assert result.get(GateName.REGRESSION_TESTS).status is GateStatus.FAILED
+
+    @pytest.mark.slow
+    def test_the_full_suite_can_supply_the_evidence_when_targeting_cannot(self, workspace):
+        """A test command that cannot be narrowed still produces red-to-green proof."""
+        workspace.write("app/a.py", "def f():\n    return 999\n")
+        baseline = TestRun(command="c", returncode=1, failing_tests=["tests/test_a.py::test_f"])
+
+        proposal = proposal_for(workspace, "app/a.py", "def f():\n    return 1\n")
+        result = ValidationEngine(Config()).validate(
+            proposal,
+            workspace,
+            ValidationOptions(baseline=None, full_baseline=baseline),
+        )
+
+        assert result.get(GateName.TARGETED_TESTS).status is GateStatus.SKIPPED
+        assert result.get(GateName.MIGRATION_ASSERTION).status is GateStatus.PASSED
+        assert "full suite" in result.get(GateName.MIGRATION_ASSERTION).detail
+        assert result.verified is True

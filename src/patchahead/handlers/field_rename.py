@@ -14,28 +14,41 @@ Two mechanisms keep this one honest.
 cannot be a false positive at all -- not "filtered out later", but never a
 candidate.
 
-**Confidence grading by receiver.** Among real accesses, the receiver name
-decides:
+**Confidence grading by receiver.** Among real accesses, the receiver decides:
 
-===================================  ==========  =======================
-Site                                 Confidence  Patched by default?
-===================================  ==========  =======================
-``order["total"]``, owner ``order``  HIGH        yes
-``o["total"]``, owner ``order``      MEDIUM      yes
-``order.total``, owner ``order``     HIGH        yes
-``df.total``, owner ``order``        LOW         no -- reported for review
-===================================  ==========  =======================
+========================================  ==========  ====================
+Site (change document names ``order``)    Confidence  Patched by default?
+========================================  ==========  ====================
+``order["total"]``                        HIGH        yes
+``self.order["total"]``                   HIGH        yes
+``customer["total"]``                     LOW         no -- reported
+``o["total"]``                            LOW         no -- reported
+``df.total``                              LOW         no -- reported
+========================================  ==========  ====================
 
-Attribute access on an unrelated receiver is the dangerous case (``df.total`` on
-a DataFrame has nothing to do with the API), so it is graded LOW and left alone,
-while still being *reported* so a human can look.
+When the change document names an owner, **a receiver that is not that owner is
+never patched**, however plausible the key looks. ``order["total"]`` and
+``customer["total"]`` on the same line are different fields that happen to share
+a name, and rewriting both is precisely the class of corruption this handler
+exists to prevent. Such sites are still *reported*, with the mismatch stated, so
+a human can decide.
+
+The cost is real and accepted: ``for o in orders: o["total"]`` is not patched
+automatically, because ``o`` cannot be shown to be an ``order`` without type
+inference PatchAhead does not do. A false negative is recoverable by hand; a
+silent wrong edit in unrelated code is not.
+
+When the document names **no** owner there is nothing to check the receiver
+against, so subscript and ``.get()`` accesses are graded MEDIUM (a constant
+string key matching a renamed field is strong evidence on its own) and attribute
+access stays LOW.
 """
 
 from __future__ import annotations
 
 import logging
 
-from patchahead.analysis import base_name
+from patchahead.analysis import receiver_matches_owner
 from patchahead.analysis.index import RepoIndex
 from patchahead.config import Config
 from patchahead.domain.change import BreakingChange, ChangeKind, Confidence
@@ -78,7 +91,9 @@ class FieldRenameHandler(MigrationHandler):
 
     def analyze(self, change: BreakingChange, index: RepoIndex, config: Config) -> ImpactReport:
         old = change.target.symbol
-        owner = base_name(change.target.owner)
+        # Only an *asserted* owner constrains which receiver may be patched.
+        owner = change.target.owner if change.target.owner_is_explicit else ""
+        hint = "" if change.target.owner_is_explicit else change.target.owner
         findings: list[ImpactFinding] = []
 
         for path in index.non_test_paths():
@@ -87,8 +102,9 @@ class FieldRenameHandler(MigrationHandler):
             for access in module.subscripts:
                 if access.key != old:
                     continue
-                receiver = base_name(access.receiver)
-                confidence, reason = self._grade_subscript(receiver, owner)
+                confidence, reason, patchable, blocked = self._grade_subscript(
+                    access.receiver, owner, hint
+                )
                 findings.append(
                     ImpactFinding(
                         reference=CodeReference(
@@ -105,14 +121,17 @@ class FieldRenameHandler(MigrationHandler):
                         reason=reason,
                         confidence=confidence,
                         source_text=_span(module.source, access.key_range),
+                        patchable=patchable,
+                        unpatchable_reason=blocked,
                     )
                 )
 
             for access in module.get_calls:
                 if access.key != old:
                     continue
-                receiver = base_name(access.receiver)
-                confidence, reason = self._grade_subscript(receiver, owner)
+                confidence, reason, patchable, blocked = self._grade_subscript(
+                    access.receiver, owner, hint
+                )
                 findings.append(
                     ImpactFinding(
                         reference=CodeReference(
@@ -129,14 +148,17 @@ class FieldRenameHandler(MigrationHandler):
                         reason=reason,
                         confidence=confidence,
                         source_text=_span(module.source, access.key_range),
+                        patchable=patchable,
+                        unpatchable_reason=blocked,
                     )
                 )
 
             for access in module.attributes:
                 if access.attr != old:
                     continue
-                receiver = base_name(access.receiver)
-                confidence, reason = self._grade_attribute(receiver, owner)
+                confidence, reason, patchable, blocked = self._grade_attribute(
+                    access.receiver, owner, hint
+                )
                 findings.append(
                     ImpactFinding(
                         reference=CodeReference(
@@ -153,12 +175,8 @@ class FieldRenameHandler(MigrationHandler):
                         reason=reason,
                         confidence=confidence,
                         source_text=_span(module.source, access.attr_range),
-                        patchable=confidence >= Confidence.MEDIUM,
-                        unpatchable_reason=(
-                            ""
-                            if confidence >= Confidence.MEDIUM
-                            else "attribute access on an unrelated receiver"
-                        ),
+                        patchable=patchable,
+                        unpatchable_reason=blocked,
                     )
                 )
 
@@ -171,55 +189,91 @@ class FieldRenameHandler(MigrationHandler):
             skipped_files=dict(index.skipped),
         )
 
-    def _grade_subscript(self, receiver: str, owner: str) -> tuple[Confidence, str]:
+    def _grade_subscript(
+        self, receiver: str, owner: str, hint: str = ""
+    ) -> tuple[Confidence, str, bool, str]:
         """Grade a dict-style access.
+
+        Returns ``(confidence, reason, patchable, blocked_reason)``.
 
         A constant string key exactly matching a renamed field is strong
         evidence on its own -- dicts are how API responses arrive in Python --
-        so the floor here is MEDIUM rather than LOW.
+        but only when there is nothing to contradict it. A named owner that the
+        receiver does not match *is* such a contradiction, and it wins.
         """
-        if owner and receiver == owner:
+        if owner and receiver_matches_owner(receiver, owner):
             return (
                 Confidence.HIGH,
                 f"dict access with the renamed key on `{owner}`, the object the "
                 f"change document names",
-            )
-        if owner:
-            return (
-                Confidence.MEDIUM,
-                f"dict access with the renamed key on `{receiver or '<expr>'}` "
-                f"(the change names `{owner}`, but response objects are commonly "
-                f"bound to other names)",
-            )
-        return (
-            Confidence.MEDIUM,
-            "dict access with the renamed key; the change document does not name "
-            "an owning object, so the receiver could not be checked",
-        )
-
-    def _grade_attribute(self, receiver: str, owner: str) -> tuple[Confidence, str]:
-        """Grade an attribute access.
-
-        Inverted relative to subscripts: ``.total`` on an arbitrary object is
-        weak evidence, because attribute names collide across unrelated
-        libraries. Only a receiver match rescues it.
-        """
-        if owner and receiver == owner:
-            return (
-                Confidence.HIGH,
-                f"attribute access on `{owner}`, the object the change document names",
+                True,
+                "",
             )
         if owner:
             return (
                 Confidence.LOW,
-                f"attribute named `{receiver}.<field>` but the change names owner "
-                f"`{owner}`; likely an unrelated object",
+                f"dict access with the renamed key, but on "
+                f"`{receiver or '<expression>'}` rather than `{owner}`, which the "
+                f"change document names as the owner of this field",
+                False,
+                f"receiver is `{receiver or '<expression>'}`, not the declared owner `{owner}`",
+            )
+        if hint and receiver_matches_owner(receiver, hint):
+            return (
+                Confidence.HIGH,
+                f"dict access with the renamed key on `{receiver}`, matching the "
+                f"receiver used in the change document's example",
+                True,
+                "",
+            )
+        return (
+            Confidence.MEDIUM,
+            "dict access with the renamed key; the change document asserts no "
+            "owning object, so the receiver could not be checked",
+            True,
+            "",
+        )
+
+    def _grade_attribute(
+        self, receiver: str, owner: str, hint: str = ""
+    ) -> tuple[Confidence, str, bool, str]:
+        """Grade an attribute access.
+
+        Weaker than a subscript in the unowned case: ``.total`` on an arbitrary
+        object is poor evidence, because attribute names collide across
+        unrelated libraries. Only a receiver match makes it actionable.
+        """
+        if owner and receiver_matches_owner(receiver, owner):
+            return (
+                Confidence.HIGH,
+                f"attribute access on `{owner}`, the object the change document names",
+                True,
+                "",
+            )
+        if owner:
+            return (
+                Confidence.LOW,
+                f"attribute with the renamed name on "
+                f"`{receiver or '<expression>'}` rather than `{owner}`, which the "
+                f"change document names as the owner of this field",
+                False,
+                f"receiver is `{receiver or '<expression>'}`, not the declared owner `{owner}`",
+            )
+        if hint and receiver_matches_owner(receiver, hint):
+            return (
+                Confidence.HIGH,
+                f"attribute access on `{receiver}`, matching the receiver used in "
+                f"the change document's example",
+                True,
+                "",
             )
         return (
             Confidence.LOW,
-            "attribute access with a matching name, but the change document names "
-            "no owning object, so this cannot be distinguished from an unrelated "
-            "attribute",
+            "attribute access with a matching name, but the change document "
+            "asserts no owning object, so this cannot be distinguished from an "
+            "unrelated attribute",
+            False,
+            "attribute access with no asserted owner to check the receiver against",
         )
 
     # -- planning ----------------------------------------------------------

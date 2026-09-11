@@ -36,17 +36,54 @@ or `.get()` position is not a field access, so it is never a candidate — not
 
 **Confidence grading**
 
-| Site | Confidence | Patched by default |
-|---|---|---|
-| `order["total"]`, owner `order` | high | yes |
-| `o["total"]`, owner `order` | medium | yes |
-| `order.total`, owner `order` | high | yes |
-| `df.total`, owner `order` | low | no — reported |
+When the change document *asserts* an owner — "the field on each `order` object
+was renamed" — only that receiver is patched:
 
-Subscript access with a matching constant key is strong evidence on its own,
-because that is how API responses arrive in Python. Attribute access is the
-opposite: `.total` collides across unrelated libraries, so only a receiver match
-rescues it.
+| Site (owner asserted as `order`) | Confidence | Patched by default |
+|---|---|---|
+| `order["total"]` | high | yes |
+| `self.order["total"]` | high | yes |
+| `customer["total"]` | low | no — reported |
+| `o["total"]` in `for o in orders` | low | no — reported |
+| `df.total` | low | no — reported |
+
+`order["total"]` and `customer["total"]` are different fields that happen to
+share a name. Rewriting both is the corruption this handler exists to prevent,
+so a receiver that is not the asserted owner is reported and left alone.
+
+**The cost is real and accepted.** `for o in orders: o["total"]` is not migrated
+automatically, because showing that `o` is an `order` needs type inference
+PatchAhead does not do. A missed site is fixable by hand; a wrong edit in
+unrelated code may not be noticed at all.
+
+When the document asserts **no** owner, there is nothing to check against:
+
+| Site (no owner asserted) | Confidence | Patched by default |
+|---|---|---|
+| `anything["total"]` | medium | yes |
+| `anything.get("total")` | medium | yes |
+| `anything.total` | low | no — reported |
+
+A constant string key matching a renamed field is decent evidence on its own,
+because that is how API responses arrive in Python. A bare attribute is not:
+`.total` collides across unrelated libraries.
+
+### Asserted versus inferred owners
+
+Not every receiver in a document is a claim about ownership:
+
+| Phrasing | Owner | Asserted? |
+|---|---|---|
+| "the field on each `order` object was renamed" | `order` | yes |
+| `` `client.fetch_orders` -> `client.list_orders` `` | `client` | yes |
+| "**Before:** `client.fetch_orders(limit=10)`" | `client` | no |
+| a structured document's `"owner"` field | as given | yes |
+
+The third row matters. `client` there is the *vendor's* example variable name,
+not a statement about what your repository calls its client — so treating it as
+a constraint would refuse to migrate `api_client.fetch_orders()`, which is the
+same SDK call. An inferred owner raises confidence when it matches and lowers it
+when it does not; it never vetoes.
 
 **Does not**
 
@@ -71,6 +108,15 @@ A method or function called on an upstream client.
 
 Only the callee name token is replaced, so arguments and formatting are
 untouched.
+
+**Confidence grading** follows the same asserted/inferred rule as
+`field_rename` above:
+
+| Site (receiver asserted as `client`) | Confidence | Patched by default |
+|---|---|---|
+| `client.fetch_orders()` | high | yes |
+| `self.client.fetch_orders()` | high | yes |
+| `analytics.fetch_orders()` | low | no — reported |
 
 **Does not**
 
@@ -163,6 +209,8 @@ response keys, and logging exactly as written.
 
 - `while page <= total_pages:` — the condition is in the `while`, not a guarded
   `break`.
+- A loop in a nested function belongs to *that* function. It is migrated as
+  part of it, once, not also as part of the enclosing one.
 - Any of (A)–(E) missing.
 - **The page variable used anywhere else in the function** — logged, returned,
   stored. Replacing it with a cursor could change behavior, so the loop is left

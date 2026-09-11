@@ -125,13 +125,17 @@ worse than nothing here.
 ## Safety model
 
 1. **Your tree is never written to.** `Repository` has no `write` method.
-   Patching happens in a `Workspace` — a temporary copy.
+   Patching happens in a `Workspace` — a temporary copy. That copy confines
+   *PatchAhead's own writes*; it is not a sandbox, and your test command still
+   runs with your privileges. [docs/safety.md](docs/safety.md) separates the
+   three.
 2. **Minimal edits.** Patches replace AST-derived source *ranges*, not whole
    files, so comments, formatting, and blank lines survive and diffs stay small.
 3. **Fail closed.** A code shape a handler does not recognize produces a stated
    refusal, never a guess.
 4. **Five gates.** syntax → scope → targeted tests → regression → migration
-   assertion. A migration is "successful" only if the tests verified it.
+   assertion. `migrated` requires a test that *failed before the patch and
+   passes after it*; a green-to-green run is reported `patched_unverified`.
 5. **No auto-merge.** Ever. The output is a diff and a review checklist.
 
 Full threat model, including what PatchAhead does *not* protect you from:
@@ -235,10 +239,12 @@ Stated plainly, because a migration tool that overstates its reach is worse than
 no tool:
 
 - **Python only.** No TypeScript, Go, or anything else.
-- **No type inference.** Impact analysis matches *names* and grades confidence
-  from the receiver. `order["total"]` where `order` came from somewhere
-  unrelated is a plausible false positive; that is why confidence is graded and
-  low-confidence sites are reported rather than patched.
+- **No type inference.** Impact analysis matches *names*. When a change document
+  asserts an owner, only that receiver is patched — so `customer["total"]`
+  survives an `order.total` rename, and so does `o["total"]` in
+  `for o in orders`, because `o` cannot be shown to be an `order`. That is a
+  deliberate false negative: unrecoverable wrong edits are worse than
+  recoverable missed ones.
 - **No dataflow.** `t = order["total"]` is renamed; a later use of `t` is not
   traced.
 - **One pagination loop shape.** Documented in `docs/migrations.md`. Anything

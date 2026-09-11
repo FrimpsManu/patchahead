@@ -14,6 +14,15 @@ Each record carries an exact source range, so patching can edit that range
 instead of regenerating the file. That is what keeps diffs minimal and leaves
 comments and formatting untouched.
 
+**Columns are converted from bytes to characters here.** ``ast`` reports
+``col_offset`` as an offset into the line's *UTF-8 encoding*, while Python
+string slicing is by *character*. On a line containing any non-ASCII text the
+two disagree, and slicing with a raw ``col_offset`` cuts the source at the wrong
+place -- ``order["total"]`` after ``name = "Jos\u00e9"`` became ``order[""amount"``,
+which is not even valid Python. Every ``SourceRange`` this module produces is
+character-based, so no consumer downstream has to know that ``ast`` counts
+differently.
+
 The tree is walked once per file and the result is cached by
 :class:`patchahead.analysis.index.RepoIndex`.
 """
@@ -34,12 +43,63 @@ class ParseError(Exception):
     """Raised when a file cannot be parsed as Python."""
 
 
+class ColumnMap:
+    """Converts ``ast`` byte columns to Python string character columns.
+
+    ``ast`` reports columns as offsets into the UTF-8 encoding of the line;
+    ``str`` indexes by character. They coincide only while a line is pure ASCII,
+    so the conversion has to happen before any range is used to slice source.
+
+    Tables are built lazily and only for lines that actually contain non-ASCII
+    text, which is the overwhelming minority, so this costs nothing on a typical
+    file.
+    """
+
+    def __init__(self, source: str) -> None:
+        self._lines = source.splitlines()
+        self._tables: dict[int, dict[int, int]] = {}
+
+    def char_col(self, line: int, byte_col: int) -> int:
+        """The character offset for a 1-indexed line and a byte column."""
+        if byte_col <= 0:
+            return 0
+        if not (1 <= line <= len(self._lines)):
+            return byte_col
+        text = self._lines[line - 1]
+        if text.isascii():
+            return byte_col
+
+        table = self._tables.get(line)
+        if table is None:
+            table = {}
+            offset = 0
+            for index, char in enumerate(text):
+                table[offset] = index
+                offset += len(char.encode("utf-8"))
+            table[offset] = len(text)
+            self._tables[line] = table
+
+        if byte_col in table:
+            return table[byte_col]
+        # A column inside a multi-byte character should not happen for a real
+        # node boundary. Clamp to the nearest boundary at or below it rather
+        # than returning a position that would split the character.
+        candidates = [b for b in table if b <= byte_col]
+        return table[max(candidates)] if candidates else 0
+
+
+#: Used where a range is built from source that is already character-indexed.
+IDENTITY_COLUMNS = None
+
+
 @dataclass(frozen=True)
 class SourceRange:
     """An exact half-open range in a source file.
 
-    ``line``/``end_line`` are 1-indexed; ``col``/``end_col`` are 0-indexed and
-    ``end_col`` is exclusive -- identical to ``ast`` node attributes.
+    ``line``/``end_line`` are 1-indexed; ``col``/``end_col`` are 0-indexed
+    **character** offsets and ``end_col`` is exclusive. Note the difference from
+    raw ``ast`` attributes, whose columns are UTF-8 byte offsets -- see
+    :class:`ColumnMap`.
     """
 
     line: int
@@ -48,13 +108,15 @@ class SourceRange:
     end_col: int
 
     @classmethod
-    def of(cls, node: ast.AST) -> SourceRange:
-        return cls(
-            line=node.lineno,
-            col=node.col_offset,
-            end_line=getattr(node, "end_lineno", None) or node.lineno,
-            end_col=getattr(node, "end_col_offset", None) or node.col_offset,
-        )
+    def of(cls, node: ast.AST, columns: ColumnMap | None = None) -> SourceRange:
+        line = node.lineno
+        end_line = getattr(node, "end_lineno", None) or line
+        col = node.col_offset
+        end_col = getattr(node, "end_col_offset", None) or col
+        if columns is not None:
+            col = columns.char_col(line, col)
+            end_col = columns.char_col(end_line, end_col)
+        return cls(line=line, col=col, end_line=end_line, end_col=end_col)
 
 
 def receiver_name(node: ast.AST) -> str:
@@ -83,6 +145,47 @@ def receiver_name(node: ast.AST) -> str:
 def base_name(dotted: str) -> str:
     """The leftmost segment of a dotted receiver name (``a.b.c`` -> ``a``)."""
     return dotted.split(".", 1)[0].removesuffix("()") if dotted else ""
+
+
+def receiver_matches_owner(receiver: str, owner: str) -> bool:
+    """Whether a receiver expression names the object the change document names.
+
+    Matches on the leftmost or the rightmost segment, so both ``order`` and
+    ``self.order`` match an owner of ``order`` while ``customer`` and
+    ``self.cache`` do not. Deliberately narrow: this is the predicate that
+    decides whether a rename is applied automatically, and a loose match here is
+    exactly how unrelated code gets corrupted.
+
+    An unnameable receiver -- a comprehension, a chained subscript -- yields
+    ``""`` and never matches, so it fails closed.
+    """
+    if not receiver or not owner:
+        return False
+    segments = [segment.removesuffix("()") for segment in receiver.split(".")]
+    return owner in (segments[0], segments[-1])
+
+
+def iter_own_scope(node: ast.AST) -> Iterator[ast.AST]:
+    """Walk ``node`` without descending into nested function or class bodies.
+
+    ``ast.walk`` crosses scope boundaries, so a ``while`` loop written inside a
+    nested ``def`` is also found when walking the enclosing function. For the
+    pagination handler that meant the same loop was matched twice -- once as
+    ``outer`` and once as ``outer.inner`` -- producing two overlapping sets of
+    edits for one loop.
+
+    Lambdas and comprehensions are *not* skipped: they are expressions within
+    the enclosing statement, and a name they use is a real use of that name in
+    code the handler is reasoning about.
+    """
+    stack: list[ast.AST] = [node]
+    while stack:
+        current = stack.pop()
+        yield current
+        for child in ast.iter_child_nodes(current):
+            if child is not node and isinstance(child, _SCOPE_NODES):
+                continue
+            stack.append(child)
 
 
 def called_name(node: ast.Call) -> str:
@@ -156,6 +259,11 @@ class ModuleAnalysis:
     path: str
     source: str
     tree: ast.Module
+    #: Byte-to-character column converter for this module's source. Handlers
+    #: that build ranges from raw ``ast`` nodes must pass this to
+    #: :meth:`SourceRange.of`, or their columns will be wrong on any line
+    #: containing non-ASCII text.
+    columns: ColumnMap | None = None
     subscripts: list[SubscriptAccess] = field(default_factory=list)
     get_calls: list[GetCallAccess] = field(default_factory=list)
     attributes: list[AttributeAccess] = field(default_factory=list)
@@ -168,18 +276,13 @@ class ModuleAnalysis:
             return lines[line - 1].strip()
         return ""
 
-    def walk_scope(self, symbol: str) -> Iterator[ast.AST]:
-        """Yield nodes inside a named function/method, for shape matching."""
-        for node in ast.walk(self.tree):
-            if isinstance(node, _SCOPE_NODES) and node.name == symbol.rsplit(".", 1)[-1]:
-                yield from ast.walk(node)
-
 
 class _Collector(ast.NodeVisitor):
     """Single-pass collector. Tracks the enclosing scope as it descends."""
 
-    def __init__(self, analysis: ModuleAnalysis) -> None:
+    def __init__(self, analysis: ModuleAnalysis, columns: ColumnMap) -> None:
         self.analysis = analysis
+        self.columns = columns
         self._scope: list[str] = []
         # Attribute nodes that are a call's callee, so they are recorded as
         # calls rather than double-counted as plain attribute reads.
@@ -203,23 +306,23 @@ class _Collector(ast.NodeVisitor):
         if name:
             if isinstance(node.func, ast.Attribute):
                 self._callee_nodes.add(id(node.func))
-                name_range = _attribute_name_range(node.func)
+                name_range = _attribute_name_range(node.func, self.columns)
                 receiver = receiver_name(node.func.value)
             else:
-                name_range = SourceRange.of(node.func)
+                name_range = SourceRange.of(node.func, self.columns)
                 receiver = ""
 
             keywords: dict[str, SourceRange] = {}
             for keyword in node.keywords:
                 if keyword.arg is None:  # `**kwargs`
                     continue
-                keywords[keyword.arg] = _keyword_name_range(keyword)
+                keywords[keyword.arg] = _keyword_name_range(keyword, self.columns)
 
             self.analysis.calls.append(
                 CallSite(
                     name=name,
                     receiver=receiver,
-                    range=SourceRange.of(node),
+                    range=SourceRange.of(node, self.columns),
                     name_range=name_range,
                     symbol=self.symbol,
                     keywords=keywords,
@@ -239,8 +342,8 @@ class _Collector(ast.NodeVisitor):
                     GetCallAccess(
                         key=node.args[0].value,
                         receiver=receiver,
-                        range=SourceRange.of(node),
-                        key_range=SourceRange.of(node.args[0]),
+                        range=SourceRange.of(node, self.columns),
+                        key_range=SourceRange.of(node.args[0], self.columns),
                         symbol=self.symbol,
                     )
                 )
@@ -253,8 +356,8 @@ class _Collector(ast.NodeVisitor):
                 SubscriptAccess(
                     key=key_node.value,
                     receiver=receiver_name(node.value),
-                    range=SourceRange.of(node),
-                    key_range=SourceRange.of(key_node),
+                    range=SourceRange.of(node, self.columns),
+                    key_range=SourceRange.of(key_node, self.columns),
                     symbol=self.symbol,
                     is_write=not isinstance(node.ctx, ast.Load),
                 )
@@ -267,8 +370,8 @@ class _Collector(ast.NodeVisitor):
                 AttributeAccess(
                     attr=node.attr,
                     receiver=receiver_name(node.value),
-                    range=SourceRange.of(node),
-                    attr_range=_attribute_name_range(node),
+                    range=SourceRange.of(node, self.columns),
+                    attr_range=_attribute_name_range(node, self.columns),
                     symbol=self.symbol,
                     is_write=not isinstance(node.ctx, ast.Load),
                 )
@@ -276,36 +379,43 @@ class _Collector(ast.NodeVisitor):
         self.generic_visit(node)
 
 
-def _attribute_name_range(node: ast.Attribute) -> SourceRange:
+def _attribute_name_range(node: ast.Attribute, columns: ColumnMap) -> SourceRange:
     """Range of just the attribute name in ``value.attr``.
 
     ``ast`` gives no direct position for the name, but the node ends exactly at
-    the end of the attribute, so the name occupies the final ``len(attr)``
-    columns. This holds even across a line continuation, because ``end_lineno``
-    is the line the name is on.
+    the end of the attribute, so the name occupies the final bytes of the node.
+    This holds even across a line continuation, because ``end_lineno`` is the
+    line the name is on.
+
+    The subtraction happens in byte space, because that is the space
+    ``end_col_offset`` and ``str.encode()`` are both in; only the result is
+    converted to a character column.
     """
     end_line = node.end_lineno or node.lineno
-    end_col = node.end_col_offset or node.col_offset
+    end_byte = node.end_col_offset or node.col_offset
+    start_byte = max(0, end_byte - len(node.attr.encode("utf-8")))
     return SourceRange(
         line=end_line,
-        col=max(0, end_col - len(node.attr)),
+        col=columns.char_col(end_line, start_byte),
         end_line=end_line,
-        end_col=end_col,
+        end_col=columns.char_col(end_line, end_byte),
     )
 
 
-def _keyword_name_range(node: ast.keyword) -> SourceRange:
+def _keyword_name_range(node: ast.keyword, columns: ColumnMap) -> SourceRange:
     """Range of the ``name`` token in ``name=value``.
 
-    The keyword node starts at the name, so the name occupies the first
-    ``len(arg)`` columns of the node.
+    The keyword node starts at the name, so the name occupies the first bytes of
+    the node. As above, the arithmetic is done in byte space.
     """
     name = node.arg or ""
+    start_byte = node.col_offset
+    end_byte = start_byte + len(name.encode("utf-8"))
     return SourceRange(
         line=node.lineno,
-        col=node.col_offset,
+        col=columns.char_col(node.lineno, start_byte),
         end_line=node.lineno,
-        end_col=node.col_offset + len(name),
+        end_col=columns.char_col(node.lineno, end_byte),
     )
 
 
@@ -323,5 +433,6 @@ def analyze_source(source: str, path: str) -> ModuleAnalysis:
         raise ParseError(f"{path}: {exc}") from exc
 
     analysis = ModuleAnalysis(path=path, source=source, tree=tree)
-    _Collector(analysis).visit(tree)
+    analysis.columns = ColumnMap(source)
+    _Collector(analysis, analysis.columns).visit(tree)
     return analysis

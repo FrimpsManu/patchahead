@@ -276,7 +276,7 @@ def classify(text: str) -> tuple[ChangeKind, int, str]:
     return best_kind, best_score, f"matched {best_kind.value} signals: {phrases}"
 
 
-def _extract_rename(text: str, kind: ChangeKind = ChangeKind.UNKNOWN) -> tuple[str, str]:
+def _extract_rename(text: str, kind: ChangeKind = ChangeKind.UNKNOWN) -> tuple[str, str, str]:
     """Pull ``old`` and ``new`` symbols out of a rename description.
 
     Several notations can match the same sentence, and they are not equally
@@ -286,6 +286,10 @@ def _extract_rename(text: str, kind: ChangeKind = ChangeKind.UNKNOWN) -> tuple[s
     \\`fetch_orders\\` was renamed to \\`timeout\\`"` it matches ``fetch_orders``
     -> ``timeout``. So candidates are ranked by notation first and document
     position second, which prefers the explicit arrow in a heading.
+
+    Returns ``(old, new, qualifier)``. ``qualifier`` is the receiver prefix of a
+    dotted old name, which is an *asserted* owner -- see
+    :class:`~patchahead.domain.change.SymbolTarget`.
     """
     # (notation priority, position, old, new)
     candidates: list[tuple[int, int, str, str]] = []
@@ -296,13 +300,10 @@ def _extract_rename(text: str, kind: ChangeKind = ChangeKind.UNKNOWN) -> tuple[s
                 continue
             if old == new:
                 continue
-            # Strip a receiver prefix: `customer.name` -> `name`.
-            candidates.append(
-                (priority, match.start(), old.rsplit(".", 1)[-1], new.rsplit(".", 1)[-1])
-            )
+            candidates.append((priority, match.start(), old, new))
 
     if not candidates:
-        return "", ""
+        return "", "", ""
 
     if kind is ChangeKind.KWARG_RENAME:
         # A keyword argument is the thing that appears as `name=` somewhere in
@@ -316,48 +317,75 @@ def _extract_rename(text: str, kind: ChangeKind = ChangeKind.UNKNOWN) -> tuple[s
             candidates = keyword_like
 
     candidates.sort(key=lambda candidate: (candidate[0], candidate[1]))
-    return candidates[0][2], candidates[0][3]
+    _, _, old, new = candidates[0]
+
+    # A dotted name qualifies the symbol: `client.fetch_orders -> client.list_orders`
+    # states *which* receiver was renamed, so the prefix is an asserted owner.
+    qualifier = old.rsplit(".", 1)[0] if "." in old else ""
+    return old.rsplit(".", 1)[-1], new.rsplit(".", 1)[-1], qualifier
 
 
-def _extract_owner(text: str, symbol: str, kind: ChangeKind) -> str:
+def _extract_owner(text: str, symbol: str, kind: ChangeKind) -> tuple[str, bool]:
     """Find the object or function the symbol belongs to.
 
     The owner is what keeps a rename scoped. Without it a field rename of
     ``total`` is a repository-wide search for the word "total"; with it, the
     search is for ``order["total"]``.
+
+    Returns ``(owner, is_explicit)``. Phrasings that *assert* ownership -- "on
+    each `order` object", "the keyword argument on `fetch_orders`" -- are
+    explicit, and a receiver mismatch then refuses to patch. A receiver merely
+    scraped out of an illustrative snippet is not: the vendor writing
+    ``client.fetch_orders(limit=10)`` is naming their own example variable, not
+    making a claim about what a downstream repository calls its client.
     """
     if not symbol:
-        return ""
+        return "", False
     escaped = re.escape(symbol)
 
     if kind is ChangeKind.KWARG_RENAME:
-        # `fetch_orders(..., timeout_seconds=...)`
+        # Which function an argument belongs to is definitional rather than a
+        # naming coincidence, so both spellings count as assertions.
         match = re.search(rf"(\w+)\s*\([^)]*\b{escaped}\s*=", text)
         if match:
-            return match.group(1)
+            return match.group(1), True
         # "the `timeout_seconds` keyword argument on `fetch_orders`"
         match = re.search(rf"`{escaped}`[^`\n]{{0,60}}?\bon\s+`(\w+)`", text, re.IGNORECASE)
         if match:
-            return match.group(1)
-        return ""
+            return match.group(1), True
+        return "", False
 
     if kind is ChangeKind.METHOD_RENAME:
+        # "the method on `client` was renamed" asserts a receiver.
+        match = re.search(
+            rf"\bon\s+(?:the\s+)?`(\w+)`[^`\n]{{0,60}}?`?{escaped}`?", text, re.IGNORECASE
+        )
+        if match and match.group(1).lower() not in _STOPWORDS:
+            return match.group(1), True
+        # `client.fetch_orders(...)` in a Before/After example: a hint, not a
+        # constraint. See the docstring.
         match = re.search(rf"`?(\w+)\.{escaped}\s*\(", text)
         if match and match.group(1).lower() not in _STOPWORDS:
-            return match.group(1)
-        return ""
+            return match.group(1), False
+        return "", False
 
-    # Field rename: `order["total"]`, `order.total`, "on each `order` object".
+    # Field rename. "on each `order` object" asserts which object owns the
+    # field; a bare `order["total"]` snippet only illustrates it.
     for pattern in (
-        rf"(\w+)\s*\[\s*[\"']{escaped}[\"']\s*\]",
-        rf"`(\w+)\.{escaped}`",
         r"\bon\s+(?:each|the|an|a)\s+`(\w+)`\s+object",
         rf"`(\w+)`\s+object[^.\n]{{0,60}}?`{escaped}`",
     ):
         match = re.search(pattern, text, re.IGNORECASE)
         if match and match.group(1).lower() not in _STOPWORDS:
-            return match.group(1)
-    return ""
+            return match.group(1), True
+    for pattern in (
+        rf"(\w+)\s*\[\s*[\"']{escaped}[\"']\s*\]",
+        rf"`(\w+)\.{escaped}`",
+    ):
+        match = re.search(pattern, text, re.IGNORECASE)
+        if match and match.group(1).lower() not in _STOPWORDS:
+            return match.group(1), False
+    return "", False
 
 
 def _extract_labeled(text: str, *labels: str) -> str:
@@ -454,9 +482,17 @@ def _confidence(kind: ChangeKind, score: int, target: SymbolTarget) -> Confidenc
 def parse_section(section: _Section, source: str = "markdown") -> BreakingChange:
     """Turn one document section into a :class:`BreakingChange`."""
     kind, score, reason = classify(section.text)
-    old, new = _extract_rename(section.text, kind)
-    owner = _extract_owner(section.text, old, kind)
-    target = SymbolTarget(symbol=old, replacement=new, owner=owner)
+    old, new, qualifier = _extract_rename(section.text, kind)
+    owner, owner_is_explicit = _extract_owner(section.text, old, kind)
+    if qualifier:
+        # A dotted rename statement outranks anything scraped from prose.
+        owner, owner_is_explicit = qualifier, True
+    target = SymbolTarget(
+        symbol=old,
+        replacement=new,
+        owner=owner,
+        owner_is_explicit=owner_is_explicit,
+    )
 
     if kind.is_actionable and kind is not ChangeKind.PAGINATION_PAGE_TO_CURSOR and not old:
         reason = (

@@ -125,14 +125,26 @@ class ValidationResult:
 
     @property
     def verified(self) -> bool:
-        """Passed *and* a test gate actually executed.
+        """Passed *and* the tests proved the break was fixed.
 
         Distinct from :attr:`passed` because "no gate objected" and "the tests
-        confirmed it" are different claims. With ``--no-tests``, or in a
-        repository with no test suite, a patch can pass syntax and scope without
-        anything having verified that it works.
+        confirmed it" are different claims. Verification requires the
+        migration-assertion gate to have *passed*, which means a test that
+        failed before the patch passes after it.
+
+        Everything short of that is a patch without evidence:
+
+        =========================  ===========================================
+        Situation                  Assertion gate
+        =========================  ===========================================
+        red before, green after    PASSED  -> verified
+        green before, green after  SKIPPED -> the tests do not cover the change
+        no runnable tests          SKIPPED -> nothing ran
+        a test this patch broke    the regression gate FAILS first
+        =========================  ===========================================
         """
-        return self.passed and self.tests_ran
+        assertion = self.get(GateName.MIGRATION_ASSERTION)
+        return self.passed and assertion is not None and assertion.passed
 
     @property
     def tests_ran(self) -> bool:

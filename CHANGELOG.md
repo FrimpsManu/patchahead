@@ -7,6 +7,53 @@ this project uses [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- **Renames no longer cross object boundaries.** When a change document asserts
+  an owner, a site whose receiver is not that owner is reported and left alone.
+  `order["total"]` and `customer["total"]` on the same line are different
+  fields; both were being rewritten. Same for `client.fetch_orders()` versus
+  `analytics.fetch_orders()`.
+- **UTF-8 source is no longer corrupted.** `ast` reports columns as UTF-8 byte
+  offsets and Python strings are indexed by character, so an edit on a line
+  containing non-ASCII text landed at the wrong position — a line beginning
+  `name = "José"` produced `order[""amount"`, which is not valid Python.
+  Conversion now happens where `ast` data enters the system.
+- **A loop in a nested function is migrated once.** Loop discovery walked into
+  nested scopes, matching the same loop as both the outer and the inner
+  function and emitting two overlapping sets of edits for it.
+- **`migrated` now requires red-to-green evidence.** A green-to-green run is
+  reported `patched_unverified`: no gate objected, but nothing demonstrated the
+  migration did anything.
+
+### Changed
+
+- **LLM proposals are checked against a full function contract** — `async`-ness,
+  name, every parameter with its kind and annotation, defaults, return
+  annotation, and decorators. The previous check compared only the name and
+  parameter names, so a model could silently drop `async`, remove a default,
+  change an annotation, or delete a decorator and still be accepted.
+- `SymbolTarget.owner_is_explicit` distinguishes an **asserted** owner ("the
+  field on each `order` object", a dotted `client.fetch_orders` rename, a
+  structured document's `owner` field) from one **inferred** from an
+  illustrative snippet. Only an asserted owner vetoes a mismatched receiver, so
+  `api_client.fetch_orders()` still migrates when the vendor's example happened
+  to call its variable `client`.
+
+### Added
+
+- An **adversarial evaluation suite** (`evals/datasets/adversarial/`, 20 cases)
+  covering unrelated objects sharing a field name, strings and comments
+  containing the name, Unicode before and on the edited line, nested functions
+  and classes, comprehensions and lambdas, decorated async methods, multiline
+  calls, already-migrated and partially-migrated repositories, and unsupported
+  shapes. It checks the patched *source*, not just the site list, and it was
+  verified to fail when each fix above is reverted.
+- `iter_own_scope`, a shared scope-limited AST traversal.
+- `docs/safety.md` now separates three things it previously blurred: where
+  PatchAhead writes, what the workspace isolates (filesystem writes inside the
+  copy, and nothing else), and what a test command can do (anything you can).
+
 ## [0.2.0] — 2026-09-11
 
 The prototype rebuilt as a tool that works on repositories other than the one it

@@ -112,7 +112,9 @@ class ValidationEngine:
         result.gates.append(targeted)
         regression = self._regression_gate(workspace, command, options.full_baseline)
         result.gates.append(regression)
-        result.gates.append(self._assertion_gate(targeted, options.baseline))
+        result.gates.append(
+            self._assertion_gate(targeted, regression, options.baseline, options.full_baseline)
+        )
         return result
 
     # -- gate 1: syntax ----------------------------------------------------
@@ -368,55 +370,84 @@ class ValidationEngine:
 
     # -- gate 5: migration assertion --------------------------------------
 
-    def _assertion_gate(self, targeted: GateResult, baseline: TestRun | None) -> GateResult:
+    def _assertion_gate(
+        self,
+        targeted: GateResult,
+        regression: GateResult,
+        baseline: TestRun | None,
+        full_baseline: TestRun | None,
+    ) -> GateResult:
         """Did the specific breakage actually get fixed?
 
-        Requires evidence on both sides: the targeted tests failed before, and
-        pass now. Without a baseline, or with a baseline that was already green,
-        the gate reports SKIPPED and says so -- a green-to-green run is not
-        evidence that a migration did anything.
+        Requires evidence on both sides: a test failed before the patch, and
+        passes after it. This is the gate that separates "we changed some code"
+        from "we migrated something", and
+        :attr:`~patchahead.domain.validation.ValidationResult.verified` is
+        defined in terms of it.
+
+        It prefers the targeted gate's evidence and falls back to the full
+        suite, because a repository whose test command cannot be narrowed to
+        specific files still produces perfectly good red-to-green evidence --
+        it is just spread across the whole run.
+
+        Without a baseline, or with one that was already green, the gate reports
+        SKIPPED and says so. A green-to-green run is not evidence that a
+        migration did anything; the patch may well be right, but these tests did
+        not demonstrate it.
         """
-        if baseline is None:
+        # Prefer the narrow evidence; fall back to the full suite.
+        if targeted.status is not GateStatus.SKIPPED and baseline is not None:
+            before, after, scope = baseline, targeted, "targeted"
+        elif regression.status is not GateStatus.SKIPPED and full_baseline is not None:
+            before, after, scope = full_baseline, regression, "full suite"
+        else:
             return GateResult(
                 name=GateName.MIGRATION_ASSERTION,
                 status=GateStatus.SKIPPED,
-                detail="no baseline test run was captured before patching",
+                detail=("no before/after test evidence is available, so this patch is unverified"),
             )
-        if baseline.errored:
+
+        if before.errored:
             return GateResult(
                 name=GateName.MIGRATION_ASSERTION,
                 status=GateStatus.SKIPPED,
-                detail=f"the baseline test run could not complete: {baseline.summary}",
+                detail=f"the baseline test run could not complete: {before.summary}",
             )
-        if baseline.passed:
-            return GateResult(
-                name=GateName.MIGRATION_ASSERTION,
-                status=GateStatus.SKIPPED,
-                detail=(
-                    "the tests already passed before the patch, so this run cannot "
-                    "evidence that the migration fixed anything. The patch may still "
-                    "be correct; the tests do not cover the change."
-                ),
-            )
-        if targeted.status is GateStatus.SKIPPED:
+        if before.passed:
             return GateResult(
                 name=GateName.MIGRATION_ASSERTION,
                 status=GateStatus.SKIPPED,
                 detail=(
-                    "the targeted-test gate did not run, so before/after cannot be "
-                    "compared on the same set of tests"
+                    f"the {scope} tests already passed before the patch, so this run "
+                    f"cannot evidence that the migration fixed anything. The patch "
+                    f"may still be correct; these tests do not cover the change."
                 ),
             )
-        if not targeted.passed:
+        if not after.passed:
             return GateResult(
                 name=GateName.MIGRATION_ASSERTION,
                 status=GateStatus.FAILED,
-                detail="the targeted tests still fail after the patch",
+                detail=f"the {scope} tests still fail after the patch",
             )
 
-        before = ", ".join(baseline.failing_tests[:3]) or baseline.summary
+        fixed = (
+            sorted(set(before.failing_tests) - set(after.test_run.failing_tests))
+            if (after.test_run)
+            else sorted(before.failing_tests)
+        )
+        if before.failing_tests and not fixed:
+            return GateResult(
+                name=GateName.MIGRATION_ASSERTION,
+                status=GateStatus.FAILED,
+                detail=(
+                    f"the {scope} run is green but none of the tests that failed "
+                    f"before the patch were among them"
+                ),
+            )
+
+        named = ", ".join(fixed[:3]) or before.summary
         return GateResult(
             name=GateName.MIGRATION_ASSERTION,
             status=GateStatus.PASSED,
-            detail=f"tests that failed before the patch now pass ({before})",
+            detail=f"{scope} tests that failed before the patch now pass ({named})",
         )

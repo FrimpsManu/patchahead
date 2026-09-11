@@ -20,11 +20,31 @@ from patchahead.domain.change import (
 from tests.conftest import dedent
 
 
-def change(kind: ChangeKind, symbol="", replacement="", owner="", **kwargs) -> BreakingChange:
+def change(
+    kind: ChangeKind,
+    symbol="",
+    replacement="",
+    owner="",
+    owner_is_explicit=True,
+    **kwargs,
+) -> BreakingChange:
+    """Build a change for a handler test.
+
+    ``owner_is_explicit`` defaults to True because that is what a real change
+    document produces whenever it states ownership ("the field on each `order`
+    object"), and it is the mode that decides the safety property: a receiver
+    that is not the asserted owner is never patched. Tests that want the looser
+    inferred-owner behavior pass ``owner_is_explicit=False`` and say so.
+    """
     return BreakingChange(
         title=f"test {kind.value}",
         kind=kind,
-        target=SymbolTarget(symbol=symbol, replacement=replacement, owner=owner),
+        target=SymbolTarget(
+            symbol=symbol,
+            replacement=replacement,
+            owner=owner,
+            owner_is_explicit=owner_is_explicit,
+        ),
         **kwargs,
     )
 
@@ -94,8 +114,68 @@ class TestFieldRename:
         attribute = next(f for f in report.findings if f.access.value == "attribute")
         assert attribute.confidence is Confidence.LOW
         assert attribute.patchable is False
-        assert len(plan.transformations) == 1
         assert any("df.total" in s for s in plan.skipped)
+
+    def test_a_subscript_on_a_different_object_is_never_patched(self, make_index):
+        """`order["total"]` and `customer["total"]` are different fields.
+
+        The prototype rewrote both. So did this handler before the receiver
+        check, because a matching constant key looked like enough evidence on
+        its own. When the document asserts an owner, it is not.
+        """
+        source = 'def f(order, customer):\n    return order["total"] + customer["total"]\n'
+        index = make_index({"a.py": source})
+
+        report, plan = run(change(ChangeKind.FIELD_RENAME, "total", "amount", "order"), index)
+
+        graded = {f.matched_contract: (f.confidence, f.patchable) for f in report.findings}
+        assert graded['order["total"]'] == (Confidence.HIGH, True)
+        assert graded['customer["total"]'] == (Confidence.LOW, False)
+
+        result = patched(source, plan, "a.py")
+        assert 'order["amount"]' in result
+        assert 'customer["total"]' in result, "an unrelated object must be untouched"
+
+    def test_a_receiver_that_cannot_be_shown_to_be_the_owner_fails_closed(self, make_index):
+        """`for o in orders` is a real cost of this rule, and it is accepted.
+
+        Proving `o` is an `order` needs type inference PatchAhead does not do.
+        A false negative is recoverable by hand; a wrong edit is not.
+        """
+        source = 'def f(orders):\n    return [o["total"] for o in orders]\n'
+        index = make_index({"a.py": source})
+
+        report, plan = run(change(ChangeKind.FIELD_RENAME, "total", "amount", "order"), index)
+
+        assert report.findings[0].patchable is False
+        assert plan.transformations == []
+        assert "not the declared owner" in report.findings[0].unpatchable_reason
+
+    def test_a_dotted_receiver_matches_its_last_segment(self, make_index):
+        source = 'def f(self):\n    return self.order["total"]\n'
+        index = make_index({"a.py": source})
+
+        report, _ = run(change(ChangeKind.FIELD_RENAME, "total", "amount", "order"), index)
+
+        assert report.findings[0].confidence is Confidence.HIGH
+        assert report.findings[0].patchable is True
+
+    def test_an_inferred_owner_lowers_confidence_instead_of_refusing(self, make_index):
+        """A receiver scraped from a vendor's example is a hint, not a constraint.
+
+        `**Before:** `client.fetch_orders(...)`` names the vendor's variable, not
+        the reader's, so a mismatch must not veto the migration.
+        """
+        source = 'def f(o):\n    return o["total"]\n'
+        index = make_index({"a.py": source})
+
+        report, plan = run(
+            change(ChangeKind.FIELD_RENAME, "total", "amount", "order", owner_is_explicit=False),
+            index,
+        )
+
+        assert report.findings[0].confidence is Confidence.MEDIUM
+        assert len(plan.transformations) == 1
 
     def test_the_patch_touches_only_the_field_access(self, make_index):
         index = make_index({"a.py": self.SOURCE})
@@ -106,7 +186,10 @@ class TestFieldRename:
         assert 'LOG_LABEL = "total"' in result, "unrelated constant must survive"
         assert 'message = "total"' in result, "unrelated string must survive"
         assert "df.total" in result, "unrelated attribute must survive"
-        assert 'o["amount"]' in result, "the real access must be renamed"
+        assert 'o["total"]' in result, (
+            "`o` cannot be shown to be the declared owner `order`, so it is "
+            "reported rather than rewritten"
+        )
 
     def test_matching_receiver_raises_confidence_to_high(self, make_index):
         index = make_index({"a.py": 'def f(order):\n    return order["total"]\n'})
@@ -149,7 +232,7 @@ class TestFieldRename:
         index = make_index({"a.py": 'def f(o):\n    return o["total"]\n'})
 
         report, plan = run(
-            change(ChangeKind.FIELD_RENAME, "total", "amount", "order"),
+            change(ChangeKind.FIELD_RENAME, "total", "amount", "order", owner_is_explicit=False),
             index,
             Config(min_confidence=Confidence.HIGH),
         )
@@ -170,6 +253,52 @@ class TestMethodRename:
         assert patched(source, plan, "a.py") == (
             "def f(client):\n    return client.list_orders(limit=10, timeout=5)\n"
         )
+
+    def test_a_call_on_a_different_receiver_is_never_patched(self, make_index):
+        """`client.fetch_orders()` and `analytics.fetch_orders()` are different.
+
+        Only the receiver the change document asserts may be migrated.
+        """
+        source = (
+            "def f(client, analytics):\n"
+            "    return client.fetch_orders(), analytics.fetch_orders()\n"
+        )
+        index = make_index({"a.py": source})
+
+        report, plan = run(
+            change(ChangeKind.METHOD_RENAME, "fetch_orders", "list_orders", "client"), index
+        )
+
+        graded = {f.matched_contract: (f.confidence, f.patchable) for f in report.findings}
+        assert graded["client.fetch_orders()"] == (Confidence.HIGH, True)
+        assert graded["analytics.fetch_orders()"] == (Confidence.LOW, False)
+
+        result = patched(source, plan, "a.py")
+        assert "client.list_orders()" in result
+        assert "analytics.fetch_orders()" in result, "an unrelated receiver must survive"
+
+    def test_an_inferred_receiver_still_migrates_a_differently_named_variable(self, make_index):
+        """`api_client.fetch_orders()` is the same SDK call as `client.fetch_orders()`.
+
+        When the receiver came from a Before/After example rather than an
+        assertion, a different local name must not veto the migration.
+        """
+        source = "def f(api_client):\n    return api_client.fetch_orders()\n"
+        index = make_index({"a.py": source})
+
+        report, plan = run(
+            change(
+                ChangeKind.METHOD_RENAME,
+                "fetch_orders",
+                "list_orders",
+                "client",
+                owner_is_explicit=False,
+            ),
+            index,
+        )
+
+        assert report.findings[0].confidence is Confidence.MEDIUM
+        assert "api_client.list_orders()" in patched(source, plan, "a.py")
 
     def test_a_bare_reference_is_reported_but_not_rewritten(self, make_index):
         index = make_index({"a.py": "def f(client):\n    return client.fetch_orders\n"})
@@ -425,6 +554,43 @@ class TestPagination:
         assert "api.list(after=after)" in result
         assert 'if not r.get("hasMore"):' in result
         assert 'after = r.get("nextAfter")' in result
+
+    def test_a_loop_in_a_nested_function_is_matched_once(self, make_index):
+        """Walking the outer function used to find the inner loop too.
+
+        That matched one loop twice -- as `outer` and as `outer.inner` -- and
+        emitted two overlapping sets of edits for it.
+        """
+        source = """
+            def outer(api, log):
+                size = 50
+
+                def inner():
+                    page = 1
+                    out = []
+                    while True:
+                        r = api.get(page=page)
+                        out.extend(r["items"])
+                        if page >= r["total_pages"]:
+                            break
+                        page += 1
+                    return out
+
+                log.info("size %d", size)
+                return inner()
+        """
+        index = make_index({"a.py": source})
+
+        report, plan = run(self.pagination_change(), index)
+
+        assert len(report.findings) == 1
+        assert report.findings[0].symbol == "outer.inner"
+        assert len(plan.transformations) == 4, "four spans, not eight"
+        assert {t.symbol for t in plan.transformations} == {"outer.inner"}
+
+        result = patched(source, plan, "a.py")
+        assert "cursor = None" in result
+        assert 'log.info("size %d", size)' in result
 
     def test_an_assignment_style_advance_is_recognized(self, make_index):
         source = """
