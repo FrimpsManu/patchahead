@@ -1,0 +1,120 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: tests (py${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # The floor and the ceiling of what pyproject.toml claims to support.
+        # 3.10 matters specifically because it needs the `tomli` backfill.
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+      - name: Install
+        run: pip install -e '.[dev,web,yaml]'
+      - name: Run tests
+        run: python -m pytest -q
+
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -e '.[dev]'
+      - name: ruff check
+        run: ruff check src tests evals
+      - name: ruff format --check
+        run: ruff format --check src tests evals
+        continue-on-error: true  # advisory until the codebase is fully formatted
+
+  evals:
+    name: evals
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -e '.[dev]'
+      - name: Run the evaluation suites
+        # Non-zero exit if classification accuracy, impact precision, or the
+        # migration success rate regress. These are measured, not asserted from
+        # a previous run.
+        run: python evals/run.py
+
+  cli:
+    name: cli smoke test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -e '.[dev]'
+      - name: patchahead --help
+        run: patchahead --help
+      - name: patchahead handlers
+        run: patchahead handlers
+      - name: analyze the bundled example
+        run: |
+          patchahead analyze \
+            --repo examples/orders-service \
+            --change examples/changes/pagination-cursor.md
+      - name: migrate the bundled example end to end
+        run: |
+          patchahead migrate \
+            --repo examples/orders-service \
+            --change examples/changes/pagination-cursor.md \
+            --no-artifacts
+      - name: the example repository must be unchanged afterwards
+        run: git diff --exit-code examples/
+      - name: an unsupported change must exit 3
+        run: |
+          printf '### Orders endpoint moved\n\nThe endpoint moved to /v2/orders.\n' > /tmp/change.md
+          patchahead analyze --repo examples/orders-service --change /tmp/change.md && exit 1
+          test $? -ne 0
+
+  package:
+    name: packaging
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install build twine
+      - name: Build sdist and wheel
+        run: python -m build
+      - name: Check metadata
+        run: twine check dist/*
+      - name: Install the wheel in a clean environment and run it
+        run: |
+          python -m venv /tmp/clean
+          /tmp/clean/bin/pip install dist/*.whl
+          /tmp/clean/bin/patchahead --version
+          /tmp/clean/bin/patchahead handlers

@@ -1,0 +1,24 @@
+{
+  "title": "Pagination is now cursor-based",
+  "kind": "pagination_page_to_cursor",
+  "old_behavior": "get_orders(page=N) returned `page` and `total_pages`",
+  "new_behavior": "get_orders(cursor=C) returns `next_cursor` and `has_more`",
+  "migration_hint": "Iterate with cursor/next_cursor; stop when has_more is false.",
+  "severity": "high",
+  "confidence": "high",
+  "target": {
+    "symbol": "page",
+    "replacement": "cursor",
+    "owner": "get_orders"
+  },
+  "pagination": {
+    "page_param": "page",
+    "total_pages_key": "total_pages",
+    "cursor_param": "cursor",
+    "next_cursor_key": "next_cursor",
+    "has_more_key": "has_more"
+  },
+  "evidence": [
+    "The `page` and `total_pages` response fields have been removed."
+  ]
+}

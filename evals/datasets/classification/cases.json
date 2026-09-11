@@ -1,0 +1,79 @@
+{
+  "description": "Can PatchAhead read a release note correctly? Each case is a realistic snippet plus the kind and symbols a correct reading yields. Cases that PatchAhead should refuse are included on purpose: a classifier scored only on what it can do is not a classifier.",
+  "cases": [
+    {
+      "id": "pagination_explicit",
+      "text": "### Pagination is now cursor-based\n\n- **Before (v1):** `GET /orders?page=1` returned `page` and `total_pages`.\n- **After (v2):** `GET /orders?cursor=<cursor>` returns `next_cursor` and `has_more`.\n- The `page` and `total_pages` response fields have been **removed**.",
+      "expected_kind": "pagination_page_to_cursor"
+    },
+    {
+      "id": "pagination_prose",
+      "text": "### Cursor pagination\n\nWe have moved to cursor-based pagination. Pass `cursor` and read `next_cursor`; keep going while `has_more` is true.",
+      "expected_kind": "pagination_page_to_cursor"
+    },
+    {
+      "id": "field_rename_arrow",
+      "text": "### Order field renamed: `total` -> `amount`\n\nThe monetary field on each `order` object was renamed.",
+      "expected_kind": "field_rename",
+      "expected_symbol": "total",
+      "expected_replacement": "amount",
+      "expected_owner": "order"
+    },
+    {
+      "id": "field_rename_prose",
+      "text": "### Customer schema\n\nThe field renamed `name` to `full_name` on the `customer` object. Update any code reading `customer.name`.",
+      "expected_kind": "field_rename",
+      "expected_symbol": "name",
+      "expected_replacement": "full_name",
+      "expected_owner": "customer"
+    },
+    {
+      "id": "method_rename",
+      "text": "### Client method renamed\n\nThe method renamed `fetch_orders` -> `list_orders`. The deprecated `client.fetch_orders()` was removed in v2.",
+      "expected_kind": "method_rename",
+      "expected_symbol": "fetch_orders",
+      "expected_replacement": "list_orders"
+    },
+    {
+      "id": "kwarg_rename",
+      "text": "### Keyword argument renamed: `timeout_seconds` -> `timeout`\n\nThe `timeout_seconds` keyword argument on `fetch_orders` was renamed to `timeout`.",
+      "expected_kind": "kwarg_rename",
+      "expected_symbol": "timeout_seconds",
+      "expected_replacement": "timeout",
+      "expected_owner": "fetch_orders"
+    },
+    {
+      "id": "kwarg_rename_prose",
+      "text": "### Parameter rename\n\nThe `retries` parameter was renamed to `max_retries` on `send`. Calls using `retries=` will raise a TypeError.",
+      "expected_kind": "kwarg_rename",
+      "expected_symbol": "retries",
+      "expected_replacement": "max_retries"
+    },
+    {
+      "id": "endpoint_move_unsupported",
+      "text": "### Orders endpoint moved\n\nThe endpoint moved from `/orders` to `/v2/orders`. Update your base URL.",
+      "expected_kind": "unsupported"
+    },
+    {
+      "id": "response_shape_unsupported",
+      "text": "### Response shape changed\n\nThe response shape changed: orders are now nested under a `data` key instead of at the top level.",
+      "expected_kind": "unsupported"
+    },
+    {
+      "id": "auth_unsupported",
+      "text": "### Authentication\n\nAuthentication has changed from API keys to OAuth 2.0 bearer tokens.",
+      "expected_kind": "unsupported"
+    },
+    {
+      "id": "non_breaking_unknown",
+      "text": "### Performance improvements\n\nWe improved response times by 40% and fixed several typos in the documentation.",
+      "expected_kind": "unknown"
+    },
+    {
+      "id": "vague_rename_unknown",
+      "text": "### Cleanup\n\nSome things were renamed. See the migration guide on our website for details.",
+      "expected_kind": "unknown",
+      "note": "A rename with no extractable symbols must not be reported as an actionable rename."
+    }
+  ]
+}

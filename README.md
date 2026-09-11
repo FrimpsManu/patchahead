@@ -1,167 +1,270 @@
 # PatchAhead
 
-**Fix breaking API changes before they break production.**
+**Find the downstream code an upstream API change breaks, propose a minimal
+migration, and let your tests decide whether it worked.**
 
-PatchAhead is an AI compatibility agent. It watches upstream API/SDK
-changelogs and spec diffs, detects **semantic** breaking changes, maps them
-to the affected downstream code, applies a **minimal** migration patch, runs
-the tests, and produces a **human-reviewable PR summary** — before the change
-ever reaches your build.
+```console
+$ patchahead migrate --repo ./my-service --change ./release-notes.md
 
----
+Pagination is now cursor-based
+  kind        pagination_page_to_cursor
+  severity    high    confidence high
 
-## The problem
+  1 finding(s) in 1 file(s), scanned 5 file(s) in 4ms
+  + app/order_sync.py:12  high  sync_all_orders  while True: ... page=page ...
 
-Modern apps depend on fast-moving third-party APIs. When an upstream provider
-changes the *meaning* of a response — not just a version number — your
-integration breaks in ways your tooling can't see coming:
+proposed diff
+  @@ -9,16 +9,16 @@
+   def sync_all_orders(api_client):
+  -    page = 1
+  +    cursor = None
+       all_orders = []
+       while True:
+  -        response = api_client.get_orders(page=page)
+  +        response = api_client.get_orders(cursor=cursor)
+           all_orders.extend(response["orders"])
+  -        if page >= response["total_pages"]:
+  +        if not response.get("has_more"):
+               break
+  -        page += 1
+  +        cursor = response.get("next_cursor")
 
-- **ChatGPT / Claude** help only *after* you already know what to ask.
-- **Dependabot** bumps versions, but doesn't understand API *behavior*.
-- **Incident agents** react *after* production has already broken.
+validation
+  [pass] syntax               1 modified file(s) parse as valid Python
+  [pass] scope                1 file(s) changed, all named by the plan; 8 diff line(s)
+  [pass] targeted_tests       tests/test_order_sync.py: 1 passed
+  [pass] regression_tests     no new failures
+  [pass] migration_assertion  tests that failed before the patch now pass
 
-PatchAhead acts *before* the break, turning a changelog into a verified
-migration PR.
-
-> Dependabot updates versions. **PatchAhead updates meaning.**
-
----
-
-## What it does (golden scenario)
-
-An upstream **Orders API** migrates pagination from page-based
-(`page` / `total_pages`) to cursor-based (`cursor` / `next_cursor` /
-`has_more`). A downstream e-commerce app that syncs all orders silently
-breaks: it reads `total_pages`, which no longer exists.
-
-PatchAhead:
-
-1. **Parses** the upstream changelog into a structured breaking change.
-2. **Runs** the integration test against v2 → it fails (`KeyError: 'total_pages'`).
-3. **Localizes** the affected function (`sync_all_orders`) with a confidence score.
-4. **Generates + applies** a minimal patch (loop body only; signature preserved).
-5. **Re-runs** the test → it passes. Proof the migration works.
-6. **Writes** a GitHub-style PR summary. **Never auto-merges.**
-
----
-
-## Run it
-
-```bash
-pip install -r requirements.txt
-python run_demo.py            # pagination scenario (default), ~1s, offline
-python run_demo.py field_rename   # a different change type, same pipeline
-python run_demo.py all            # run every scenario back to back
-python evals/run_evals.py     # classifier evals
+migrated: migrated 1 file(s); 5/5 gates passed
 ```
 
-Artifacts land in `outputs/`: `patch.diff`, `pr_summary.md`, `run_log.json`.
+Your repository was never written to. That diff was produced in a temporary
+copy, and the tests that verified it ran there.
 
-### Web dashboard (demo UI)
+---
+
+## The idea
+
+> Static evidence identifies risk. AI can propose. Tests verify. Humans approve.
+
+Each of those is a separate stage with a separate output, and each stage can say
+"I don't know":
+
+| Stage | Produces | Can refuse |
+|---|---|---|
+| Ingest a change document | `BreakingChange` with graded confidence | yes — `unknown` / `unsupported` |
+| Analyze the repository (AST) | `ImpactReport` with per-site confidence | yes — reports a site without patching it |
+| Plan the migration | `MigrationPlan` you can read before anything changes | yes — `blocked_reason` |
+| Generate a patch | `PatchProposal` + unified diff | yes — structured error |
+| Validate | `ValidationResult`, five gates | it is the thing that refuses |
+
+`MigrationResult.succeeded` is defined as "validation verified it". Nothing else
+in the codebase is allowed to decide that a migration worked.
+
+## What it is not
+
+- **Not a general code-repair tool.** It performs four documented migration
+  families (`patchahead handlers`). Everything else is reported as unsupported.
+- **Not a sandbox.** It runs your repository's test command with your
+  privileges. See [docs/safety.md](docs/safety.md).
+- **Not a changelog monitor.** You give it a file. It does not watch registries,
+  poll feeds, or open pull requests.
+- **Not an autonomous agent.** It proposes; it never applies, commits, or merges.
+
+## Install
 
 ```bash
-pip install fastapi uvicorn
-python web/server.py        # -> http://127.0.0.1:8000
+pip install -e .            # core tool: no third-party runtime dependencies on 3.11+
+pip install -e '.[llm]'     # optional: LLM proposals when the shape is unrecognized
+pip install -e '.[all]'     # llm + yaml + sentry + web UI
+patchahead --help
 ```
 
-Press **Run migration**. The dashboard runs the real agent and shows the
-pipeline (parse → test → analyze → patch → test → PR), the live red→green
-test flip, the unified diff, the span waterfall, and the reviewable PR — the
-same workflow as the CLI, in one screen for judges.
+Python 3.10+.
 
----
+## Your first migration
 
-## The five questions, answered by the product (not the pitch)
+The repository ships a deliberately-broken example service so you can see the
+whole thing work before pointing it at your own code:
 
-| # | Question | Where it's answered |
-|---|----------|--------------------|
-| 1 | What changed upstream? | parsed `BreakingChange` (type, risk, before/after) |
-| 2 | Where is the app affected? | `ImpactReport` (file, function, matched lines, confidence) |
-| 3 | What patch was applied? | unified diff in `outputs/patch.diff` |
-| 4 | How do we know it worked? | test run before (fail) vs after (pass) |
-| 5 | Can a human review it? | `outputs/pr_summary.md` + auto-merge disabled |
+```bash
+# 1. What does this change break?
+patchahead analyze --repo examples/orders-service --change examples/changes/pagination-cursor.md
 
----
+# 2. What would you do about it? (nothing is changed)
+patchahead migrate --repo examples/orders-service --change examples/changes/pagination-cursor.md --dry-run
+
+# 3. Do it, in a temporary copy, and prove it with the tests.
+patchahead migrate --repo examples/orders-service --change examples/changes/pagination-cursor.md
+```
+
+Then point it at your own repository. Release notes in Markdown work; so does a
+structured JSON/YAML description if the prose is too vague
+(see [docs/migrations.md](docs/migrations.md#structured-change-documents)).
+
+## Supported change types
+
+```console
+$ patchahead handlers
+```
+
+| Family | Example | Notes |
+|---|---|---|
+| `field_rename` | `order["total"]` → `order["amount"]` | subscripts, `.get()`, attributes |
+| `method_rename` | `client.fetch_orders()` → `client.list_orders()` | call sites only |
+| `kwarg_rename` | `fetch(timeout_seconds=5)` → `fetch(timeout=5)` | explicit keyword arguments only |
+| `pagination_page_to_cursor` | `page`/`total_pages` → `cursor`/`has_more` | one documented loop shape |
+
+Each has parser support, AST impact analysis, planning, patch generation,
+validation, tests, and documentation — that is the bar for inclusion, and
+[docs/migrations.md](docs/migrations.md) states exactly what each one refuses to
+do. v1 supports four families deliberately; breadth without correctness is
+worse than nothing here.
+
+## Safety model
+
+1. **Your tree is never written to.** `Repository` has no `write` method.
+   Patching happens in a `Workspace` — a temporary copy.
+2. **Minimal edits.** Patches replace AST-derived source *ranges*, not whole
+   files, so comments, formatting, and blank lines survive and diffs stay small.
+3. **Fail closed.** A code shape a handler does not recognize produces a stated
+   refusal, never a guess.
+4. **Five gates.** syntax → scope → targeted tests → regression → migration
+   assertion. A migration is "successful" only if the tests verified it.
+5. **No auto-merge.** Ever. The output is a diff and a review checklist.
+
+Full threat model, including what PatchAhead does *not* protect you from:
+[docs/safety.md](docs/safety.md).
+
+## LLM mode
+
+Off by default. `--use-llm` is used in exactly one situation: a deterministic
+handler found real impact but **refused to plan** because the code shape was
+unfamiliar. A mechanical AST rename does not need a model.
+
+What the model gets: the breaking change, the failing test output, and **only
+the functions the impact findings point at**. Not the file, never the repository.
+
+What happens to its answer: rejected — not repaired — if it is not valid JSON,
+names a file the impact report does not implicate, does not parse as Python,
+renames a function, or changes a signature. Whatever survives goes through the
+same five gates as a deterministic patch.
+
+```bash
+export ANTHROPIC_API_KEY=...
+patchahead migrate --repo ./my-service --change ./notes.md --use-llm
+```
+
+A repository can forbid this outright with `allow_llm = false`; `--use-llm`
+cannot override it.
+
+## Configuration
+
+Optional. Sensible defaults work with no configuration at all. Put this in your
+`pyproject.toml`, or in a `.patchahead.toml`:
+
+```toml
+[tool.patchahead]
+test_command = "python -m pytest"   # what verifies a migration
+source_dirs = ["src"]               # where to look (tests are still found repo-wide)
+exclude = ["vendor"]                # added to the built-in exclusions
+max_changed_files = 10              # scope gate limit
+max_diff_lines = 400                # scope gate limit
+min_confidence = "medium"           # findings below this are reported, not patched
+allow_llm = true                    # false forbids `--use-llm` for this repository
+output_dir = ".patchahead"          # where the diff, plan, and result are written
+```
+
+An unknown key is an error, not a silent no-op.
+
+## Exit codes
+
+| Code | Meaning |
+|---|---|
+| 0 | Succeeded (analysis ran; migration verified; dry run completed) |
+| 1 | Impact found but not migrated — validation failed, or no plan was possible |
+| 2 | Usage error — bad arguments, missing file, unreadable config |
+| 3 | The change is real but unsupported by this version |
 
 ## Architecture
 
 ```
-changelog ──▶ changelog_parser ──▶ BreakingChange
-                                        │
-downstream code ──▶ impact_analyzer ──▶ ImpactReport
-                                        │
-                    patch_generator ──▶ PatchResult ──▶ apply
-                                        │
-                    test_runner (before / after) ──▶ TestRun
-                                        │
-                    pr_summary ──▶ reviewable PR  (human approves)
+change document ─▶ ingest ─────▶ BreakingChange   (kind, target, confidence, evidence)
+                                       │
+repository ──────▶ AST index ──▶ ImpactReport     (site, symbol, confidence, reason)
+                                       │
+                              handler.plan ─────▶ MigrationPlan  (inspectable; --dry-run stops here)
+                                       │
+                    isolated workspace ─▶ PatchProposal (range edits → unified diff)
+                                       │
+                          validation ──▶ ValidationResult (5 gates)
+                                       │
+                                MigrationResult ─▶ diff + PR summary  (a human approves)
 ```
 
-Every stage runs as a span inside one `patchahead.migration_run` transaction.
+The CLI, the web UI, and the tests all call `patchahead.engine`. There is no
+second code path for demos. [docs/architecture.md](docs/architecture.md).
 
----
+## Web UI (optional)
 
-## How it works
+```bash
+pip install -e '.[web]'
+python web/server.py --repo ./my-service --changes ./changes
+```
 
-- **Deterministic by default** so the demo is reliable and offline. Pattern
-  search localizes impact; a surgical transform rewrites only the affected
-  function body and emits a real unified diff.
-- **Claude (optional)** — set `PATCHAHEAD_USE_LLM=1` + `ANTHROPIC_API_KEY` to
-  let Claude propose the migration and explanations. The LLM *proposes*, tests
-  *verify*, humans *approve*; any LLM failure falls back to the deterministic
-  path automatically.
+A view over the same engine — change, impact, plan, diff, gates, PR summary.
+Binds to localhost only; it runs your test command.
 
----
+## Development
 
-## Observability (Sentry)
+```bash
+pip install -e '.[dev]'
+python -m pytest            # the test suite
+python -m pytest -m "not slow"   # skip tests that spawn a real pytest
+python evals/run.py         # classification / impact / migration metrics
+ruff check src tests
+```
 
-The whole workflow is instrumented. With `SENTRY_DSN` set, spans
-(`parse_changelog`, `run_tests_before`, `analyze_impact`, `generate_patch`,
-`apply_patch`, `run_tests_after`, `generate_pr_summary`) report to Sentry as a
-single transaction, tagged with `change_type`, `risk_level`, `tests_before`,
-`tests_after`, and `fallback_used`. Without a DSN it prints console traces, so
-the run is visibly instrumented either way. PatchAhead is about *preventing*
-the reliability incident Sentry would otherwise catch.
+[docs/contributing.md](docs/contributing.md) walks through adding a migration
+family — the main way to extend PatchAhead without touching the core engine.
 
----
+## Limitations
 
-## Safety / human-in-the-loop
+Stated plainly, because a migration tool that overstates its reach is worse than
+no tool:
 
-PatchAhead never auto-merges. It produces a reviewable PR with upstream
-evidence, affected files, the diff, test proof, a risk level, and a review
-checklist. The LLM proposes; tests verify; humans approve.
-
----
-
-## Memory (Redis, optional)
-
-With `REDIS_URL` set, PatchAhead records each migrated breaking-change pattern
-and retrieves similar prior migrations by type ("we've handled a
-page→cursor migration before"). Degrades to an in-process seed list otherwise.
-
----
-
-## Scope & honest claims
-
-- We implemented **two** breaking-change types end to end through the same
-  pipeline: **page-based → cursor-based pagination** and a **field rename**
-  (`total` → `amount`). Both are real `python run_demo.py` scenarios and are
-  selectable in the dashboard.
-- Adding a change type is data, not new control flow (see `scenarios.py`): point
-  at a changelog, a baseline file, the file to patch, and a test.
-- The architecture generalizes further to OpenAPI diffs, SDK changelogs, and
-  integration-test failures (the classifier also recognizes method renames and
-  endpoint changes; see `evals/`).
-- PatchAhead does not auto-merge. The LLM proposes, tests verify, humans approve.
-
----
+- **Python only.** No TypeScript, Go, or anything else.
+- **No type inference.** Impact analysis matches *names* and grades confidence
+  from the receiver. `order["total"]` where `order` came from somewhere
+  unrelated is a plausible false positive; that is why confidence is graded and
+  low-confidence sites are reported rather than patched.
+- **No dataflow.** `t = order["total"]` is renamed; a later use of `t` is not
+  traced.
+- **One pagination loop shape.** Documented in `docs/migrations.md`. Anything
+  else is refused.
+- **Test discovery is name-based.** `app/client.py` → `tests/test_client.py`.
+  It does not trace imports, which is why the regression gate always runs the
+  full suite too.
+- **Release-note parsing is heuristic.** Measured, not assumed:
+  `python evals/run.py` reports current accuracy. Structured JSON/YAML input
+  exists for when prose is not good enough.
+- **Single repository, local only.** No monorepo-aware cross-package analysis,
+  no GitHub integration.
 
 ## Roadmap
 
-- Real changelog ingestion from the web (Browserbase) and OpenAPI spec diffs.
-- More change types end-to-end (field rename, endpoint move, method rename).
-- GitHub App that opens the PR directly on the affected repo.
+Not implemented. Listed so the scope above stays unambiguous:
 
-## Team
+- OpenAPI / spec-diff ingestion
+- SDK release monitoring
+- A GitHub App that opens the migration PR
+- TypeScript support
+- More migration families (response-shape changes, endpoint moves)
+- Dependency-graph-aware impact analysis
+- Richer test selection (import-graph based)
+- CI-native mode
 
-Built at the UC Berkeley AI Hackathon 2026.
+## License
+
+MIT. See [LICENSE](LICENSE).
