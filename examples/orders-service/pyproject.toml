@@ -1,0 +1,16 @@
+[project]
+name = "orders-service"
+version = "0.1.0"
+description = "Example downstream service for PatchAhead."
+requires-python = ">=3.10"
+
+[tool.patchahead]
+# PatchAhead reads this section. Everything here is optional; these values
+# happen to match what PatchAhead would infer anyway, and are written out so
+# the example doubles as documentation of the config format.
+source_dirs = ["app"]
+test_command = "python -m pytest"
+max_changed_files = 3
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

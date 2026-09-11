@@ -1,0 +1,142 @@
+{
+  "description": "Given a change and a small repository, which sites should be reported and which should be patched? `expect_patched` lists sites a correct run rewrites; `expect_reported_only` lists sites it must find but leave alone; anything else found is a false positive.",
+  "cases": [
+    {
+      "id": "field_rename_with_lookalikes",
+      "change": {
+        "kind": "field_rename",
+        "symbol": "total",
+        "replacement": "amount",
+        "owner": "order"
+      },
+      "files": {
+        "app/report.py": "import logging\n\nLOG_LABEL = \"total\"\n\n\ndef revenue(orders, frame):\n    subtotal = frame.total\n    note = \"total\"\n    return sum(order[\"total\"] for order in orders) + subtotal\n\n\ndef by_customer(orders):\n    totals = {}\n    for order in orders:\n        totals[order[\"customer\"]] = order.get(\"total\", 0)\n    return totals\n"
+      },
+      "expect_patched": [
+        "app/report.py:9",
+        "app/report.py:15"
+      ],
+      "expect_reported_only": [
+        "app/report.py:7"
+      ],
+      "note": "Lines 3 and 8 are string constants, not field accesses. Line 7 is an attribute on an unrelated receiver."
+    },
+    {
+      "id": "field_rename_matching_receiver",
+      "change": {
+        "kind": "field_rename",
+        "symbol": "total",
+        "replacement": "amount",
+        "owner": "order"
+      },
+      "files": {
+        "app/a.py": "def f(order):\n    return order[\"total\"] + order.total\n"
+      },
+      "expect_patched": [
+        "app/a.py:2",
+        "app/a.py:2"
+      ],
+      "expect_reported_only": []
+    },
+    {
+      "id": "method_rename_local_definition",
+      "change": {
+        "kind": "method_rename",
+        "symbol": "fetch_orders",
+        "replacement": "list_orders"
+      },
+      "files": {
+        "app/a.py": "def fetch_orders():\n    return []\n\n\ndef g():\n    return fetch_orders()\n"
+      },
+      "expect_patched": [],
+      "expect_reported_only": [
+        "app/a.py:6"
+      ],
+      "note": "The repository defines this function itself; renaming the call would break it."
+    },
+    {
+      "id": "kwarg_rename_scoped_to_function",
+      "change": {
+        "kind": "kwarg_rename",
+        "symbol": "timeout_seconds",
+        "replacement": "timeout",
+        "owner": "fetch_orders"
+      },
+      "files": {
+        "app/a.py": "def go(client, socket):\n    a = client.fetch_orders(timeout_seconds=5)\n    b = socket.connect(timeout_seconds=9)\n    return a, b\n"
+      },
+      "expect_patched": [
+        "app/a.py:2"
+      ],
+      "expect_reported_only": [
+        "app/a.py:3"
+      ]
+    },
+    {
+      "id": "pagination_recognized_loop",
+      "change": {
+        "kind": "pagination_page_to_cursor"
+      },
+      "files": {
+        "app/sync.py": "def sync(api):\n    page = 1\n    out = []\n    while True:\n        r = api.get_orders(page=page)\n        out.extend(r[\"items\"])\n        if page >= r[\"total_pages\"]:\n            break\n        page += 1\n    return out\n"
+      },
+      "expect_patched": [
+        "app/sync.py:2",
+        "app/sync.py:5",
+        "app/sync.py:7",
+        "app/sync.py:9"
+      ],
+      "expect_reported_only": [],
+      "note": "Four spans change: the initializer, the page= argument, the break guard, and the advance. Everything else in the loop is untouched."
+    },
+    {
+      "id": "pagination_unsupported_shape",
+      "change": {
+        "kind": "pagination_page_to_cursor"
+      },
+      "files": {
+        "app/sync.py": "def sync(api, log):\n    page = 1\n    out = []\n    while True:\n        r = api.get_orders(page=page)\n        out.extend(r[\"items\"])\n        log.info(\"page %d\", page)\n        if page >= r[\"total_pages\"]:\n            break\n        page += 1\n    return out\n"
+      },
+      "expect_patched": [],
+      "expect_reported_only": [
+        "app/sync.py:4",
+        "app/sync.py:8"
+      ],
+      "note": "`page` is logged, so replacing it with a cursor would change behavior."
+    },
+    {
+      "id": "no_impact",
+      "change": {
+        "kind": "field_rename",
+        "symbol": "total",
+        "replacement": "amount",
+        "owner": "order"
+      },
+      "files": {
+        "app/a.py": "def f(x):\n    return x + 1\n"
+      },
+      "expect_patched": [],
+      "expect_reported_only": []
+    },
+    {
+      "id": "field_rename_across_files",
+      "change": {
+        "kind": "field_rename",
+        "symbol": "total",
+        "replacement": "amount",
+        "owner": "order"
+      },
+      "files": {
+        "app/a.py": "def f(order):\n    return order[\"total\"]\n",
+        "app/b.py": "def g(order):\n    return order[\"total\"]\n",
+        "tests/test_a.py": "def test_f(order):\n    assert order[\"total\"]\n"
+      },
+      "expect_patched": [
+        "app/a.py:2",
+        "app/b.py:2"
+      ],
+      "expect_reported_only": [],
+      "note": "Test files are not analyzed; they are what verifies the migration."
+    }
+  ]
+}

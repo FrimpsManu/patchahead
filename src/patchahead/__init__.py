@@ -1,3 +1,8 @@
-"""PatchAhead — fix breaking API changes before they break production."""
+"""PatchAhead — find and migrate downstream code broken by upstream API changes.
 
-__version__ = "0.1.0"
+Static evidence identifies risk. AI can propose. Tests verify. Humans approve.
+"""
+
+__version__ = "0.2.0"
+
+__all__ = ["__version__"]

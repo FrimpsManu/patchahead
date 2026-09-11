@@ -1,0 +1,101 @@
+{
+  "description": "Full red-to-green migrations. Each case builds a real repository, runs the whole engine, and records whether the tests went from failing to passing. `expect_success: false` cases are as important as the others -- they check that PatchAhead refuses rather than guessing.",
+  "cases": [
+    {
+      "id": "field_rename_end_to_end",
+      "expect_success": true,
+      "change": "### Order field renamed: `total` -> `amount`\n\nThe monetary field on each `order` object was renamed.\n\n- **Migration:** read `amount` instead of `total`.\n",
+      "files": {
+        "conftest.py": "import os\nimport sys\n\nsys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))\n",
+        "sdk.py": "ORDERS = [{\"id\": 1, \"amount\": 10.0}, {\"id\": 2, \"amount\": 20.5}]\n",
+        "app/__init__.py": "",
+        "app/report.py": "LABEL = \"total\"\n\n\ndef revenue(orders):\n    return round(sum(order[\"total\"] for order in orders), 2)\n",
+        "tests/test_report.py": "from app.report import revenue\nfrom sdk import ORDERS\n\n\ndef test_revenue():\n    assert revenue(ORDERS) == 30.5\n"
+      },
+      "expect_unchanged": ["LABEL = \"total\""]
+    },
+    {
+      "id": "pagination_end_to_end",
+      "expect_success": true,
+      "change": "### Pagination is now cursor-based\n\n- **Before:** `get_orders(page=1)` returned `page` and `total_pages`.\n- **After:** `get_orders(cursor=C)` returns `next_cursor` and `has_more`.\n- The `total_pages` field has been **removed**.\n",
+      "files": {
+        "conftest.py": "import os\nimport sys\n\nsys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))\n",
+        "sdk.py": "_ORDERS = [{\"id\": 1}, {\"id\": 2}, {\"id\": 3}]\n\n\nclass Client:\n    def get_orders(self, cursor=None, page=None):\n        start = {None: 0, \"c1\": 1, \"c2\": 2}.get(cursor, 0)\n        has_more = start + 1 < len(_ORDERS)\n        return {\n            \"items\": _ORDERS[start:start + 1],\n            \"next_cursor\": [\"c1\", \"c2\"][start] if has_more else None,\n            \"has_more\": has_more,\n        }\n",
+        "app/__init__.py": "",
+        "app/sync.py": "def sync_everything(client, account):\n    \"\"\"Pull every order for an account.\"\"\"\n    page = 1\n    collected = []\n\n    while True:\n        response = client.get_orders(page=page)\n        collected.extend(response[\"items\"])\n\n        if page >= response[\"total_pages\"]:\n            break\n\n        page += 1\n\n    return collected\n",
+        "tests/test_sync.py": "from app.sync import sync_everything\nfrom sdk import Client\n\n\ndef test_sync_everything():\n    assert [o[\"id\"] for o in sync_everything(Client(), \"acct\")] == [1, 2, 3]\n"
+      },
+      "expect_unchanged": ["def sync_everything(client, account):", "\"\"\"Pull every order for an account.\"\"\"", "response[\"items\"]"]
+    },
+    {
+      "id": "kwarg_rename_end_to_end",
+      "expect_success": true,
+      "change": "### Keyword argument renamed: `timeout_seconds` -> `timeout`\n\nThe `timeout_seconds` keyword argument on `fetch` was renamed to `timeout`.\n",
+      "files": {
+        "conftest.py": "import os\nimport sys\n\nsys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))\n",
+        "sdk.py": "class Client:\n    def fetch(self, limit=1, timeout=30.0):\n        return [{\"id\": i} for i in range(limit)]\n",
+        "app/__init__.py": "",
+        "app/client.py": "DEFAULT = 15.0\n\n\ndef recent(client, limit=2):\n    return client.fetch(limit=limit, timeout_seconds=DEFAULT)\n",
+        "tests/test_client.py": "from app.client import recent\nfrom sdk import Client\n\n\ndef test_recent():\n    assert len(recent(Client())) == 2\n"
+      },
+      "expect_unchanged": ["DEFAULT = 15.0"]
+    },
+    {
+      "id": "method_rename_end_to_end",
+      "expect_success": true,
+      "change": "### Client method renamed\n\nThe method renamed `fetch_orders` -> `list_orders` on `client`.\n",
+      "files": {
+        "conftest.py": "import os\nimport sys\n\nsys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))\n",
+        "sdk.py": "class Client:\n    def list_orders(self, limit=1):\n        return [{\"id\": i} for i in range(limit)]\n",
+        "app/__init__.py": "",
+        "app/wrapper.py": "def recent(client, limit=2):\n    return client.fetch_orders(limit=limit)\n",
+        "tests/test_wrapper.py": "from app.wrapper import recent\nfrom sdk import Client\n\n\ndef test_recent():\n    assert len(recent(Client())) == 2\n"
+      }
+    },
+    {
+      "id": "unsupported_change_is_refused",
+      "expect_success": false,
+      "expect_outcome": "unsupported_change",
+      "change": "### Orders endpoint moved\n\nThe endpoint moved from `/orders` to `/v2/orders`.\n",
+      "files": {
+        "app/__init__.py": "",
+        "app/a.py": "def f():\n    return 1\n"
+      }
+    },
+    {
+      "id": "no_impact_is_not_a_failure",
+      "expect_success": false,
+      "expect_outcome": "no_impact",
+      "change": "### Order field renamed: `total` -> `amount`\n\nThe field on each `order` object was renamed.\n",
+      "files": {
+        "app/__init__.py": "",
+        "app/a.py": "def f(x):\n    return x + 1\n"
+      }
+    },
+    {
+      "id": "unrecognized_loop_shape_is_refused",
+      "expect_success": false,
+      "expect_outcome": "not_plannable",
+      "change": "### Pagination is now cursor-based\n\nThe `total_pages` field has been **removed**; use `cursor` and `has_more`.\n",
+      "files": {
+        "conftest.py": "import os\nimport sys\n\nsys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))\n",
+        "app/__init__.py": "",
+        "app/sync.py": "def sync(api, log):\n    page = 1\n    out = []\n    while True:\n        r = api.get_orders(page=page)\n        out.extend(r[\"items\"])\n        log.info(\"page %d\", page)\n        if page >= r[\"total_pages\"]:\n            break\n        page += 1\n    return out\n"
+      }
+    },
+    {
+      "id": "a_patch_that_does_not_fix_the_tests_fails_validation",
+      "expect_success": false,
+      "expect_outcome": "validation_failed",
+      "change": "### Order field renamed: `total` -> `amount`\n\nThe field on each `order` object was renamed.\n",
+      "files": {
+        "conftest.py": "import os\nimport sys\n\nsys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))\n",
+        "sdk.py": "ORDERS = [{\"id\": 1, \"amount\": 10.0}]\n",
+        "app/__init__.py": "",
+        "app/report.py": "def revenue(orders):\n    return sum(order[\"total\"] for order in orders)\n",
+        "tests/test_report.py": "from app.report import revenue\nfrom sdk import ORDERS\n\n\ndef test_revenue():\n    assert revenue(ORDERS) == 999.0\n"
+      },
+      "note": "The rename is correct but the test asserts an impossible value, so the migration must not be reported as verified."
+    }
+  ]
+}

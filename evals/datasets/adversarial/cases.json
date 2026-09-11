@@ -1,0 +1,215 @@
+{
+  "description": "Cases built to fool PatchAhead. Every one of these is either a defect the prototype actually had, or a way its successor could plausibly acquire the same defect. `expect_patched` and `expect_reported_only` are `path:line` sites; anything patched that is not in `expect_patched` is a false positive, which is the failure mode this suite exists to catch.",
+  "cases": [
+    {
+      "id": "same_field_on_unrelated_object",
+      "note": "The prototype's headline defect. `order` and `customer` both carry a `total`; only one was renamed.",
+      "change": {"kind": "field_rename", "symbol": "total", "replacement": "amount", "owner": "order"},
+      "files": {
+        "app/a.py": "def revenue(order, customer):\n    return order[\"total\"] - customer[\"total\"]\n"
+      },
+      "expect_patched": ["app/a.py:2"],
+      "expect_reported_only": ["app/a.py:2"]
+    },
+    {
+      "id": "same_method_on_unrelated_receiver",
+      "note": "`analytics` is a different object that happens to expose the same method name.",
+      "change": {"kind": "method_rename", "symbol": "fetch_orders", "replacement": "list_orders", "owner": "client"},
+      "files": {
+        "app/a.py": "def go(client, analytics):\n    return client.fetch_orders(), analytics.fetch_orders()\n"
+      },
+      "expect_patched": ["app/a.py:2"],
+      "expect_reported_only": ["app/a.py:2"]
+    },
+    {
+      "id": "strings_and_comments_containing_the_name",
+      "note": "A bare string literal is not a field access and must not even be reported.",
+      "change": {"kind": "field_rename", "symbol": "total", "replacement": "amount", "owner": "order"},
+      "files": {
+        "app/a.py": "# the total field is renamed\nLABEL = \"total\"\nDOC = \"see order['total'] in the docs\"\n\n\ndef f(order):\n    \"\"\"Read order['total'].\"\"\"\n    return order[\"total\"]\n"
+      },
+      "expect_patched": ["app/a.py:8"],
+      "expect_reported_only": []
+    },
+    {
+      "id": "unicode_before_the_edit_site",
+      "note": "AST columns are UTF-8 byte offsets; slicing a str with them corrupts the line.",
+      "change": {"kind": "field_rename", "symbol": "total", "replacement": "amount", "owner": "order"},
+      "files": {
+        "app/a.py": "def f(order):\n    name = \"José\"\n    label = \"λ\"; emoji = \"🚀\"\n    return name, label, emoji, order[\"total\"]\n"
+      },
+      "expect_patched": ["app/a.py:4"],
+      "expect_reported_only": [],
+      "expect_source_contains": ["José", "λ", "🚀", "order[\"amount\"]"]
+    },
+    {
+      "id": "unicode_on_the_same_line_as_the_edit",
+      "note": "The hardest column case: multi-byte characters between the line start and the edited span.",
+      "change": {"kind": "kwarg_rename", "symbol": "timeout_seconds", "replacement": "timeout", "owner": "fetch"},
+      "files": {
+        "app/a.py": "def f(client):\n    return client.fetch(label=\"café ☕\", timeout_seconds=5)\n"
+      },
+      "expect_patched": ["app/a.py:2"],
+      "expect_reported_only": [],
+      "expect_source_contains": ["café ☕", "timeout=5"]
+    },
+    {
+      "id": "nested_function_owns_its_own_loop",
+      "note": "Walking the outer function used to find the inner loop as well, matching it twice and emitting overlapping edits.",
+      "change": {"kind": "pagination_page_to_cursor"},
+      "files": {
+        "app/a.py": "def outer(api, log):\n    size = 50\n\n    def inner():\n        page = 1\n        out = []\n        while True:\n            r = api.get(page=page)\n            out.extend(r[\"items\"])\n            if page >= r[\"total_pages\"]:\n                break\n            page += 1\n        return out\n\n    log.info(\"size %d\", size)\n    return inner()\n"
+      },
+      "expect_patched": ["app/a.py:5", "app/a.py:8", "app/a.py:10", "app/a.py:12"],
+      "expect_reported_only": [],
+      "expect_symbols": ["outer.inner"]
+    },
+    {
+      "id": "nested_class_method",
+      "note": "A method on a nested class is its own scope and must be reported with its own dotted symbol.",
+      "change": {"kind": "field_rename", "symbol": "total", "replacement": "amount", "owner": "order"},
+      "files": {
+        "app/a.py": "class Report:\n    class Inner:\n        def value(self, order):\n            return order[\"total\"]\n"
+      },
+      "expect_patched": ["app/a.py:4"],
+      "expect_reported_only": [],
+      "expect_symbols": ["Report.Inner.value"]
+    },
+    {
+      "id": "comprehension_and_lambda",
+      "note": "Comprehensions and lambdas are expressions in the enclosing statement, not separate scopes to skip.",
+      "change": {"kind": "field_rename", "symbol": "total", "replacement": "amount", "owner": "order"},
+      "files": {
+        "app/a.py": "def f(orders, order):\n    squares = [order[\"total\"] for _ in orders]\n    get = lambda: order[\"total\"]\n    return squares, get\n"
+      },
+      "expect_patched": ["app/a.py:2", "app/a.py:3"],
+      "expect_reported_only": []
+    },
+    {
+      "id": "decorated_async_method",
+      "note": "Decorators and async must not confuse scope tracking or range calculation.",
+      "change": {"kind": "method_rename", "symbol": "fetch_orders", "replacement": "list_orders", "owner": "client"},
+      "files": {
+        "app/a.py": "import functools\n\n\nclass Service:\n    @functools.cache\n    async def load(self, client):\n        return await client.fetch_orders(limit=10)\n"
+      },
+      "expect_patched": ["app/a.py:7"],
+      "expect_reported_only": [],
+      "expect_symbols": ["Service.load"]
+    },
+    {
+      "id": "multiline_call_expression",
+      "note": "A keyword argument several lines below the call's opening paren.",
+      "change": {"kind": "kwarg_rename", "symbol": "timeout_seconds", "replacement": "timeout", "owner": "fetch_orders"},
+      "files": {
+        "app/a.py": "def f(client):\n    return client.fetch_orders(\n        limit=10,\n        timeout_seconds=30,\n    )\n"
+      },
+      "expect_patched": ["app/a.py:4"],
+      "expect_reported_only": []
+    },
+    {
+      "id": "already_migrated_code",
+      "note": "Running twice must be a no-op, not a second rename.",
+      "change": {"kind": "field_rename", "symbol": "total", "replacement": "amount", "owner": "order"},
+      "files": {
+        "app/a.py": "def f(order):\n    return order[\"amount\"]\n"
+      },
+      "expect_patched": [],
+      "expect_reported_only": []
+    },
+    {
+      "id": "partially_migrated_repository",
+      "note": "One module migrated, one not. Only the stale one may change.",
+      "change": {"kind": "field_rename", "symbol": "total", "replacement": "amount", "owner": "order"},
+      "files": {
+        "app/done.py": "def f(order):\n    return order[\"amount\"]\n",
+        "app/stale.py": "def g(order):\n    return order[\"total\"]\n"
+      },
+      "expect_patched": ["app/stale.py:2"],
+      "expect_reported_only": []
+    },
+    {
+      "id": "several_files_only_some_affected",
+      "note": "Two of four modules mention the name; only one is a real access on the owner.",
+      "change": {"kind": "field_rename", "symbol": "total", "replacement": "amount", "owner": "order"},
+      "files": {
+        "app/a.py": "def f(order):\n    return order[\"total\"]\n",
+        "app/b.py": "TOTAL_HEADER = \"total\"\n",
+        "app/c.py": "def g(invoice):\n    return invoice[\"total\"]\n",
+        "app/d.py": "def h(x):\n    return x + 1\n"
+      },
+      "expect_patched": ["app/a.py:2"],
+      "expect_reported_only": ["app/c.py:2"]
+    },
+    {
+      "id": "locally_defined_function_shares_the_name",
+      "note": "The repository owns this function; renaming its call sites would break it.",
+      "change": {"kind": "method_rename", "symbol": "fetch_orders", "replacement": "list_orders"},
+      "files": {
+        "app/a.py": "def fetch_orders():\n    return []\n\n\ndef g():\n    return fetch_orders()\n"
+      },
+      "expect_patched": [],
+      "expect_reported_only": ["app/a.py:6"]
+    },
+    {
+      "id": "variable_subscript_key",
+      "note": "A non-constant key cannot be shown to be the renamed field.",
+      "change": {"kind": "field_rename", "symbol": "total", "replacement": "amount", "owner": "order"},
+      "files": {
+        "app/a.py": "FIELD = \"total\"\n\n\ndef f(order):\n    return order[FIELD]\n"
+      },
+      "expect_patched": [],
+      "expect_reported_only": []
+    },
+    {
+      "id": "unsupported_loop_shape",
+      "note": "The page variable is logged, so replacing it with a cursor would change behavior.",
+      "change": {"kind": "pagination_page_to_cursor"},
+      "files": {
+        "app/a.py": "def sync(api, log):\n    page = 1\n    out = []\n    while True:\n        r = api.get(page=page)\n        out.extend(r[\"items\"])\n        log.info(\"page %d\", page)\n        if page >= r[\"total_pages\"]:\n            break\n        page += 1\n    return out\n"
+      },
+      "expect_patched": [],
+      "expect_reported_only": ["app/a.py:4", "app/a.py:8"]
+    },
+    {
+      "id": "kwarg_on_an_unrelated_function",
+      "note": "`socket.connect` takes a `timeout_seconds` too; it is not the renamed one.",
+      "change": {"kind": "kwarg_rename", "symbol": "timeout_seconds", "replacement": "timeout", "owner": "fetch_orders"},
+      "files": {
+        "app/a.py": "def f(client, sock):\n    a = client.fetch_orders(timeout_seconds=5)\n    b = sock.connect(timeout_seconds=9)\n    return a, b\n"
+      },
+      "expect_patched": ["app/a.py:2"],
+      "expect_reported_only": ["app/a.py:3"]
+    },
+    {
+      "id": "dotted_receiver_matches_last_segment",
+      "note": "`self.order` is the declared owner; `self.cache` is not.",
+      "change": {"kind": "field_rename", "symbol": "total", "replacement": "amount", "owner": "order"},
+      "files": {
+        "app/a.py": "class S:\n    def f(self):\n        return self.order[\"total\"] + self.cache[\"total\"]\n"
+      },
+      "expect_patched": ["app/a.py:3"],
+      "expect_reported_only": ["app/a.py:3"]
+    },
+    {
+      "id": "inferred_owner_does_not_veto",
+      "note": "A receiver scraped from a vendor's example is a hint, not a constraint: `api_client` is the same SDK call.",
+      "change": {"kind": "method_rename", "symbol": "fetch_orders", "replacement": "list_orders", "owner": "client", "owner_explicit": false},
+      "files": {
+        "app/a.py": "def f(api_client):\n    return api_client.fetch_orders()\n"
+      },
+      "expect_patched": ["app/a.py:2"],
+      "expect_reported_only": []
+    },
+    {
+      "id": "formatting_sensitive_code",
+      "note": "Comments, blank lines and alignment must survive a range edit untouched.",
+      "change": {"kind": "field_rename", "symbol": "total", "replacement": "amount", "owner": "order"},
+      "files": {
+        "app/a.py": "def f(order):\n    # keep this comment\n\n    value = order[\"total\"]   # and this trailing one\n\n    return value\n"
+      },
+      "expect_patched": ["app/a.py:4"],
+      "expect_reported_only": [],
+      "expect_source_contains": ["# keep this comment", "# and this trailing one"]
+    }
+  ]
+}
