@@ -268,3 +268,42 @@ class TestValidationResultSemantics:
         gate = result.get(GateName.REGRESSION_TESTS)
         assert gate.status is GateStatus.SKIPPED
         assert "--no-tests" in gate.detail
+
+
+class TestUnrunnableTestCommand:
+    """A runner that cannot start is "could not verify", not "verified and failed"."""
+
+    def test_a_missing_runner_skips_rather_than_fails(self, workspace):
+        proposal = proposal_for(
+            workspace,
+            "app/a.py",
+            "def f():\n    return 9\n",
+            expected_tests=["tests/test_a.py"],
+        )
+
+        result = ValidationEngine(Config()).validate(
+            proposal,
+            workspace,
+            ValidationOptions(test_command="python -m pytest_absent_xyz"),
+        )
+
+        for name in (GateName.TARGETED_TESTS, GateName.REGRESSION_TESTS):
+            assert result.get(name).status is GateStatus.SKIPPED
+            assert "could not start" in result.get(name).detail
+
+    def test_and_the_result_is_unverified_not_passed(self, workspace):
+        proposal = proposal_for(
+            workspace,
+            "app/a.py",
+            "def f():\n    return 9\n",
+            expected_tests=["tests/test_a.py"],
+        )
+
+        result = ValidationEngine(Config()).validate(
+            proposal,
+            workspace,
+            ValidationOptions(test_command="python -m pytest_absent_xyz"),
+        )
+
+        assert result.verified is False, "nothing ran, so nothing was verified"
+        assert result.tests_ran is False

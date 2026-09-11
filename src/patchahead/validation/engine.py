@@ -265,9 +265,13 @@ class ValidationEngine:
 
         run = runner.run_tests(workspace, scoped, timeout=self.config.test_timeout_seconds)
         if run.errored:
+            # The command could not start, or collected nothing. That is "could
+            # not verify", not "verified and failed" -- the same reading the
+            # regression gate takes. The run still ends as `patched_unverified`
+            # rather than `migrated`, because no test gate actually ran.
             return GateResult(
                 name=GateName.TARGETED_TESTS,
-                status=GateStatus.FAILED,
+                status=GateStatus.SKIPPED,
                 detail=run.summary,
                 duration_ms=run.duration_ms,
                 test_run=run,
