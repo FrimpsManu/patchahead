@@ -10,6 +10,7 @@ import pytest
 
 from patchahead import engine
 from patchahead.domain.result import Outcome
+from patchahead.domain.validation import GateName, GateStatus
 from patchahead.workspace import Repository
 from tests.conftest import EXAMPLE_CHANGES, EXAMPLE_REPO
 
@@ -152,6 +153,23 @@ class TestDryRun:
         assert data["transformations"][0]["new"] == '"amount"'
 
 
+#: The same service, but its test never reads the renamed field. The rename is
+#: still correct and still applies; the suite simply cannot demonstrate that,
+#: because it was green before the patch and is green after it.
+SERVICE_WITH_UNRELATED_TESTS = dict(
+    SERVICE,
+    **{
+        "tests/test_reports.py": """
+            from app.reports import LABEL
+
+
+            def test_label_is_display_text():
+                assert LABEL == "total"
+        """
+    },
+)
+
+
 @pytest.mark.slow
 class TestMigrate:
     def test_red_to_green_with_every_gate_passing(self, make_repo, write_change):
@@ -165,6 +183,67 @@ class TestMigrate:
         assert result.succeeded, result.message
         assert result.outcome is Outcome.MIGRATED
         assert [g.status.value for g in result.validation.gates] == ["passed"] * 5
+
+    def test_green_before_and_green_after_is_patched_but_unverified(self, make_repo, write_change):
+        """The distinction the whole validation subsystem exists for.
+
+        Nothing failed. A patch was produced, every gate that ran was happy, and
+        the suite is green. None of that is evidence that the migration fixed
+        anything -- these tests never exercised the renamed field, so they would
+        be green with or without the patch. Reporting `migrated` here would
+        claim a verification that did not happen.
+
+        This asserts the *orchestration*, not just `ValidationResult.verified`:
+        the outcome the CLI prints and the boolean callers branch on.
+        """
+        run = engine.migrate(
+            make_repo(SERVICE_WITH_UNRELATED_TESTS),
+            write_change(FIELD_RENAME_DOC),
+            engine.EngineOptions(write_artifacts=False),
+        )
+        result = run.results[0]
+
+        assert result.outcome is Outcome.PATCHED_UNVERIFIED
+        assert result.succeeded is False
+        assert run.succeeded is False
+
+        # The patch itself is real and available for review.
+        assert result.proposal.ok
+        assert 'order["amount"]' in result.diff
+
+        # No gate objected -- the tests simply proved nothing.
+        assert result.validation.passed is True
+        assert result.validation.verified is False
+
+        assertion = result.validation.get(GateName.MIGRATION_ASSERTION)
+        assert assertion.status is GateStatus.SKIPPED
+        assert "already passed" in assertion.detail
+
+        # And the user is told why, rather than being left to infer it.
+        assert "unverified" in result.message
+
+    def test_the_two_outcomes_differ_only_in_whether_a_test_covered_the_change(
+        self, make_repo, write_change
+    ):
+        """Same change, same patch, same repository -- different tests.
+
+        Stated as a pair because the pair is the point: `migrated` is a claim
+        about evidence, not about the diff.
+        """
+        options = engine.EngineOptions(write_artifacts=False)
+        change = write_change(FIELD_RENAME_DOC)
+
+        covered = engine.migrate(make_repo(SERVICE), change, options).results[0]
+        uncovered = engine.migrate(
+            make_repo(SERVICE_WITH_UNRELATED_TESTS, name="other"), change, options
+        ).results[0]
+
+        assert covered.diff == uncovered.diff, "the proposed patch is identical"
+        assert (covered.outcome, covered.succeeded) == (Outcome.MIGRATED, True)
+        assert (uncovered.outcome, uncovered.succeeded) == (
+            Outcome.PATCHED_UNVERIFIED,
+            False,
+        )
 
     def test_the_repository_is_untouched_afterwards(self, make_repo, write_change):
         root = make_repo(SERVICE)

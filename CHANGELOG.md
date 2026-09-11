@@ -42,6 +42,17 @@ this project uses [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Direct LLM contract regression tests** (`TestContractPreservation`,
+  `TestContractPositiveControls`) over a fixture using every construct the
+  check compares: a decorator, `async`, positional-only and keyword-only
+  parameters, `*args`, `**kwargs`, defaults with and without values,
+  annotations, and a return annotation. One named test per dimension, each
+  verified to fail when the contract comparison is disabled. Positive controls
+  confirm a body-only rewrite is accepted and that formatting-only differences
+  in annotations and defaults do not cause a false rejection.
+- **Engine-level green-to-green tests** asserting `engine.migrate()` returns
+  `PATCHED_UNVERIFIED` with `succeeded is False` when the suite was already
+  green, paired with the red-to-green `MIGRATED` case over the same patch.
 - An **adversarial evaluation suite** (`evals/datasets/adversarial/`, 20 cases)
   covering unrelated objects sharing a field name, strings and comments
   containing the name, Unicode before and on the edited line, nested functions
