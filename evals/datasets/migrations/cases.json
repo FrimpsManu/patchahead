@@ -12,7 +12,9 @@
         "app/report.py": "LABEL = \"total\"\n\n\ndef revenue(orders):\n    return round(sum(order[\"total\"] for order in orders), 2)\n",
         "tests/test_report.py": "from app.report import revenue\nfrom sdk import ORDERS\n\n\ndef test_revenue():\n    assert revenue(ORDERS) == 30.5\n"
       },
-      "expect_unchanged": ["LABEL = \"total\""]
+      "expect_unchanged": ["LABEL = \"total\""],
+      "max_changed_lines": 2,
+      "max_changed_files": 1
     },
     {
       "id": "pagination_end_to_end",
@@ -25,7 +27,9 @@
         "app/sync.py": "def sync_everything(client, account):\n    \"\"\"Pull every order for an account.\"\"\"\n    page = 1\n    collected = []\n\n    while True:\n        response = client.get_orders(page=page)\n        collected.extend(response[\"items\"])\n\n        if page >= response[\"total_pages\"]:\n            break\n\n        page += 1\n\n    return collected\n",
         "tests/test_sync.py": "from app.sync import sync_everything\nfrom sdk import Client\n\n\ndef test_sync_everything():\n    assert [o[\"id\"] for o in sync_everything(Client(), \"acct\")] == [1, 2, 3]\n"
       },
-      "expect_unchanged": ["def sync_everything(client, account):", "\"\"\"Pull every order for an account.\"\"\"", "response[\"items\"]"]
+      "expect_unchanged": ["def sync_everything(client, account):", "\"\"\"Pull every order for an account.\"\"\"", "response[\"items\"]"],
+      "max_changed_lines": 10,
+      "max_changed_files": 1
     },
     {
       "id": "kwarg_rename_end_to_end",
@@ -38,7 +42,9 @@
         "app/client.py": "DEFAULT = 15.0\n\n\ndef recent(client, limit=2):\n    return client.fetch(limit=limit, timeout_seconds=DEFAULT)\n",
         "tests/test_client.py": "from app.client import recent\nfrom sdk import Client\n\n\ndef test_recent():\n    assert len(recent(Client())) == 2\n"
       },
-      "expect_unchanged": ["DEFAULT = 15.0"]
+      "expect_unchanged": ["DEFAULT = 15.0"],
+      "max_changed_lines": 2,
+      "max_changed_files": 1
     },
     {
       "id": "method_rename_end_to_end",
@@ -50,7 +56,9 @@
         "app/__init__.py": "",
         "app/wrapper.py": "def recent(client, limit=2):\n    return client.fetch_orders(limit=limit)\n",
         "tests/test_wrapper.py": "from app.wrapper import recent\nfrom sdk import Client\n\n\ndef test_recent():\n    assert len(recent(Client())) == 2\n"
-      }
+      },
+      "max_changed_lines": 2,
+      "max_changed_files": 1
     },
     {
       "id": "unsupported_change_is_refused",
@@ -96,6 +104,38 @@
         "tests/test_report.py": "from app.report import revenue\nfrom sdk import ORDERS\n\n\ndef test_revenue():\n    assert revenue(ORDERS) == 999.0\n"
       },
       "note": "The rename is correct but the test asserts an impossible value, so the migration must not be reported as verified."
+    },
+    {
+      "id": "an_already_migrated_repository_is_left_alone",
+      "note": "Running the same change document twice must be a no-op the second time. Editing a repository that needs no migration is a wrong edit even when the rename itself is correct, so it has its own failure category rather than being folded into 'did not succeed'.",
+      "expect_success": false,
+      "expect_outcome": "no_impact",
+      "expect_no_patch": true,
+      "change": "### Order field renamed: `total` -> `amount`\n\nThe monetary field on each `order` object was renamed.\n\n- **Migration:** read `amount` instead of `total`.\n",
+      "files": {
+        "conftest.py": "import os\nimport sys\n\nsys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))\n",
+        "sdk.py": "ORDERS = [{\"id\": 1, \"amount\": 10.0}]\n",
+        "app/__init__.py": "",
+        "app/report.py": "def revenue(orders):\n    return sum(order[\"amount\"] for order in orders)\n",
+        "tests/test_report.py": "from app.report import revenue\nfrom sdk import ORDERS\n\n\ndef test_revenue():\n    assert revenue(ORDERS) == 10.0\n"
+      }
+    },
+    {
+      "id": "a_partially_migrated_repository_migrates_only_what_is_left",
+      "note": "The realistic state of a repository someone started migrating by hand. The already-migrated module must not be edited again, and its content is identical to what the patch legitimately writes elsewhere -- so the assertion is on the file, not on the text.",
+      "expect_success": true,
+      "expect_untouched_files": ["app/done.py"],
+      "max_changed_lines": 2,
+      "max_changed_files": 1,
+      "change": "### Order field renamed: `total` -> `amount`\n\nThe monetary field on each `order` object was renamed.\n\n- **Migration:** read `amount` instead of `total`.\n",
+      "files": {
+        "conftest.py": "import os\nimport sys\n\nsys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))\n",
+        "sdk.py": "ORDERS = [{\"id\": 1, \"amount\": 10.0}]\n",
+        "app/__init__.py": "",
+        "app/done.py": "def already(order):\n    return order[\"amount\"]\n",
+        "app/todo.py": "def pending(order):\n    return order[\"total\"]\n",
+        "tests/test_orders.py": "from app.done import already\nfrom app.todo import pending\nfrom sdk import ORDERS\n\n\ndef test_both_read_the_new_field():\n    assert already(ORDERS[0]) == 10.0\n    assert pending(ORDERS[0]) == 10.0\n"
+      }
     }
   ]
 }

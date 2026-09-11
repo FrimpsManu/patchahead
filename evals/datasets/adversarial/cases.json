@@ -1,5 +1,5 @@
 {
-  "description": "Cases built to fool PatchAhead. Every one of these is either a defect the prototype actually had, or a way its successor could plausibly acquire the same defect. `expect_patched` and `expect_reported_only` are `path:line` sites; anything patched that is not in `expect_patched` is a false positive, which is the failure mode this suite exists to catch.",
+  "description": "Cases built to fool PatchAhead. Every one of these is either a defect the prototype actually had, or a way its successor could plausibly acquire the same defect. `expect_patched` and `expect_reported_only` are `path:line` sites; anything patched that is not in `expect_patched` is a false positive, which is the failure mode this suite exists to catch. Cases carrying `known_gap` are ones a correct tool passes and this one does not: they are in the dataset on purpose, scored honestly, and fail the build the day they start passing.",
   "cases": [
     {
       "id": "same_field_on_unrelated_object",
@@ -210,6 +210,91 @@
       "expect_patched": ["app/a.py:4"],
       "expect_reported_only": [],
       "expect_source_contains": ["# keep this comment", "# and this trailing one"]
+    },
+    {
+      "id": "several_affected_files",
+      "note": "Impact is not a single-file property. Three modules, three qualifying sites, one plan.",
+      "change": {"kind": "field_rename", "symbol": "total", "replacement": "amount", "owner": "order"},
+      "files": {
+        "app/a.py": "def a(order):\n    return order[\"total\"]\n",
+        "app/b.py": "def b(order):\n    return order[\"total\"]\n",
+        "app/c.py": "def c(order):\n    return order[\"total\"]\n"
+      },
+      "expect_patched": ["app/a.py:2", "app/b.py:2", "app/c.py:2"],
+      "expect_source_contains": ["order[\"amount\"]"],
+      "expect_confidence": {"app/a.py:2": "high"}
+    },
+    {
+      "id": "only_some_usages_in_one_file_are_affected",
+      "note": "Four syntactic matches on one field name in four lines, with four different verdicts. The module-level string is not a candidate at all: it is never a subscript, a `.get()`, or an attribute, so it is filtered by syntax rather than by scoring.",
+      "change": {"kind": "field_rename", "symbol": "total", "replacement": "amount", "owner": "order"},
+      "files": {
+        "app/mixed.py": "LABEL = \"total\"\n\n\ndef summarize(order, customer, rows):\n    a = order[\"total\"]\n    b = customer[\"total\"]\n    c = rows[0][\"total\"]\n    d = order.get(\"total\")\n    return a, b, c, d, LABEL\n"
+      },
+      "expect_patched": ["app/mixed.py:5", "app/mixed.py:8"],
+      "expect_reported_only": ["app/mixed.py:6", "app/mixed.py:7"],
+      "expect_source_contains": ["LABEL = \"total\"", "customer[\"total\"]", "rows[0][\"total\"]"],
+      "expect_confidence": {"app/mixed.py:5": "high", "app/mixed.py:6": "low", "app/mixed.py:7": "low", "app/mixed.py:8": "high"}
+    },
+    {
+      "id": "imported_symbol_is_patched_but_a_locally_defined_one_is_not",
+      "note": "The same call spelling in two modules. One imports it from the SDK; the other defines it. Renaming calls to the repository's own function would break it rather than migrate it, so ownership of the name decides, not the spelling of the call.",
+      "change": {"kind": "method_rename", "symbol": "fetch_orders", "replacement": "list_orders"},
+      "files": {
+        "app/uses_sdk.py": "from sdk import fetch_orders\n\n\ndef go():\n    return fetch_orders(limit=1)\n",
+        "app/local.py": "def fetch_orders(limit):\n    return []\n\n\ndef go():\n    return fetch_orders(limit=1)\n"
+      },
+      "expect_patched": ["app/uses_sdk.py:5"],
+      "expect_reported_only": ["app/local.py:6"],
+      "expect_source_contains": ["def fetch_orders(limit):", "return fetch_orders(limit=1)"]
+    },
+    {
+      "id": "an_aliased_module_is_not_the_named_receiver",
+      "note": "`import analytics as a` puts a one-letter name in front of the renamed method. It is not the receiver the change document names, and a short alias is not a reason to assume it is.",
+      "change": {"kind": "method_rename", "symbol": "fetch_orders", "replacement": "list_orders", "owner": "client"},
+      "files": {
+        "app/alias.py": "import analytics as a\n\n\ndef go(client):\n    client.fetch_orders()\n    a.fetch_orders()\n"
+      },
+      "expect_patched": ["app/alias.py:5"],
+      "expect_reported_only": ["app/alias.py:6"],
+      "expect_source_contains": ["a.fetch_orders()", "client.list_orders()"]
+    },
+    {
+      "id": "loop_variable_aliases_the_owner",
+      "known_gap": "the loop variable `o` is an `order`, but showing that needs alias analysis over the iterable; PatchAhead reports the site and declines to patch it (roadmap PR #8)",
+      "note": "The dominant known false negative, written down as an executable case rather than left out of the dataset. Under-migrating is survivable -- a missed site is fixed by hand -- but it is still a miss, and it stays visible in the benchmark until it is fixed.",
+      "change": {"kind": "field_rename", "symbol": "total", "replacement": "amount", "owner": "order"},
+      "files": {
+        "app/loop.py": "def total_for(orders):\n    out = 0\n    for o in orders:\n        out += o[\"total\"]\n    return out\n"
+      },
+      "expect_patched": ["app/loop.py:4"]
+    },
+    {
+      "id": "a_local_variable_aliases_the_owner",
+      "known_gap": "`current = order` is a one-line alias inside a single function; resolving it needs local dataflow PatchAhead does not do (roadmap PR #8)",
+      "change": {"kind": "field_rename", "symbol": "total", "replacement": "amount", "owner": "order"},
+      "files": {
+        "app/alias2.py": "def go(order):\n    current = order\n    return current[\"total\"]\n"
+      },
+      "expect_patched": ["app/alias2.py:3"]
+    },
+    {
+      "id": "an_attribute_aliases_the_owner_across_methods",
+      "known_gap": "`self._order` is assigned in `__init__` and read in another method; connecting them needs cross-method attribute tracking (roadmap PR #9)",
+      "change": {"kind": "field_rename", "symbol": "total", "replacement": "amount", "owner": "order"},
+      "files": {
+        "app/reporter.py": "class Reporter:\n    def __init__(self, order):\n        self._order = order\n\n    def total(self):\n        return self._order[\"total\"]\n"
+      },
+      "expect_patched": ["app/reporter.py:6"]
+    },
+    {
+      "id": "a_chained_call_returns_the_named_receiver",
+      "known_gap": "`factory.get_client()` returns a client, but knowing that needs return-type information PatchAhead does not have (roadmap PR #8)",
+      "change": {"kind": "method_rename", "symbol": "fetch_orders", "replacement": "list_orders", "owner": "client"},
+      "files": {
+        "app/chain.py": "def go(factory):\n    return factory.get_client().fetch_orders(limit=1)\n"
+      },
+      "expect_patched": ["app/chain.py:2"]
     }
   ]
 }

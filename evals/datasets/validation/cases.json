@@ -1,0 +1,242 @@
+{
+  "description": "Do the five validation gates reach the right verdict? This is the subsystem that decides what 'working' means, so it is scored on the shapes that distinguish a migration from a patch: red-to-green, green-to-green, a real regression, a pre-existing failure, no tests at all, and the two failures only a misbehaving patch generator can produce.",
+  "cases": [
+    {
+      "id": "red_before_green_after_is_verified",
+      "note": "The only shape that earns `migrated`. Every gate runs and passes, and the assertion gate has real red-to-green evidence to point at.",
+      "mode": "engine",
+      "change": "### Order field renamed: `total` -> `amount`\n\nThe monetary field on each `order` object was renamed.\n\n- **Migration:** read `amount` instead of `total`.\n",
+      "files": {
+        "conftest.py": "import os\nimport sys\n\nsys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))\n",
+        "app/__init__.py": "",
+        "sdk.py": "ORDERS = [{\"id\": 1, \"amount\": 10.0}]\n",
+        "app/report.py": "def revenue(orders):\n    return sum(order[\"total\"] for order in orders)\n",
+        "tests/test_report.py": "from app.report import revenue\nfrom sdk import ORDERS\n\n\ndef test_revenue():\n    assert revenue(ORDERS) == 10.0\n"
+      },
+      "expect_gates": {
+        "syntax": "passed",
+        "scope": "passed",
+        "targeted_tests": "passed",
+        "regression_tests": "passed",
+        "migration_assertion": "passed"
+      },
+      "expect_verified": true,
+      "expect_passed": true,
+      "expect_outcome": "migrated"
+    },
+    {
+      "id": "green_before_green_after_is_unverified",
+      "note": "The patch may be perfectly correct. The point is that these tests would be green with or without it, so nothing here is evidence that the migration did anything.",
+      "mode": "engine",
+      "change": "### Order field renamed: `total` -> `amount`\n\nThe monetary field on each `order` object was renamed.\n\n- **Migration:** read `amount` instead of `total`.\n",
+      "files": {
+        "conftest.py": "import os\nimport sys\n\nsys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))\n",
+        "app/__init__.py": "",
+        "app/report.py": "LABEL = \"total\"\n\n\ndef revenue(orders):\n    return sum(order[\"total\"] for order in orders)\n",
+        "tests/test_label.py": "from app.report import LABEL\n\n\ndef test_label():\n    assert LABEL == \"total\"\n"
+      },
+      "expect_gates": {
+        "syntax": "passed",
+        "scope": "passed",
+        "regression_tests": "passed",
+        "migration_assertion": "skipped"
+      },
+      "expect_gate_detail": {
+        "migration_assertion": "already passed"
+      },
+      "expect_verified": false,
+      "expect_passed": true,
+      "expect_outcome": "patched_unverified"
+    },
+    {
+      "id": "a_patch_that_breaks_a_passing_test_is_caught",
+      "note": "The rename is applied faithfully and the repository is worse for it: the test asserted the value behind the old key. `total` and `amount` deliberately hold different values so the breakage is real rather than cosmetic.",
+      "mode": "engine",
+      "change": "### Order field renamed: `total` -> `amount`\n\nThe monetary field on each `order` object was renamed.\n\n- **Migration:** read `amount` instead of `total`.\n",
+      "files": {
+        "conftest.py": "import os\nimport sys\n\nsys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))\n",
+        "app/__init__.py": "",
+        "sdk.py": "ORDERS = [{\"id\": 1, \"total\": 10.0, \"amount\": 99.0}]\n",
+        "app/report.py": "def revenue(orders):\n    return sum(order[\"total\"] for order in orders)\n",
+        "tests/test_report.py": "from app.report import revenue\nfrom sdk import ORDERS\n\n\ndef test_revenue():\n    assert revenue(ORDERS) == 10.0\n"
+      },
+      "expect_gates": {
+        "syntax": "passed",
+        "scope": "passed",
+        "targeted_tests": "failed",
+        "regression_tests": "failed"
+      },
+      "expect_verified": false,
+      "expect_passed": false,
+      "expect_outcome": "validation_failed"
+    },
+    {
+      "id": "a_test_that_was_already_red_is_not_a_regression",
+      "note": "A repository broken by three upstream changes must still be able to migrate one of them. `tests/test_broken.py` is red before and after; only *newly* failing tests are regressions.",
+      "mode": "engine",
+      "change": "### Order field renamed: `total` -> `amount`\n\nThe monetary field on each `order` object was renamed.\n\n- **Migration:** read `amount` instead of `total`.\n",
+      "files": {
+        "conftest.py": "import os\nimport sys\n\nsys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))\n",
+        "app/__init__.py": "",
+        "sdk.py": "ORDERS = [{\"id\": 1, \"amount\": 10.0}]\n",
+        "app/report.py": "def revenue(orders):\n    return sum(order[\"total\"] for order in orders)\n",
+        "app/broken.py": "def unrelated():\n    return 1\n",
+        "tests/test_report.py": "from app.report import revenue\nfrom sdk import ORDERS\n\n\ndef test_revenue():\n    assert revenue(ORDERS) == 10.0\n",
+        "tests/test_broken.py": "from app.broken import unrelated\n\n\ndef test_unrelated_is_already_failing():\n    assert unrelated() == 2\n"
+      },
+      "expect_gates": {
+        "syntax": "passed",
+        "scope": "passed",
+        "targeted_tests": "passed",
+        "regression_tests": "passed",
+        "migration_assertion": "passed"
+      },
+      "expect_verified": true,
+      "expect_passed": true,
+      "expect_outcome": "migrated"
+    },
+    {
+      "id": "a_repository_with_no_tests_cannot_verify",
+      "note": "Nothing ran, so nothing is proven. The patch is still produced and shown; it is the claim of success that is withheld.",
+      "mode": "engine",
+      "change": "### Order field renamed: `total` -> `amount`\n\nThe monetary field on each `order` object was renamed.\n\n- **Migration:** read `amount` instead of `total`.\n",
+      "files": {
+        "app/__init__.py": "",
+        "app/report.py": "def revenue(orders):\n    return sum(order[\"total\"] for order in orders)\n"
+      },
+      "expect_gates": {
+        "syntax": "passed",
+        "scope": "passed",
+        "targeted_tests": "skipped",
+        "regression_tests": "skipped",
+        "migration_assertion": "skipped"
+      },
+      "expect_verified": false,
+      "expect_outcome": "patched_unverified"
+    },
+    {
+      "id": "disabling_tests_skips_every_executing_gate",
+      "note": "`--no-tests`. The two gates that do not execute repository code still run, which is the point of ordering them first.",
+      "mode": "engine",
+      "run_tests": false,
+      "change": "### Order field renamed: `total` -> `amount`\n\nThe monetary field on each `order` object was renamed.\n\n- **Migration:** read `amount` instead of `total`.\n",
+      "files": {
+        "conftest.py": "import os\nimport sys\n\nsys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))\n",
+        "app/__init__.py": "",
+        "sdk.py": "ORDERS = [{\"id\": 1, \"amount\": 10.0}]\n",
+        "app/report.py": "def revenue(orders):\n    return sum(order[\"total\"] for order in orders)\n",
+        "tests/test_report.py": "from app.report import revenue\nfrom sdk import ORDERS\n\n\ndef test_revenue():\n    assert revenue(ORDERS) == 10.0\n"
+      },
+      "expect_gates": {
+        "syntax": "passed",
+        "scope": "passed",
+        "targeted_tests": "skipped",
+        "regression_tests": "skipped",
+        "migration_assertion": "skipped"
+      },
+      "expect_gate_detail": {
+        "targeted_tests": "disabled"
+      },
+      "expect_verified": false,
+      "expect_outcome": "patched_unverified"
+    },
+    {
+      "id": "a_patch_that_does_not_parse_is_stopped_before_tests_run",
+      "note": "Only reachable with a crafted patch: no deterministic handler emits this. It is the gate that will matter when a model writes the patch, so it needs coverage now rather than later.",
+      "mode": "direct",
+      "files": {
+        "app/__init__.py": "",
+        "app/report.py": "def revenue(orders):\n    return sum(order[\"total\"] for order in orders)\n"
+      },
+      "patch": {
+        "app/report.py": "def revenue(orders)\n    return sum(order[\"amount\"] for order in orders)\n"
+      },
+      "expect_gates": {
+        "syntax": "failed",
+        "scope": "passed",
+        "targeted_tests": "skipped",
+        "regression_tests": "skipped",
+        "migration_assertion": "skipped"
+      },
+      "expect_gate_detail": {
+        "syntax": "parse",
+        "targeted_tests": "earlier gate failed"
+      },
+      "expect_passed": false,
+      "expect_verified": false
+    },
+    {
+      "id": "a_file_the_plan_did_not_name_fails_the_scope_gate",
+      "note": "A patch generator asked to fix one function that also 'improves' its neighbour. The plan names the files that were supposed to change; anything else fails regardless of how good the diff looks.",
+      "mode": "direct",
+      "files": {
+        "app/__init__.py": "",
+        "app/report.py": "def revenue(orders):\n    return sum(order[\"total\"] for order in orders)\n",
+        "app/unrelated.py": "def helper():\n    return 1\n"
+      },
+      "patch": {
+        "app/report.py": "def revenue(orders):\n    return sum(order[\"amount\"] for order in orders)\n",
+        "app/unrelated.py": "def helper():\n    return 2\n"
+      },
+      "plan_files": [
+        "app/report.py"
+      ],
+      "expect_gates": {
+        "syntax": "passed",
+        "scope": "failed",
+        "targeted_tests": "skipped",
+        "regression_tests": "skipped",
+        "migration_assertion": "skipped"
+      },
+      "expect_gate_detail": {
+        "scope": "did not name"
+      },
+      "expect_passed": false,
+      "expect_verified": false
+    },
+    {
+      "id": "an_unrunnable_test_command_skips_rather_than_fails",
+      "note": "A missing runner is absent evidence, not evidence of breakage. Failing here cries wolf on every misconfigured repository; passing here would call an unverified patch verified. Found by this suite: the targeted gate gets this right and the regression gate does not.",
+      "mode": "direct",
+      "test_command": "patchahead-no-such-test-runner",
+      "files": {
+        "app/__init__.py": "",
+        "app/report.py": "def revenue(orders):\n    return sum(order[\"total\"] for order in orders)\n"
+      },
+      "patch": {
+        "app/report.py": "def revenue(orders):\n    return sum(order[\"amount\"] for order in orders)\n"
+      },
+      "expect_gates": {
+        "syntax": "passed",
+        "scope": "passed",
+        "targeted_tests": "skipped",
+        "regression_tests": "skipped",
+        "migration_assertion": "skipped"
+      },
+      "expect_verified": false,
+      "known_gap": "the regression gate treats exit 127 from a runner that never started as a regression, while the targeted gate two lines earlier correctly skips on the same condition; the run is then reported as `validation_failed` because pytest is not installed"
+    },
+    {
+      "id": "an_empty_patch_does_not_validate",
+      "note": "A proposal that changed nothing has migrated nothing. The syntax and scope gates SKIP rather than PASS, so `passed` stays false instead of an empty patch collecting a clean sheet of vacuous passes.",
+      "mode": "direct",
+      "run_tests": false,
+      "files": {
+        "app/__init__.py": "",
+        "app/report.py": "def revenue(orders):\n    return sum(order[\"total\"] for order in orders)\n"
+      },
+      "patch": {
+        "app/report.py": "def revenue(orders):\n    return sum(order[\"total\"] for order in orders)\n"
+      },
+      "expect_gates": {
+        "syntax": "skipped",
+        "scope": "skipped"
+      },
+      "expect_gate_detail": {
+        "scope": "no files were modified"
+      },
+      "expect_passed": false,
+      "expect_verified": false
+    }
+  ]
+}

@@ -226,9 +226,18 @@ Binds to localhost only; it runs your test command.
 pip install -e '.[dev]'
 python -m pytest            # the test suite
 python -m pytest -m "not slow"   # skip tests that spawn a real pytest
-python evals/run.py         # classification / impact / migration metrics
-ruff check src tests
+python evals/run.py         # the evaluation benchmark
+ruff check src tests evals
 ```
+
+The benchmark has five suites — classification, impact, adversarial, migrations
+and validation — and reports precision, recall, F1, confidence calibration, a
+five-way migration outcome taxonomy, patch size, and per-gate verdicts. Cases
+PatchAhead is expected to *fail* are in the datasets on purpose, marked with a
+reason; a marked case that starts passing fails the build, because a stale
+marker is a benchmark lying in the other direction.
+[docs/evaluation.md](docs/evaluation.md) explains the suites and how to add a
+case.
 
 [docs/contributing.md](docs/contributing.md) walks through adding a migration
 family — the main way to extend PatchAhead without touching the core engine.

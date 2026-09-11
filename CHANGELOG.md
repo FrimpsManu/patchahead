@@ -7,6 +7,35 @@ this project uses [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **The evaluation benchmark is a package with its own tests.** Datasets load
+  into typed, strictly-validated case objects: an unknown key, a missing
+  required key, a value of the wrong shape, a duplicate id, or an empty dataset
+  is a load error rather than a silently unscored field. A mistyped
+  `expect_patched` used to assert nothing and pass, which is the same failure
+  mode as a deleted test.
+- **A `validation` suite.** The subsystem that decides what "working" means had
+  no evaluation coverage. Ten cases assert the verdict of every gate, including
+  the syntax and scope failures that only a misbehaving patch generator can
+  produce and that no deterministic handler can reach.
+- **`known_gap` cases.** A dataset may record a case PatchAhead is expected to
+  fail, with a stated reason. It is scored honestly and reported, does not fail
+  the build — and *does* fail the build if it starts passing, so a closed gap
+  cannot leave a stale marker behind. A known gap may only under-patch: one that
+  rewrites the wrong code fails regardless of the marker.
+- **Metrics for the dimensions that had none.** F1, confidence calibration,
+  refusal precision and recall, separate owner and owner-assertion accuracy, a
+  five-way migration outcome taxonomy (successful / missed / safe refusal /
+  incorrect / unnecessary), patch size, and per-gate verdict counts. Headline
+  numbers exclude known gaps so the regression floor stays meaningful;
+  `*_including_gaps` numbers include them so the floor cannot hide a limitation.
+- **Adversarial cases for aliases, imports, several affected files and partial
+  migration**, and `docs/evaluation.md` describing all of it.
+- **A Markdown benchmark report**, written by
+  `python evals/run.py --format markdown --out <path>` and uploaded as a CI
+  artifact.
+
 ### Fixed
 
 - **Renames no longer cross object boundaries.** When a change document asserts
