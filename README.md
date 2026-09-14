@@ -16,13 +16,21 @@ release note → classify → AST impact → plan → minimal patch → 5 gates 
 ## See it work
 
 ```bash
-pip install 'patchahead[demo]'
+git clone https://github.com/FrimpsManu/patchahead
+cd patchahead
+pip install -e '.[demo]'
 patchahead demo
 ```
 
+> PatchAhead is **not published to PyPI yet** — there is no release and no
+> publishing workflow — so a source install is the real path. `pip install
+> 'patchahead[demo]'` is what this becomes after the first release, and the
+> package builds and installs as a wheel today (CI checks exactly that); it is
+> simply not on an index for `pip` to find.
+
 That serves a local page at `http://127.0.0.1:8000` with six bundled scenarios
-against a deliberately-broken example service. Nothing to clone, nothing to
-configure, and no demo-only code path: every scenario calls the same
+against a deliberately-broken example service. No repository of your own to find,
+nothing to configure, and no demo-only code path: every scenario calls the same
 `patchahead.engine` the CLI does, copies the bundled repository to a temporary
 directory, patches the copy, and runs its tests there.
 
@@ -50,7 +58,7 @@ alone.
 | | |
 |---|---|
 | **0 false positives** | across 48 executable evaluation cases, 20 of them written specifically to fool it — unrelated objects sharing a field name, strings that merely contain it, Unicode before an edit site, nested scopes, comprehensions, decorated async methods, already-migrated code. Precision and recall are both 1.0, measured on every CI run rather than quoted from a spreadsheet. |
-| **364 tests** | unit, integration and end-to-end against real repositories on disk. The only thing mocked anywhere is the Anthropic API, because it is remote, paid and non-deterministic. |
+| **368 tests** | unit, integration and end-to-end against real repositories on disk. The only thing mocked anywhere is the Anthropic API, because it is remote, paid and non-deterministic. |
 | **Five gates decide, nothing else** | `syntax → scope → targeted_tests → regression_tests → migration_assertion`. `MigrationResult.succeeded` is defined as "the assertion gate passed". A green-to-green run reports `patched_unverified`, not success. |
 | **No runtime dependencies** | on Python 3.11+. The core is `argparse` and `ast`. A migration tool a team has to vet three transitive dependencies for is one they will not install. |
 
@@ -151,15 +159,28 @@ in the codebase is allowed to decide that a migration worked.
 
 ## Install
 
+From a clone, which is the only path until there is a release:
+
 ```bash
-pip install patchahead              # core tool: no third-party runtime deps on 3.11+
-pip install 'patchahead[demo]'      # + the local UI and the bundled walkthrough
-pip install 'patchahead[llm]'       # + LLM proposals when a shape is unrecognized
-pip install 'patchahead[all]'       # everything
+pip install -e .                 # core tool: no third-party runtime deps on 3.11+
+pip install -e '.[demo]'         # + the local UI and the bundled walkthrough
+pip install -e '.[llm]'          # + LLM proposals when a shape is unrecognized
+pip install -e '.[all]'          # everything
 patchahead --help
 ```
 
-Python 3.10+. From a checkout, add `-e` and a path: `pip install -e '.[demo]'`.
+Python 3.10+.
+
+| Extra | Brings | For |
+|---|---|---|
+| `web` | FastAPI, uvicorn | `patchahead web` against your own repository |
+| `demo` | `web` + pytest | `patchahead demo` — the bundled repository's tests have to actually run, or nothing can be *verified* |
+| `llm` | `anthropic` | the constrained fallback, off by default |
+| `yaml` | PyYAML | YAML change documents; JSON needs nothing |
+| `sentry` | `sentry-sdk` | optional error reporting |
+
+The same names work as `pip install 'patchahead[demo]'` once the project is
+published; it is not on PyPI today, so `pip` cannot resolve that yet.
 
 ## Your first migration
 
@@ -298,10 +319,16 @@ second code path for demos. [docs/architecture.md](docs/architecture.md).
 ## Web UI (optional)
 
 ```bash
-pip install 'patchahead[web]'
-patchahead demo                                    # bundled walkthrough
-patchahead web --repo ./my-service --changes ./changes   # your repository
+pip install -e '.[demo]'                                 # bundled walkthrough
+patchahead demo
+
+pip install -e '.[web]'                                  # your own repository
+patchahead web --repo ./my-service --changes ./changes
 ```
+
+`[demo]` is `[web]` plus pytest: the walkthrough migrates a real repository and
+runs its tests, and without a runner nothing it shows can be verified. `[web]`
+alone is enough to point the UI at a repository that brings its own.
 
 The same page in both cases — upstream change, impact, plan, diff, the five
 gates, and the pull-request summary — and the same engine underneath. The demo

@@ -21,8 +21,9 @@ Two things make the staging honest rather than decorative:
 
 The fixtures live inside the package (``patchahead/demo/fixtures/``) rather than
 in a top-level ``examples/`` directory, because ``patchahead demo`` has to work
-from ``pip install 'patchahead[demo]'`` in an empty directory, not only from a
-git checkout.
+from an install in an empty directory, not only from a git checkout. The extra
+that carries its dependencies is ``[demo]``: the web UI plus the pytest that
+turns a patch into a verified migration.
 """
 
 from __future__ import annotations

@@ -227,7 +227,12 @@ class TestBanner:
         )
 
         assert "pytest is not installed" in text
-        assert "patchahead[demo]" in text
+        # It must name the extra *and* a command that works today. PatchAhead is
+        # not on PyPI, so `pip install 'patchahead[demo]'` would be advice that
+        # fails -- which is worse than no advice in a message about something
+        # already being wrong.
+        assert "[demo]" in text
+        assert "pip install -e" in text
 
 
 class TestBrowserLaunch:

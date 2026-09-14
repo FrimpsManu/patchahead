@@ -24,12 +24,26 @@ this project uses [semantic versioning](https://semver.org/spec/v2.0.0.html).
   `VERIFIED MIGRATION` / `PATCHED, NOT VERIFIED` / `REFUSED` / `REJECTED BY THE
   TESTS` verdict at the top, and the release note shown beside what PatchAhead
   made of it.
-- **A `demo` extra** (`pip install 'patchahead[demo]'`): the web UI plus pytest,
+- **A `demo` extra** (`pip install -e '.[demo]'`): the web UI plus pytest,
   because a migration is only verified when tests actually run, and without a
   runner every scenario reports — honestly but uselessly — that the test command
   could not start. `patchahead demo` says so on startup if pytest is missing.
 - **`docs/demo-recording.md`**, a 45-second recording sequence, and
   `docs/media/`, holding real screenshots of the running UI.
+
+### Fixed (documentation)
+
+- **Install instructions no longer promise a PyPI release that does not exist.**
+  PatchAhead is not published and has no publishing workflow, so the README, the
+  recording script and the optional-dependency error messages all name the
+  source install that actually works. The `patchahead[...]` spellings are noted
+  as what they become after a release rather than presented as current.
+- **`CodeReference` said its columns were `ast` byte offsets.** They have been
+  character offsets since the UTF-8 fix; the docstring had not caught up, which
+  is worse than no comment on a field a contributor would index a string with.
+- **`domain/validation.py` said `ValidationResult.passed` decided success.** It
+  is necessary and not sufficient: `MigrationResult.succeeded` requires
+  `verified`, which requires the migration-assertion gate to have passed.
 
 ### Changed
 

@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """Optional web UI for PatchAhead.
 
-    pip install 'patchahead[web]'
-    patchahead demo                      # the bundled walkthrough
-    patchahead web --repo ./my-service   # your own repository
+    pip install -e '.[demo]'             # the bundled walkthrough; needs pytest
+    patchahead demo
+
+    pip install -e '.[web]'              # this module alone, on your repository
+    patchahead web --repo ./my-service
 
 The CLI is the product. This exists because a diff, an impact list, and five
 gate results are easier to read side by side than stacked in a terminal.
@@ -71,7 +73,10 @@ def create_app(repo: Path, changes_dir: Path, scenarios: Sequence[Scenario] = ()
         from fastapi import FastAPI, HTTPException
         from fastapi.responses import HTMLResponse, JSONResponse
     except ImportError:  # pragma: no cover - optional dependency
-        raise SystemExit("the web UI needs FastAPI: pip install 'patchahead[web]'") from None
+        raise SystemExit(
+            "the web UI needs FastAPI: install the `web` extra "
+            "(pip install -e '.[web]' from a checkout)"
+        ) from None
 
     app = FastAPI(title="PatchAhead", version=__version__, docs_url=None, redoc_url=None)
     by_id = {scenario.id: scenario for scenario in scenarios}
@@ -215,7 +220,10 @@ def main(argv: list[str] | None = None) -> int:
     try:
         import uvicorn
     except ImportError:  # pragma: no cover - optional dependency
-        log.error("the web UI needs uvicorn: pip install 'patchahead[web]'")
+        log.error(
+            "the web UI needs uvicorn: install the `web` extra "
+            "(pip install -e '.[web]' from a checkout)"
+        )
         return 2
 
     app = create_app(repo, changes)

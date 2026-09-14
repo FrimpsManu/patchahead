@@ -68,7 +68,7 @@ Changelog = "https://github.com/FrimpsManu/patchahead/blob/main/CHANGELOG.md"
 where = ["src"]
 
 [tool.setuptools.package-data]
-# The demo has to work from `pip install patchahead[web]` in an empty
+# `patchahead demo` (the `[demo]` extra) has to work from an install in an empty
 # directory, so the page it serves and the repository it migrates ship inside
 # the wheel rather than living beside it in a git checkout. `orders-service` is
 # not a valid Python identifier, so package discovery skips that subtree and

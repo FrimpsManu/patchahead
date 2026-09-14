@@ -10,7 +10,7 @@ bundled repository, and what appears on screen is what the engine returned.
 ## Before you start
 
 ```bash
-pip install -e '.[demo]'          # or: pip install 'patchahead[demo]'
+pip install -e '.[demo]'          # PatchAhead is not on PyPI yet; install from the clone
 patchahead demo --list            # sanity check: six scenarios, no errors
 ```
 
@@ -30,7 +30,7 @@ Then:
 
 | Time | On screen | Why it is there |
 |---|---|---|
-| 0:00–0:05 | **Terminal.** Type `pip install 'patchahead[demo]'` — already cached, so it completes instantly — then `patchahead demo`. | The whole setup cost, shown rather than claimed. |
+| 0:00–0:05 | **Terminal.** Type `pip install -e '.[demo]'` — already satisfied, so it completes instantly — then `patchahead demo`. | The whole setup cost, shown rather than claimed. |
 | 0:05–0:09 | The banner prints: the URL, the repository path, "the bundled repository is never modified", "localhost only". Pause on it. | Establishes the trust boundary before anything runs. |
 | 0:09–0:14 | Switch to the browser at `http://127.0.0.1:8000`. Let the page settle. Do not scroll yet. | The header states the problem in one sentence; give it a beat to be read. |
 | 0:14–0:18 | Move the cursor across the six scenario cards, slowly enough to read the chips: three **VERIFIED**, one **REFUSED**, one **VALIDATION FAILED**, one **PATCHED UNVERIFIED**. | Four outcomes, visible before a single click. This is the honesty of the tool in one frame. |
@@ -58,6 +58,10 @@ Four sentences, one per beat:
 - **Scrolling fast.** The page is dense; a viewer needs about a second per
   section. Slow, steady, no overshoot.
 - **Starting from a cold environment.** See "warm the cache" above.
+- **Filming a command that does not work.** Once PatchAhead is published, the
+  first line becomes `pip install 'patchahead[demo]'` and the recording gets
+  better. Until then it is a source install, and pretending otherwise puts a
+  command on screen that fails for anyone who tries it.
 - **Recording the whole screen.** Capture the browser window only, plus the
   terminal for the first five seconds.
 - **A port collision.** If 8000 is busy the demo moves up and the URL changes

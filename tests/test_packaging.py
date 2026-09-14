@@ -13,6 +13,7 @@ So these tests build the real artifacts and look inside them.
 
 from __future__ import annotations
 
+import re
 import shutil
 import subprocess
 import sys
@@ -203,3 +204,54 @@ class TestConsoleEntryPoint:
 
         assert result.returncode == 0
         assert "patchahead" in result.stdout
+
+
+class TestTheExtrasStoryHoldsTogether:
+    """`[web]` serves the UI; `[demo]` is what makes the demo *verify* anything.
+
+    The distinction is easy to lose in a docstring and impossible to lose here.
+    Without a test runner every bundled scenario reports, honestly and
+    uselessly, that the test command could not start -- so pytest belongs in the
+    extra the demo instructions name, and the demo instructions have to name
+    that extra.
+    """
+
+    @staticmethod
+    def optional_dependencies() -> dict[str, list[str]]:
+        try:
+            import tomllib
+        except ModuleNotFoundError:  # pragma: no cover - Python 3.10
+            tomli = pytest.importorskip("tomli", reason="reading pyproject needs tomli on 3.10")
+            tomllib = tomli
+        with open(REPO_ROOT / "pyproject.toml", "rb") as handle:
+            return tomllib.load(handle)["project"]["optional-dependencies"]
+
+    def test_the_demo_extra_brings_a_test_runner(self):
+        demo_extra = " ".join(self.optional_dependencies()["demo"])
+
+        assert "pytest" in demo_extra
+
+    def test_the_demo_extra_includes_the_web_extra(self):
+        demo_extra = " ".join(self.optional_dependencies()["demo"])
+
+        assert "patchahead[web]" in demo_extra
+
+    def test_the_web_extra_stays_the_ui_alone(self):
+        """It is a legitimate install for someone pointing the UI at their own
+        repository, which brings its own test runner. Adding pytest here would
+        make the narrower extra pay for the demo's needs."""
+        web_extra = " ".join(self.optional_dependencies()["web"])
+
+        assert "fastapi" in web_extra
+        assert "uvicorn" in web_extra
+        assert "pytest" not in web_extra
+
+    def test_every_extra_the_readme_names_exists(self):
+        """A documented extra that is not declared is an install that fails."""
+        declared = set(self.optional_dependencies())
+        readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
+        named = set(re.findall(r"\.\[([a-z,]+)\]", readme))
+
+        for group in named:
+            for extra in group.split(","):
+                assert extra in declared, f"README names a `{extra}` extra that does not exist"

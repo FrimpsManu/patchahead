@@ -139,7 +139,7 @@ def banner(url: str, repo: Path, test_command: str, *, can_run_tests: bool = Tru
         lines[-1:] = [
             "  WARNING: pytest is not installed, so no scenario can be verified.",
             "  Every run will report that the test command could not start.",
-            "  Fix:  pip install 'patchahead[demo]'",
+            "  Fix:  pip install -e '.[demo]'",
             "",
         ]
     return "\n".join(lines)
@@ -163,7 +163,7 @@ def serve(
         import uvicorn
     except ImportError:
         log.error(
-            "the demo needs its extra dependencies: pip install 'patchahead[demo]' "
+            "the demo needs its extra dependencies: pip install -e '.[demo]' "
             "(FastAPI, uvicorn, and the pytest that verifies the migrations)"
         )
         return 2
