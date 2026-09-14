@@ -57,8 +57,8 @@ alone.
 
 | | |
 |---|---|
-| **0 false positives** | across 48 executable evaluation cases, 20 of them written specifically to fool it — unrelated objects sharing a field name, strings that merely contain it, Unicode before an edit site, nested scopes, comprehensions, decorated async methods, already-migrated code. Precision and recall are both 1.0, measured on every CI run rather than quoted from a spreadsheet. |
-| **368 tests** | unit, integration and end-to-end against real repositories on disk. The only thing mocked anywhere is the Anthropic API, because it is remote, paid and non-deterministic. |
+| **0 false-positive patches** | across 28 impact and adversarial cases covering 31 expected patch sites, with 1.0 precision and recall; 48/48 total evaluation cases passed across classification, impact detection, adversarial safety, and end-to-end migration suites. The 20 adversarial cases are written to fool it — unrelated objects sharing a field name, strings that merely contain it, Unicode before an edit site, nested scopes, comprehensions, already-migrated code. Recomputed on every CI run. |
+| **368 automated tests** | covering unit, integration, and end-to-end behavior. Deterministic migrations, filesystem workspaces, subprocess test execution, packaging, and clean-wheel installs are exercised for real; the Anthropic API is mocked because it is remote, paid, and non-deterministic. |
 | **Five gates decide, nothing else** | `syntax → scope → targeted_tests → regression_tests → migration_assertion`. `MigrationResult.succeeded` is defined as "the assertion gate passed". A green-to-green run reports `patched_unverified`, not success. |
 | **No runtime dependencies** | on Python 3.11+. The core is `argparse` and `ast`. A migration tool a team has to vet three transitive dependencies for is one they will not install. |
 

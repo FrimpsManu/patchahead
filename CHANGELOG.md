@@ -33,6 +33,16 @@ this project uses [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed (documentation)
 
+- **The evaluation claim now matches what the harness computes.** Patch
+  precision, recall and false positives come from the 28 site-detection cases
+  (`impact` + `adversarial`, 31 expected patch sites) -- not from all 48, whose
+  other 20 measure classification accuracy and end-to-end migration. The number
+  is unchanged and the scope is now stated.
+- **"The only thing mocked is the Anthropic API" was no longer true.** It is the
+  only external *service* that is mocked, and the demo tests substitute the
+  server start, port probe and browser launch -- functions this project owns,
+  where the behaviour under test is the wiring. The README, `docs/contributing.md`
+  and `tests/conftest.py` all said the stronger thing.
 - **Install instructions no longer promise a PyPI release that does not exist.**
   PatchAhead is not published and has no publishing workflow, so the README, the
   recording script and the optional-dependency error messages all name the
