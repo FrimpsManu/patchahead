@@ -1,7 +1,84 @@
 # PatchAhead
 
-**Find the downstream code an upstream API change breaks, propose a minimal
-migration, and let your tests decide whether it worked.**
+**An upstream API changes. Which of your code breaks, what is the smallest
+correct fix, and can it be proven to work?**
+
+PatchAhead reads a release note, finds the affected call sites with AST
+analysis, patches a throwaway copy of your repository, and runs your tests
+against it. A migration counts as done only when a test that failed *before* the
+patch passes *after* it — and when the evidence is not there, it says so instead
+of claiming success.
+
+```text
+release note → classify → AST impact → plan → minimal patch → 5 gates → verdict
+```
+
+## See it work
+
+```bash
+pip install 'patchahead[demo]'
+patchahead demo
+```
+
+That serves a local page at `http://127.0.0.1:8000` with six bundled scenarios
+against a deliberately-broken example service. Nothing to clone, nothing to
+configure, and no demo-only code path: every scenario calls the same
+`patchahead.engine` the CLI does, copies the bundled repository to a temporary
+directory, patches the copy, and runs its tests there.
+
+<!-- DEMO RECORDING GOES HERE.
+     docs/demo-recording.md has an exact 45-second sequence to capture.
+     Save the result as docs/media/demo.gif and replace this comment with:
+         ![PatchAhead demo](docs/media/demo.gif)
+     The stills below are real captures of the same UI and can stay. -->
+
+![A verified migration in the PatchAhead demo](docs/media/demo-verified.png)
+
+Three of the scenarios end in a verified migration. Three do not, on purpose —
+because the interesting claim is not "it rewrites code", it is that it knows
+when not to:
+
+![PatchAhead refusing to migrate](docs/media/demo-refusal.png)
+
+That release note is about `invoice` objects; the repository only has `order`
+objects. The field name is identical, so a text-matching tool rewrites both
+sites. PatchAhead finds them, explains them, grades them low, and leaves them
+alone.
+
+## Proof, not adjectives
+
+| | |
+|---|---|
+| **0 false positives** | across 48 executable evaluation cases, 20 of them written specifically to fool it — unrelated objects sharing a field name, strings that merely contain it, Unicode before an edit site, nested scopes, comprehensions, decorated async methods, already-migrated code. Precision and recall are both 1.0, measured on every CI run rather than quoted from a spreadsheet. |
+| **364 tests** | unit, integration and end-to-end against real repositories on disk. The only thing mocked anywhere is the Anthropic API, because it is remote, paid and non-deterministic. |
+| **Five gates decide, nothing else** | `syntax → scope → targeted_tests → regression_tests → migration_assertion`. `MigrationResult.succeeded` is defined as "the assertion gate passed". A green-to-green run reports `patched_unverified`, not success. |
+| **No runtime dependencies** | on Python 3.11+. The core is `argparse` and `ast`. A migration tool a team has to vet three transitive dependencies for is one they will not install. |
+
+![The five validation gates](docs/media/demo-gates.png)
+
+## Supported migrations
+
+`field_rename` · `method_rename` · `kwarg_rename` · `pagination_page_to_cursor`
+
+Four families, each with parsing, analysis, planning, patching, validation,
+tests and documentation — that is the bar for inclusion. Anything else is
+reported as **unsupported** rather than forced into a family that happens to
+fit. `patchahead handlers` prints what each one explicitly does *not* do, and
+[docs/migrations.md](docs/migrations.md) has the confidence tables.
+
+## Safety, stated plainly
+
+PatchAhead never writes to your repository: `Repository` has no `write` method,
+so there is no call to make by mistake. But **the workspace copy is not a
+sandbox** — `migrate` runs your repository's configured test command with
+`shell=True`, as you, with your environment and your network. Running it on a
+repository you do not trust is the same decision as running `pytest` in one.
+
+[docs/safety.md](docs/safety.md) separates the three things that are easy to
+conflate: where PatchAhead writes, what the workspace isolates (filesystem
+writes in the copy, and nothing else), and what a test command can do.
+
+## What the CLI prints
 
 ```console
 $ patchahead migrate --repo ./my-service --change ./release-notes.md
@@ -75,29 +152,37 @@ in the codebase is allowed to decide that a migration worked.
 ## Install
 
 ```bash
-pip install -e .            # core tool: no third-party runtime dependencies on 3.11+
-pip install -e '.[llm]'     # optional: LLM proposals when the shape is unrecognized
-pip install -e '.[all]'     # llm + yaml + sentry + web UI
+pip install patchahead              # core tool: no third-party runtime deps on 3.11+
+pip install 'patchahead[demo]'      # + the local UI and the bundled walkthrough
+pip install 'patchahead[llm]'       # + LLM proposals when a shape is unrecognized
+pip install 'patchahead[all]'       # everything
 patchahead --help
 ```
 
-Python 3.10+.
+Python 3.10+. From a checkout, add `-e` and a path: `pip install -e '.[demo]'`.
 
 ## Your first migration
 
-The repository ships a deliberately-broken example service so you can see the
-whole thing work before pointing it at your own code:
+`patchahead demo` is the shortest route, but everything it does is available
+from the command line. The bundled example service ships inside the package;
+`--print-paths` says where it landed in your installation:
 
 ```bash
+repo=$(patchahead demo --print-paths | awk '/^repository/ {print $2}')
+changes=$(patchahead demo --print-paths | awk '/^changes/ {print $2}')
+
 # 1. What does this change break?
-patchahead analyze --repo examples/orders-service --change examples/changes/pagination-cursor.md
+patchahead analyze --repo "$repo" --change "$changes/pagination-cursor.md"
 
 # 2. What would you do about it? (nothing is changed)
-patchahead migrate --repo examples/orders-service --change examples/changes/pagination-cursor.md --dry-run
+patchahead migrate --repo "$repo" --change "$changes/pagination-cursor.md" --dry-run
 
 # 3. Do it, in a temporary copy, and prove it with the tests.
-patchahead migrate --repo examples/orders-service --change examples/changes/pagination-cursor.md
+patchahead migrate --repo "$repo" --change "$changes/pagination-cursor.md"
 ```
+
+`patchahead demo --list` describes every bundled scenario, including the ones
+that are supposed to fail.
 
 Then point it at your own repository. Release notes in Markdown work; so does a
 structured JSON/YAML description if the prose is too vague
@@ -213,12 +298,16 @@ second code path for demos. [docs/architecture.md](docs/architecture.md).
 ## Web UI (optional)
 
 ```bash
-pip install -e '.[web]'
-python web/server.py --repo ./my-service --changes ./changes
+pip install 'patchahead[web]'
+patchahead demo                                    # bundled walkthrough
+patchahead web --repo ./my-service --changes ./changes   # your repository
 ```
 
-A view over the same engine — change, impact, plan, diff, gates, PR summary.
-Binds to localhost only; it runs your test command.
+The same page in both cases — upstream change, impact, plan, diff, the five
+gates, and the pull-request summary — and the same engine underneath. The demo
+adds only a list of scenarios, each of which chooses a change document and
+whether tests run; both are ordinary engine inputs. Binds to `127.0.0.1` only,
+and it runs your test command.
 
 ## Development
 
@@ -227,8 +316,10 @@ pip install -e '.[dev]'
 python -m pytest            # the test suite
 python -m pytest -m "not slow"   # skip tests that spawn a real pytest
 python evals/run.py         # classification / impact / migration metrics
-ruff check src tests
+ruff check src tests evals
 ```
+
+To record the demo: [docs/demo-recording.md](docs/demo-recording.md).
 
 [docs/contributing.md](docs/contributing.md) walks through adding a migration
 family — the main way to extend PatchAhead without touching the core engine.

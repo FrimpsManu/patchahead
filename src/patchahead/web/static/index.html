@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>PatchAhead</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%237c8cff'/%3E%3Cpath d='M9 17.5l4.5 4.5L23 12' stroke='white' stroke-width='3.2' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E" />
+<style>
+  :root {
+    --bg: #0d1017; --panel: #151a23; --panel-2: #1b212c; --line: #262d3a;
+    --text: #e8edf5; --muted: #98a3b6; --faint: #6b7688;
+    --red: #ff6b6b; --green: #37d39b; --amber: #ffb64a; --accent: #7c8cff;
+    --green-bg: rgba(55, 211, 155, 0.10); --red-bg: rgba(255, 107, 107, 0.10);
+    --amber-bg: rgba(255, 182, 74, 0.10); --accent-bg: rgba(124, 140, 255, 0.10);
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    --sans: system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #f7f8fa; --panel: #fff; --panel-2: #f1f3f7; --line: #e0e4ec;
+      --text: #12151c; --muted: #5b6575; --faint: #8b94a3;
+      --red: #b52d2d; --green: #10704a; --amber: #8a5a00; --accent: #3d4bc7;
+      --green-bg: rgba(16, 112, 74, 0.08); --red-bg: rgba(181, 45, 45, 0.07);
+      --amber-bg: rgba(138, 90, 0, 0.08); --accent-bg: rgba(61, 75, 199, 0.07);
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: var(--sans); line-height: 1.55; padding-bottom: 72px;
+  }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 0 20px; }
+
+  /* ---------- header ---------- */
+  header { border-bottom: 1px solid var(--line); background: var(--panel); }
+  .bar { display: flex; align-items: baseline; gap: 14px; padding: 16px 0; flex-wrap: wrap; }
+  .logo { font-weight: 700; font-size: 19px; letter-spacing: -0.02em; }
+  .logo span { color: var(--accent); }
+  .spacer { flex: 1; }
+  /* The repository path has no spaces to break on and can be long, so it is
+     allowed to break anywhere rather than pushing the page sideways. */
+  .tag { font-family: var(--mono); font-size: 12px; color: var(--faint);
+         overflow-wrap: anywhere; min-width: 0; }
+  .pitch { padding: 0 0 18px; max-width: 74ch; color: var(--muted); font-size: 14.5px; }
+  .pitch b { color: var(--text); font-weight: 600; }
+
+  /* ---------- pipeline rail ---------- */
+  .rail { display: flex; gap: 6px; flex-wrap: wrap; padding: 14px 0 0; }
+  .rail .step {
+    display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--faint);
+    border: 1px solid var(--line); border-radius: 20px; padding: 4px 11px 4px 5px;
+    background: var(--panel-2);
+  }
+  .rail .step b {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 18px; height: 18px; border-radius: 50%; font-size: 11px;
+    background: var(--line); color: var(--muted); font-weight: 600;
+  }
+  .rail .step.on { color: var(--text); border-color: var(--accent); }
+  .rail .step.on b { background: var(--accent); color: #fff; }
+
+  /* ---------- scenario picker ---------- */
+  .picker { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px; }
+  .scenario {
+    text-align: left; cursor: pointer; border: 1px solid var(--line); border-radius: 9px;
+    background: var(--panel); color: var(--text); padding: 11px 13px; font-family: var(--sans);
+    display: flex; flex-direction: column; gap: 5px; line-height: 1.35;
+  }
+  .scenario:hover { border-color: var(--accent); }
+  .scenario[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-bg); }
+  .scenario .name { font-weight: 600; font-size: 14px; }
+  .scenario .fam { font-family: var(--mono); font-size: 11px; color: var(--faint); }
+  .expects {
+    align-self: flex-start; font-size: 10.5px; letter-spacing: 0.06em; text-transform: uppercase;
+    border-radius: 4px; padding: 1px 6px; font-weight: 600;
+  }
+  .expects.verified { color: var(--green); background: var(--green-bg); }
+  .expects.refused { color: var(--amber); background: var(--amber-bg); }
+  .expects.validation_failed { color: var(--red); background: var(--red-bg); }
+  .expects.patched_unverified { color: var(--amber); background: var(--amber-bg); }
+
+  .runbar { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; padding: 14px 0 4px; }
+  select, button {
+    font-family: var(--sans); font-size: 14px; border-radius: 7px;
+    border: 1px solid var(--line); background: var(--panel); color: var(--text); padding: 9px 13px;
+  }
+  button { cursor: pointer; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+  button:disabled { opacity: 0.55; cursor: progress; }
+  .headline { color: var(--muted); font-size: 14px; padding: 8px 0 0; max-width: 78ch; }
+  .headline code { font-family: var(--mono); font-size: 12.5px; color: var(--text); }
+
+  .banner {
+    background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--amber);
+    border-radius: 7px; padding: 11px 14px; font-size: 13px; color: var(--muted); margin: 18px 0 0;
+  }
+  .banner code { font-family: var(--mono); color: var(--text); }
+
+  /* ---------- outcome ---------- */
+  .verdict { border-radius: 11px; border: 1px solid var(--line); padding: 18px 20px; margin: 22px 0 6px; }
+  .verdict .label { font-size: 22px; font-weight: 700; letter-spacing: -0.01em; }
+  .verdict .said { font-size: 14px; color: var(--muted); margin-top: 5px; }
+  .verdict .watch { font-size: 13.5px; margin-top: 11px; padding-top: 11px; border-top: 1px solid var(--line); color: var(--muted); }
+  .verdict .watch b { color: var(--text); }
+  .verdict.good { border-color: var(--green); background: var(--green-bg); }
+  .verdict.good .label { color: var(--green); }
+  .verdict.warn { border-color: var(--amber); background: var(--amber-bg); }
+  .verdict.warn .label { color: var(--amber); }
+  .verdict.bad { border-color: var(--red); background: var(--red-bg); }
+  .verdict.bad .label { color: var(--red); }
+
+  /* ---------- step sections ---------- */
+  section.step { margin: 26px 0 0; }
+  section.step > h2 {
+    display: flex; align-items: center; gap: 10px; margin: 0 0 10px;
+    font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em;
+    color: var(--muted);
+  }
+  section.step > h2 i {
+    font-style: normal; display: inline-flex; align-items: center; justify-content: center;
+    width: 21px; height: 21px; border-radius: 50%; background: var(--accent); color: #fff;
+    font-size: 11.5px; font-weight: 700;
+  }
+  section.step > h2 small { font-weight: 500; text-transform: none; letter-spacing: 0; color: var(--faint); font-size: 12.5px; }
+
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  .card > .body { padding: 14px 16px; }
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; align-items: start; }
+  @media (max-width: 820px) { .cols { grid-template-columns: 1fr; } }
+
+  dl { display: grid; grid-template-columns: auto 1fr; gap: 5px 14px; margin: 0; font-size: 14px; }
+  dt { color: var(--muted); }
+  dd { margin: 0; }
+
+  .beforeafter { display: grid; gap: 8px; font-family: var(--mono); font-size: 12.5px; }
+  .beforeafter div { padding: 8px 11px; border-radius: 7px; background: var(--panel-2); }
+  .beforeafter .was { border-left: 3px solid var(--red); }
+  .beforeafter .now { border-left: 3px solid var(--green); }
+  .beforeafter span { display: block; font-family: var(--sans); font-size: 11px; color: var(--faint); margin-bottom: 2px; }
+
+  .pill {
+    display: inline-block; font-family: var(--mono); font-size: 11px;
+    padding: 2px 8px; border-radius: 20px; border: 1px solid var(--line); background: var(--panel-2);
+  }
+  .pill.high, .pill.passed { color: var(--green); }
+  .pill.medium, .pill.skipped { color: var(--amber); }
+  .pill.low { color: var(--faint); }
+  .pill.failed { color: var(--red); }
+  .yes { color: var(--green); font-weight: 600; }
+  .no { color: var(--faint); }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; }
+  tr:last-child td { border-bottom: 0; }
+  td.mono, .mono { font-family: var(--mono); font-size: 12px; }
+  .scroll { overflow-x: auto; }
+
+  pre {
+    margin: 0; font-family: var(--mono); font-size: 12.5px; line-height: 1.55;
+    overflow-x: auto; padding: 14px 16px; background: var(--panel-2); white-space: pre;
+  }
+  .diff span { display: block; }
+  .diff .add { color: var(--green); background: var(--green-bg); }
+  .diff .del { color: var(--red); background: var(--red-bg); }
+  .diff .hunk { color: var(--accent); margin-top: 4px; }
+  .diff .meta { color: var(--faint); }
+  .diff .ctx { color: var(--muted); }
+  /* The release note is prose, not code: wrap it rather than scrolling it. */
+  pre.note-source { white-space: pre-wrap; word-break: break-word; max-height: 430px; overflow-y: auto; }
+
+  /* ---------- gates ---------- */
+  .gates { display: grid; gap: 1px; background: var(--line); }
+  .gate { display: grid; grid-template-columns: 24px 168px 78px 1fr; gap: 10px; align-items: baseline;
+          padding: 11px 16px; background: var(--panel); font-size: 13px; }
+  @media (max-width: 720px) { .gate { grid-template-columns: 24px 1fr; } .gate .detail { grid-column: 1 / -1; } }
+  .gate .mark { font-size: 14px; line-height: 1.3; }
+  .gate .gname { font-family: var(--mono); font-size: 12.5px; }
+  .gate .detail { color: var(--muted); font-size: 12.5px; }
+  .gate.passed .mark { color: var(--green); }
+  .gate.failed .mark { color: var(--red); }
+  .gate.skipped .mark { color: var(--faint); }
+  .gate.failed .gname { color: var(--red); }
+
+  .note { color: var(--muted); font-size: 13px; }
+  .reason { color: var(--faint); font-size: 12px; }
+  .empty { color: var(--faint); font-size: 13px; padding: 10px 0; }
+  details > summary { cursor: pointer; color: var(--muted); font-size: 13px; padding: 5px 0; }
+  .changeblock { border-top: 1px solid var(--line); margin-top: 30px; padding-top: 6px; }
+  .changeblock:first-of-type { border-top: 0; margin-top: 0; }
+  .changelabel { font-size: 12px; color: var(--faint); font-family: var(--mono); padding-top: 14px; }
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <div class="bar">
+      <div class="logo">Patch<span>Ahead</span></div>
+      <div class="tag" id="context-line">loading…</div>
+      <div class="spacer"></div>
+      <div class="tag" id="version"></div>
+    </div>
+    <p class="pitch">
+      An upstream API changes. <b>Which of your code breaks, what is the smallest
+      correct fix, and can it be proven to work?</b> PatchAhead reads the release
+      note, finds the affected call sites, patches a throwaway copy of the
+      repository, and runs your tests against it. A migration counts as done only
+      when a test that failed before the patch passes after it.
+    </p>
+    <div class="rail" id="rail"></div>
+    <div style="height:14px"></div>
+  </div>
+</header>
+
+<div class="wrap">
+  <div id="chooser"></div>
+  <p class="headline" id="headline"></p>
+  <div class="runbar">
+    <button id="run" class="primary">Run this scenario</button>
+    <button id="analyze">Analyze only (read-only)</button>
+    <span class="note" id="status"></span>
+  </div>
+  <div class="banner">
+    PatchAhead never writes to the repository it is pointed at. <b>Run</b> copies it to a
+    temporary directory, patches the copy, and runs <code id="test-command">its test command</code>
+    there. A test command is ordinary code running as you — the copy is isolation from
+    <i>writes</i>, not a sandbox. Nothing here is applied or merged; a human approves.
+  </div>
+  <div id="results"></div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let context = null;
+let selected = null;
+
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) =>
+  ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+/* Backtick-quoted fragments in engine prose are code; render them as code.
+   Escaping happens first, so this can never introduce markup. */
+const prose = (s) => esc(s).replace(/`([^`]+)`/g, "<code>$1</code>");
+
+const pill = (value, cls) => `<span class="pill ${cls || value}">${esc(value)}</span>`;
+
+const STEPS = [
+  "Upstream change", "Impact", "Migration plan", "Patch", "Verification", "Outcome",
+];
+
+function renderRail(active) {
+  $("rail").innerHTML = STEPS.map((name, i) =>
+    `<div class="step ${active > i ? "on" : ""}"><b>${i + 1}</b>${esc(name)}</div>`
+  ).join("");
+}
+
+/* ---------- step 1: the upstream change ---------- */
+
+function renderChange(change, source) {
+  const t = change.target || {};
+  const rename = t.symbol && t.replacement
+    ? `<div class="beforeafter">
+         <div class="was"><span>before</span>${esc(t.symbol)}</div>
+         <div class="now"><span>after</span>${esc(t.replacement)}</div>
+       </div>`
+    : "";
+  return `
+  <section class="step">
+    <h2><i>1</i> Upstream change <small>what the vendor says broke</small></h2>
+    <div class="cols">
+      <div class="card"><div class="body">
+        <dl>
+          <dt>title</dt><dd>${esc(change.title)}</dd>
+          <dt>detected as</dt><dd>${pill(change.kind, "high")}</dd>
+          <dt>severity</dt><dd>${pill(change.severity)}</dd>
+          <dt>read with</dt><dd>${pill(change.confidence)} confidence</dd>
+          ${t.owner ? `<dt>on</dt><dd class="mono">${esc(t.owner)}${
+            t.owner_is_explicit ? "" : ' <span class="reason">(illustrated, not asserted)</span>'}</dd>` : ""}
+        </dl>
+        <div style="height:10px"></div>
+        ${rename}
+        ${change.old_behavior ? `<p class="reason" style="margin:10px 0 0">${prose(change.old_behavior)}</p>` : ""}
+        ${change.new_behavior ? `<p class="reason" style="margin:3px 0 0">${prose(change.new_behavior)}</p>` : ""}
+        <p class="reason" style="margin:10px 0 0">${prose(change.classification_reason)}</p>
+        ${change.evidence?.length ? `<details><summary>Why it was read that way</summary>
+          <ul class="reason">${change.evidence.map((e) =>
+            `<li>“${esc(e.quote)}”${e.note ? ` — ${esc(e.note)}` : ""}</li>`).join("")}</ul></details>` : ""}
+      </div></div>
+      <div class="card">
+        <div class="body"><div class="reason">the release note, as published</div></div>
+        <pre class="note-source">${esc(source || "(not loaded)")}</pre>
+      </div>
+    </div>
+  </section>`;
+}
+
+/* ---------- step 2: impact ---------- */
+
+function renderImpact(impact) {
+  let inner;
+  if (impact.unsupported_reason) {
+    inner = `<div class="card"><div class="body"><p class="note">${prose(impact.unsupported_reason)}</p></div></div>`;
+  } else if (!impact.findings.length) {
+    inner = `<div class="card"><div class="body"><div class="empty">No affected code found in this repository.</div></div></div>`;
+  } else {
+    const rows = impact.findings.map((f) => `
+      <tr>
+        <td class="mono">${esc(f.reference.path)}:${f.reference.line}</td>
+        <td class="mono">${esc(f.matched_contract)}</td>
+        <td>${pill(f.confidence)}</td>
+        <td>${f.patchable
+              ? '<span class="yes">rewrite</span>'
+              : '<span class="no">leave alone</span>'}</td>
+        <td class="reason">${prose(f.patchable ? f.reason : (f.unpatchable_reason || f.reason))}</td>
+      </tr>`).join("");
+    inner = `
+      <div class="card">
+        <div class="scroll"><table>
+          <thead><tr><th>Location</th><th>Matched</th><th>Confidence</th><th>Decision</th><th>Why</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table></div>
+        <div class="body"><p class="reason">
+          Scanned ${impact.files_scanned} file(s) in ${impact.analysis_ms}ms.
+          ${impact.related_tests.length
+            ? `Tests mapped to the affected modules: <span class="mono">${impact.related_tests.map(esc).join(", ")}</span>`
+            : "No tests were mapped to the affected modules."}
+        </p></div>
+      </div>`;
+  }
+  return `<section class="step">
+    <h2><i>2</i> Impact <small>every site the name matches, and what was decided about it</small></h2>
+    ${inner}</section>`;
+}
+
+/* ---------- step 3: plan ---------- */
+
+function renderPlan(plan) {
+  if (!plan) return "";
+  let inner;
+  if (plan.blocked_reason) {
+    inner = `<div class="card"><div class="body">
+      <p class="note"><b>No plan.</b> ${prose(plan.blocked_reason)}</p>
+      ${plan.skipped.length ? `<details open><summary>${plan.skipped.length} site(s) deliberately left alone</summary>
+        <ul class="reason">${plan.skipped.map((s) => `<li>${prose(s)}</li>`).join("")}</ul></details>` : ""}
+    </div></div>`;
+  } else {
+    const rows = plan.transformations.map((t) => `
+      <tr>
+        <td class="mono">${esc(t.reference.path)}:${t.reference.line}</td>
+        <td class="mono">${esc(t.symbol)}</td>
+        <td class="mono" style="color:var(--red)">${esc(t.old)}</td>
+        <td class="mono" style="color:var(--green)">${esc(t.new)}</td>
+        <td>${pill(t.confidence)}</td>
+      </tr>`).join("");
+    inner = `
+      <div class="card">
+        <div class="scroll"><table>
+          <thead><tr><th>Location</th><th>In</th><th>From</th><th>To</th><th>Confidence</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table></div>
+        <div class="body">
+          <dl>
+            <dt>handler</dt><dd class="mono">${esc(plan.handler)}</dd>
+            <dt>risk</dt><dd>${pill(plan.risk)}</dd>
+          </dl>
+          <p class="reason" style="margin-top:8px">${prose(plan.rationale)}</p>
+          ${plan.skipped.length ? `<details><summary>${plan.skipped.length} site(s) deliberately left alone</summary>
+            <ul class="reason">${plan.skipped.map((s) => `<li>${prose(s)}</li>`).join("")}</ul></details>` : ""}
+        </div>
+      </div>`;
+  }
+  return `<section class="step">
+    <h2><i>3</i> Migration plan <small>what it intends to change, before touching anything</small></h2>
+    ${inner}</section>`;
+}
+
+/* ---------- step 4: patch ---------- */
+
+function renderDiff(diff) {
+  /* Every line is a block-level span so added and removed rows can carry a
+     full-width background. They are joined with nothing, not with newlines:
+     a block element already ends the line, and doing both doubles the spacing. */
+  return diff.replace(/\n+$/, "").split("\n").map((line) => {
+    const safe = esc(line) || "&nbsp;";
+    let cls = "ctx";
+    if (line.startsWith("+++") || line.startsWith("---")) cls = "meta";
+    else if (line.startsWith("@@")) cls = "hunk";
+    else if (line.startsWith("+")) cls = "add";
+    else if (line.startsWith("-")) cls = "del";
+    return `<span class="${cls}">${safe}</span>`;
+  }).join("");
+}
+
+function renderPatch(proposal, outcome) {
+  let inner;
+  if (!proposal || !proposal.diff) {
+    /* "Nothing here" is a result, not an absence, and the reason differs by
+       outcome. Saying which one it is keeps the story readable end to end. */
+    const why = {
+      not_plannable: "No patch — and that is the outcome. PatchAhead found the affected code, "
+        + "explained it, and declined to rewrite it rather than guess.",
+      unsupported_change: "No patch: this kind of change has no handler in this version.",
+      no_impact: "No patch: nothing in this repository uses the old contract.",
+      dry_run: "No patch: this was a dry run, which stops after planning.",
+    }[outcome] || "No patch was produced.";
+    inner = `<div class="card"><div class="body"><div class="empty">${esc(why)}</div></div></div>`;
+  } else {
+    inner = `
+      <div class="card">
+        <div class="body"><p class="reason" style="margin:0">
+          <b>${proposal.diff_line_count}</b> changed line(s) across
+          <b>${proposal.changed_files.length}</b> file(s), by
+          ${esc(proposal.engine)} edits to exact source ranges — comments, blank lines and
+          formatting outside the edited spans are untouched.
+        </p></div>
+        <pre class="diff">${renderDiff(proposal.diff)}</pre>
+      </div>`;
+  }
+  return `<section class="step">
+    <h2><i>4</i> Patch <small>applied to a temporary copy, never to the repository</small></h2>
+    ${inner}</section>`;
+}
+
+/* ---------- step 5: the five gates ---------- */
+
+const GATE_ORDER = ["syntax", "scope", "targeted_tests", "regression_tests", "migration_assertion"];
+const GATE_BLURB = {
+  syntax: "the patched files still parse",
+  scope: "only the files the plan named changed",
+  targeted_tests: "the tests covering the changed modules",
+  regression_tests: "nothing that passed before fails now",
+  migration_assertion: "a test that failed before now passes",
+};
+const MARK = { passed: "✔", failed: "✘", skipped: "–" };
+
+function renderGates(validation, outcome) {
+  let inner;
+  if (!validation) {
+    const why = outcome === "not_plannable"
+      ? "The gates did not run: nothing was patched, so there is nothing to validate. "
+        + "A refusal is decided before any code is copied or executed."
+      : "The gates did not run.";
+    inner = `<div class="card"><div class="body"><div class="empty">${esc(why)}</div></div></div>`;
+  } else {
+    const byName = Object.fromEntries(validation.gates.map((g) => [g.name, g]));
+    const rows = GATE_ORDER.map((name, i) => {
+      const gate = byName[name] || { status: "skipped", detail: "did not run" };
+      return `<div class="gate ${esc(gate.status)}">
+        <div class="mark">${MARK[gate.status] || "?"}</div>
+        <div class="gname">${i + 1}. ${esc(name)}</div>
+        <div>${pill(gate.status)}</div>
+        <div class="detail">${prose(gate.detail)}<div class="reason">${esc(GATE_BLURB[name])}</div></div>
+      </div>`;
+    }).join("");
+    inner = `<div class="card"><div class="gates">${rows}</div></div>`;
+  }
+  return `<section class="step">
+    <h2><i>5</i> Verification <small>five gates, in order; the cheap decisive ones run before any code executes</small></h2>
+    ${inner}</section>`;
+}
+
+/* ---------- step 6: outcome ---------- */
+
+const VERDICT = {
+  migrated: { tone: "good", label: "VERIFIED MIGRATION",
+    said: "A test failed before this patch and passes after it. That is the evidence, and it is the only thing that earns this label." },
+  patched_unverified: { tone: "warn", label: "PATCHED, NOT VERIFIED",
+    said: "A patch was produced and no test proved it works. The diff may well be correct — nothing here demonstrates that, so nothing here claims it." },
+  validation_failed: { tone: "bad", label: "REJECTED BY THE TESTS",
+    said: "A patch was produced and a gate rejected it. The diff is still shown, so you can see exactly what was tried and why it was not accepted." },
+  not_plannable: { tone: "warn", label: "REFUSED",
+    said: "The affected code was found and explained, and PatchAhead declined to rewrite it. Refusing is the correct answer when the evidence does not support an edit." },
+  unsupported_change: { tone: "warn", label: "UNSUPPORTED CHANGE",
+    said: "This kind of change has no handler in this version. It is reported as unsupported rather than forced into a family that happens to fit." },
+  no_impact: { tone: "warn", label: "NO IMPACT",
+    said: "Nothing in this repository uses the old contract. Not an error — there is simply nothing to migrate." },
+  patch_failed: { tone: "bad", label: "PATCH FAILED",
+    said: "Planning succeeded and generating the patch did not." },
+  dry_run: { tone: "warn", label: "DRY RUN",
+    said: "Stopped after planning, by request. Nothing was patched and no tests ran." },
+};
+
+function renderVerdict(result, scenario) {
+  const v = VERDICT[result.outcome] || { tone: "warn", label: result.outcome, said: "" };
+  return `
+    <div class="verdict ${v.tone}">
+      <div class="label">${esc(v.label)}</div>
+      <div class="said">${esc(v.said)}</div>
+      <div class="said mono" style="margin-top:8px">${prose(result.message)}</div>
+      ${scenario ? `<div class="watch"><b>What to look at:</b> ${prose(scenario.watch_for)}</div>` : ""}
+    </div>`;
+}
+
+function renderResult(result, prSummary, scenario, source, index, total) {
+  const label = total > 1
+    ? `<div class="changelabel">change ${index + 1} of ${total} in this document</div>` : "";
+  return `
+    <div class="changeblock">
+      ${label}
+      ${renderVerdict(result, index === 0 ? scenario : null)}
+      ${renderChange(result.impact.change, index === 0 ? source : "")}
+      ${renderImpact(result.impact)}
+      ${renderPlan(result.plan)}
+      ${renderPatch(result.proposal, result.outcome)}
+      ${renderGates(result.validation, result.outcome)}
+      <section class="step">
+        <h2><i>6</i> Outcome <small>what a reviewer would receive</small></h2>
+        <div class="card"><div class="body">
+          ${prSummary
+            ? `<details><summary>Reviewable pull-request summary (Markdown)</summary><pre>${esc(prSummary)}</pre></details>`
+            : '<div class="empty">No summary.</div>'}
+        </div></div>
+      </section>
+    </div>`;
+}
+
+function renderAnalysis(data) {
+  return data.reports.map((report) => `
+    <div class="changeblock">
+      ${renderChange(report.change, "")}
+      ${renderImpact(report)}
+    </div>`).join("");
+}
+
+/* ---------- driving ---------- */
+
+async function call(path, params, method = "POST") {
+  const query = new URLSearchParams(params).toString();
+  const response = await fetch(`${path}?${query}`, { method });
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({ detail: response.statusText }));
+    throw new Error(body.detail || `request failed (${response.status})`);
+  }
+  return response.json();
+}
+
+function currentDocument() {
+  if (selected) return selected.document;
+  const picker = $("document");
+  return picker ? picker.value : "";
+}
+
+async function documentSource(name) {
+  try {
+    const data = await call("/api/document", { document: name }, "GET");
+    return data.text;
+  } catch {
+    return "";
+  }
+}
+
+async function act(kind) {
+  const name = currentDocument();
+  if (!name) return;
+  const buttons = [$("run"), $("analyze")];
+  buttons.forEach((b) => (b.disabled = true));
+  $("status").textContent = kind === "analyze"
+    ? "analyzing (nothing is copied or executed)…"
+    : "copying the repository, patching the copy, running its tests…";
+  $("results").innerHTML = "";
+  renderRail(1);
+  try {
+    if (kind === "analyze") {
+      const data = await call("/api/analyze", { document: name });
+      $("results").innerHTML = renderAnalysis(data);
+      $("status").textContent = `${data.total_findings} site(s) found — read-only, nothing was changed`;
+      renderRail(2);
+    } else {
+      const params = selected
+        ? { document: name, scenario: selected.id }
+        : { document: name };
+      const [data, source] = await Promise.all([
+        call("/api/migrate", params),
+        documentSource(name),
+      ]);
+      $("results").innerHTML = data.results
+        .map((r, i) => renderResult(r, data.pr_summaries?.[i], selected, source, i, data.results.length))
+        .join("");
+      $("status").textContent = data.succeeded
+        ? "verified by the tests"
+        : "not verified — see the outcome above";
+      renderRail(6);
+      $("results").scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  } catch (error) {
+    $("status").textContent = "";
+    $("results").innerHTML =
+      `<div class="card"><div class="body"><p class="note">${esc(error.message)}</p></div></div>`;
+  } finally {
+    buttons.forEach((b) => (b.disabled = false));
+  }
+}
+
+function selectScenario(id) {
+  selected = context.scenarios.find((s) => s.id === id) || context.scenarios[0];
+  document.querySelectorAll(".scenario").forEach((node) => {
+    node.setAttribute("aria-pressed", String(node.dataset.id === selected.id));
+  });
+  $("headline").innerHTML = prose(selected.headline)
+    + (selected.run_tests ? "" : ' <b>Tests are switched off for this one.</b>');
+  $("results").innerHTML = "";
+  renderRail(0);
+}
+
+function renderChooser() {
+  if (context.demo && context.scenarios.length) {
+    $("chooser").innerHTML = `<div class="picker">${context.scenarios.map((s) => `
+      <button class="scenario" data-id="${esc(s.id)}" aria-pressed="false">
+        <span class="name">${esc(s.title)}</span>
+        <span class="fam">${esc(s.family)}</span>
+        <span class="expects ${esc(s.expect)}">${esc(s.expect.replace(/_/g, " "))}</span>
+      </button>`).join("")}</div>`;
+    document.querySelectorAll(".scenario").forEach((node) =>
+      node.addEventListener("click", () => selectScenario(node.dataset.id)));
+    const wanted = new URLSearchParams(location.search).get("scenario");
+    selectScenario(wanted || context.scenarios[0].id);
+  } else {
+    $("chooser").innerHTML = `<div class="runbar" style="padding-top:0">
+      <select id="document" aria-label="Change document">${
+        context.documents.map((n) => `<option value="${esc(n)}">${esc(n)}</option>`).join("")
+        || '<option value="">no change documents found</option>'}</select></div>`;
+    $("headline").textContent =
+      "Pick a change document and run it against this repository.";
+  }
+}
+
+async function init() {
+  renderRail(0);
+  try {
+    context = await (await fetch("/api/context")).json();
+  } catch {
+    $("context-line").textContent = "could not reach the server";
+    return;
+  }
+  $("version").textContent = `v${context.version} · localhost`;
+  $("context-line").textContent = context.repo;
+  $("test-command").textContent = context.config.test_command;
+  renderChooser();
+}
+
+$("run").addEventListener("click", () => act("migrate"));
+$("analyze").addEventListener("click", () => act("analyze"));
+init();
+</script>
+</body>
+</html>

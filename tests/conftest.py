@@ -13,14 +13,18 @@ from pathlib import Path
 
 import pytest
 
+from patchahead import demo
 from patchahead.analysis import analyze_source
 from patchahead.analysis.index import RepoIndex
 from patchahead.config import Config
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-EXAMPLES = REPO_ROOT / "examples"
-EXAMPLE_REPO = EXAMPLES / "orders-service"
-EXAMPLE_CHANGES = EXAMPLES / "changes"
+#: The bundled example repository and change documents. They live inside the
+#: package so `patchahead demo` works from a wheel install; the tests reach them
+#: the same way the demo does rather than by a path relative to the checkout.
+EXAMPLES = demo.fixtures_root()
+EXAMPLE_REPO = demo.repo_root()
+EXAMPLE_CHANGES = demo.changes_root()
 
 
 @pytest.fixture

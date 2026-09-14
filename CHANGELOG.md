@@ -7,6 +7,44 @@ this project uses [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **`patchahead demo`.** One command, no configuration: it serves the local UI
+  against a bundled, deliberately-broken example service with six scenarios.
+  Three end in a verified migration; the other three do not, on purpose — one is
+  refused, one is rejected by the tests, and one is patched with the tests
+  switched off. It is the real engine throughout: a scenario supplies a change
+  document and whether tests execute, both ordinary engine inputs, and
+  `tests/test_web.py` asserts that running through a scenario and calling
+  `engine.migrate` directly produce the same diff and the same verdict.
+- **`patchahead web`**, the same UI pointed at a repository of your own,
+  replacing `python web/server.py`.
+- **A rebuilt UI** that tells the pipeline as six numbered steps — upstream
+  change, impact, plan, patch, the five gates, outcome — with an unmistakable
+  `VERIFIED MIGRATION` / `PATCHED, NOT VERIFIED` / `REFUSED` / `REJECTED BY THE
+  TESTS` verdict at the top, and the release note shown beside what PatchAhead
+  made of it.
+- **A `demo` extra** (`pip install 'patchahead[demo]'`): the web UI plus pytest,
+  because a migration is only verified when tests actually run, and without a
+  runner every scenario reports — honestly but uselessly — that the test command
+  could not start. `patchahead demo` says so on startup if pytest is missing.
+- **`docs/demo-recording.md`**, a 45-second recording sequence, and
+  `docs/media/`, holding real screenshots of the running UI.
+
+### Changed
+
+- **The bundled example moved into the package**, from `examples/orders-service`
+  and `examples/changes` to `patchahead/demo/fixtures/`, and the web UI's page
+  from `web/index.html` to `patchahead/web/static/`. `patchahead demo` has to
+  work from `pip install` in an empty directory, and files that only exist in a
+  git checkout do not. `patchahead demo --print-paths` prints where they landed.
+  `tests/test_packaging.py` builds a real wheel and sdist and compares their
+  contents against the fixture tree on disk, so a `package-data` pattern one
+  directory too shallow fails the build instead of silently shipping a demo with
+  no repository in it.
+- **The README leads with the demo**, the proof numbers, and the refusal
+  scenario rather than with architecture.
+
 ### Fixed
 
 - **Renames no longer cross object boundaries.** When a change document asserts
