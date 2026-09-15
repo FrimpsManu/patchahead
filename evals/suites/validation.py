@@ -7,17 +7,24 @@ benchmark did not measure.
 
 Each case declares the status every gate must reach, and why:
 
-=============================  =============================================
-red before, green after        ``migration_assertion`` PASSED -- verified
-green before, green after      ``migration_assertion`` SKIPPED -- no evidence
-a test the patch broke         ``regression_tests`` FAILED
-a test that was already red    ``regression_tests`` PASSED -- not a regression
-no tests in the repository     test gates SKIPPED, never PASSED
-``--no-tests``                 test gates SKIPPED, for a stated reason
-a patch that does not parse    ``syntax`` FAILED, later gates never run
-a file the plan did not name   ``scope`` FAILED, later gates never run
-a test command that cannot run ``targeted_tests`` SKIPPED, not FAILED
-=============================  =============================================
+==============================  ============================================
+red before, green after         ``migration_assertion`` PASSED -- verified
+green before, green after       ``migration_assertion`` SKIPPED -- no evidence
+red before, still red           ``migration_assertion`` SKIPPED, not FAILED
+a test the patch broke          ``regression_tests`` FAILED
+a test that was already red     ``regression_tests`` PASSED -- not a regression
+no tests in the repository      test gates SKIPPED, never PASSED
+``--no-tests``                  test gates SKIPPED, for a stated reason
+a patch that does not parse     ``syntax`` FAILED, later gates never run
+a file the plan did not name    ``scope`` FAILED, later gates never run
+a test command that is missing  both test gates SKIPPED, not FAILED
+a test command that won't run   both test gates SKIPPED, not FAILED
+==============================  ============================================
+
+The last three rows are the ones this suite was written to hold. "No evidence"
+and "evidence of breakage" are different verdicts, and the gates used to collapse
+them: a patch with nothing to prove it, and a test runner that was never
+installed, both came out as failures that pointed at the patch.
 
 Two of those cannot be produced by running the engine: a deterministic handler
 does not emit invalid Python, and it does not touch files its plan omits. So
@@ -71,6 +78,7 @@ def _crafted_proposal(case: ValidationCase, workspace: Workspace) -> PatchPropos
         change=BreakingChange(title=case.id, kind=ChangeKind.FIELD_RENAME),
         handler="eval",
         rationale="synthetic plan built by the validation eval suite",
+        expected_tests=list(case.expected_tests),
     )
     for path in planned:
         plan.transformations.append(

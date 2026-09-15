@@ -155,6 +155,11 @@ class ValidationCase(CaseSpec):
     #: the keys of ``patch`` -- set it to something narrower to force a scope
     #: failure.
     plan_files: list[str] | None = None
+    #: ``direct`` mode: the tests the plan claims its change will fix, which is
+    #: what the targeted gate narrows its run to. Left empty, the targeted gate
+    #: skips for want of a mapping and never executes the test command -- so a
+    #: case about how that gate handles a runner has to name them.
+    expected_tests: list[str] = field(default_factory=list)
     run_tests: bool = True
     test_command: str = ""
     #: Gate name -> required status, e.g. ``{"migration_assertion": "skipped"}``.

@@ -34,6 +34,8 @@ another stage, and every stage can decline.
 | `patchahead.engine` | The orchestrator. The one path the CLI, the web UI, and the tests share. |
 | `patchahead.reporting` | Rendering results as terminal text or a Markdown PR body. |
 | `patchahead.cli` | `argparse` front end. |
+| `patchahead.web` | The localhost UI and the page it serves, as package data so a wheel install carries them. |
+| `patchahead.demo` | Bundled fixtures and the scenario list `patchahead demo` narrates. Staging only: a scenario picks a change document and whether tests run, and nothing else. |
 | `patchahead.config` | `[tool.patchahead]` loading and validation. |
 | `patchahead.observability` | Logging, redaction, timing, optional Sentry. |
 

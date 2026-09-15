@@ -9,6 +9,65 @@ this project uses [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **`patchahead demo`.** One command, no configuration: it serves the local UI
+  against a bundled, deliberately-broken example service with six scenarios.
+  Three end in a verified migration; the other three do not, on purpose — one is
+  refused, one is rejected by the tests, and one is patched with the tests
+  switched off. It is the real engine throughout: a scenario supplies a change
+  document and whether tests execute, both ordinary engine inputs, and
+  `tests/test_web.py` asserts that running through a scenario and calling
+  `engine.migrate` directly produce the same diff and the same verdict.
+- **`patchahead web`**, the same UI pointed at a repository of your own,
+  replacing `python web/server.py`.
+- **A rebuilt UI** that tells the pipeline as six numbered steps — upstream
+  change, impact, plan, patch, the five gates, outcome — with an unmistakable
+  `VERIFIED MIGRATION` / `PATCHED, NOT VERIFIED` / `REFUSED` / `REJECTED BY THE
+  TESTS` verdict at the top, and the release note shown beside what PatchAhead
+  made of it.
+- **A `demo` extra** (`pip install -e '.[demo]'`): the web UI plus pytest,
+  because a migration is only verified when tests actually run, and without a
+  runner every scenario reports — honestly but uselessly — that the test command
+  could not start. `patchahead demo` says so on startup if pytest is missing.
+- **`docs/demo-recording.md`**, a 45-second recording sequence, and
+  `docs/media/`, holding real screenshots of the running UI.
+
+### Fixed (documentation)
+
+- **The evaluation claim now matches what the harness computes.** Patch
+  precision, recall and false positives come from the 28 site-detection cases
+  (`impact` + `adversarial`, 31 expected patch sites) -- not from all 48, whose
+  other 20 measure classification accuracy and end-to-end migration. The number
+  is unchanged and the scope is now stated.
+- **"The only thing mocked is the Anthropic API" was no longer true.** It is the
+  only external *service* that is mocked, and the demo tests substitute the
+  server start, port probe and browser launch -- functions this project owns,
+  where the behaviour under test is the wiring. The README, `docs/contributing.md`
+  and `tests/conftest.py` all said the stronger thing.
+- **Install instructions no longer promise a PyPI release that does not exist.**
+  PatchAhead is not published and has no publishing workflow, so the README, the
+  recording script and the optional-dependency error messages all name the
+  source install that actually works. The `patchahead[...]` spellings are noted
+  as what they become after a release rather than presented as current.
+- **`CodeReference` said its columns were `ast` byte offsets.** They have been
+  character offsets since the UTF-8 fix; the docstring had not caught up, which
+  is worse than no comment on a field a contributor would index a string with.
+- **`domain/validation.py` said `ValidationResult.passed` decided success.** It
+  is necessary and not sufficient: `MigrationResult.succeeded` requires
+  `verified`, which requires the migration-assertion gate to have passed.
+
+### Changed
+
+- **The bundled example moved into the package**, from `examples/orders-service`
+  and `examples/changes` to `patchahead/demo/fixtures/`, and the web UI's page
+  from `web/index.html` to `patchahead/web/static/`. `patchahead demo` has to
+  work from `pip install` in an empty directory, and files that only exist in a
+  git checkout do not. `patchahead demo --print-paths` prints where they landed.
+  `tests/test_packaging.py` builds a real wheel and sdist and compares their
+  contents against the fixture tree on disk, so a `package-data` pattern one
+  directory too shallow fails the build instead of silently shipping a demo with
+  no repository in it.
+- **The README leads with the demo**, the proof numbers, and the refusal
+  scenario rather than with architecture.
 - **The evaluation benchmark is a package with its own tests.** Datasets load
   into typed, strictly-validated case objects: an unknown key, a missing
   required key, a value of the wrong shape, a duplicate id, or an empty dataset
@@ -54,6 +113,37 @@ this project uses [semantic versioning](https://semver.org/spec/v2.0.0.html).
 - **`migrated` now requires red-to-green evidence.** A green-to-green run is
   reported `patched_unverified`: no gate objected, but nothing demonstrated the
   migration did anything.
+- **A keyword rename with no named function no longer rewrites every call using
+  that keyword.** `retries` is an ordinary word: a change document that renames
+  it without saying which function it belongs to gives nothing to distinguish
+  the upstream SDK's `retries=` from another library's, and
+  `send_email(to=..., retries=5)` was being rewritten on the strength of the
+  shared name. The sites are now reported and the migration reports
+  `not_plannable`. The refusal does not depend on the confidence threshold, so
+  `--min-confidence low` does not reopen it.
+- **The migration-assertion gate no longer fails a patch for the absence of
+  evidence.** It reports whether a test went red-to-green, so its answers are
+  PASSED and SKIPPED; breakage is the regression gate's verdict, given once. Two
+  shapes used to come out FAILED: a suite still red with nothing repaired, and a
+  patch that repaired one test while breaking another. It also read the
+  *regression gate's* status as "the suite is green" — and that gate is
+  baseline-relative, so it passes over a red suite — producing the
+  self-contradictory "the run is green but none of the tests that failed before
+  the patch were among them" on a repository that was simply already broken.
+- **A test runner that cannot start is no longer reported as a code
+  regression.** Exit 127 (command not found) and 126 (not executable) mean
+  nothing ran; the targeted gate skipped on them and the regression gate called
+  them a test failure, then blamed the patch. Detection now reads the exit
+  status rather than the shell's wording — `bash` says "command not found" and
+  `dash` says "not found", and only the first spelling was matched. Both gates
+  skip with the same message, which names `test_command` and the missing runner
+  so the reader has a next step, and the migration stays unverified.
+- **The classifier reads "renamed the `x` keyword argument to `y`".** The rename
+  patterns required the renamed name to sit directly beside the word `to`, so a
+  common release-note shape was reported as unreadable. The intervening words
+  are matched from a fixed noun list rather than as "any two words", so
+  "renamed the `client` argument passed to `fetch_orders`" — which renames
+  nothing — still does not match.
 
 ### Changed
 

@@ -113,8 +113,18 @@ _TO_RENAME = re.compile(
     r"`(?P<old>[\w.]+)(?:\(\))?=?`\s*(?:was\s+|has\s+been\s+)?"
     r"(?:renamed|changed)\s+to\s+`(?P<new>[\w.]+)(?:\(\))?=?`"
 )
+#: Nouns a release note puts between a renamed name and the word "to": "renamed
+#: the `retries` keyword argument to `max_retries`". Spelled out rather than
+#: allowed as "any two words", because `\w+` would also match "renamed the
+#: `client` argument passed to `fetch_orders`" -- which names two symbols and
+#: renames neither of them.
+_RENAME_NOUN = (
+    r"(?:keyword|kwarg|argument|arg|parameter|param|field|attribute|property"
+    r"|option|setting|method|function)s?"
+)
 _RENAMED_TO = re.compile(
-    r"renamed\s+(?:from\s+)?`(?P<old>[\w.]+)(?:\(\))?=?`\s+to\s+`(?P<new>[\w.]+)(?:\(\))?=?`"
+    r"renamed\s+(?:from\s+)?(?:the\s+|an?\s+)?`(?P<old>[\w.]+)(?:\(\))?=?`"
+    rf"(?:\s+{_RENAME_NOUN}){{0,2}}\s+to\s+`(?P<new>[\w.]+)(?:\(\))?=?`"
 )
 # "`retries` parameter was renamed to `max_retries`" -- the same shape as
 # _TO_RENAME but with a noun between the name and the verb. At most two plain

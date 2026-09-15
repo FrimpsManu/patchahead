@@ -7,10 +7,16 @@ to vet three transitive dependencies for is a tool they will not install.
 Commands
 --------
 
+``demo``
+    Zero-configuration walkthrough: serve the UI on localhost against a bundled
+    broken repository and a set of bundled release notes. The fastest way to see
+    what the tool does; the same engine as every other command.
 ``analyze``
     Read-only. Report what a change document would affect.
 ``migrate``
     Plan, patch in an isolated copy, validate, and print a diff.
+``web``
+    The same UI as ``demo``, pointed at a repository of your own.
 ``handlers``
     What this version can and cannot migrate.
 
@@ -38,6 +44,8 @@ from pathlib import Path
 from patchahead import __version__, engine, handlers, observability, reporting
 from patchahead.config import Config, ConfigError
 from patchahead.config import load as load_config
+from patchahead.demo import DemoError
+from patchahead.demo import serve as demo_serve
 from patchahead.domain.change import Confidence
 from patchahead.domain.result import Outcome
 from patchahead.ingest import IngestError
@@ -53,6 +61,7 @@ EXIT_INTERRUPTED = 4
 
 _EPILOG = """\
 examples:
+  patchahead demo
   patchahead analyze  --repo ./my-service --change ./release-notes.md
   patchahead migrate  --repo ./my-service --change ./release-notes.md
   patchahead migrate  --repo ./my-service --change ./notes.md --dry-run
@@ -205,6 +214,61 @@ def build_parser() -> argparse.ArgumentParser:
         help="write a Markdown pull-request summary to this path",
     )
 
+    demo = subparsers.add_parser(
+        "demo",
+        parents=[verbosity_parent],
+        help="run the bundled walkthrough in a local browser (no setup)",
+        description=(
+            "Serve the PatchAhead UI on localhost against a bundled example "
+            "repository that is deliberately broken by four upstream changes. "
+            "Nothing to configure and nothing to clone. It is the real engine: "
+            "each scenario copies the bundled repository to a temporary "
+            "directory, patches the copy, and runs its tests there."
+        ),
+    )
+    demo.add_argument(
+        "--port",
+        type=int,
+        default=demo_serve.DEFAULT_PORT,
+        help=f"port to serve on (default: {demo_serve.DEFAULT_PORT}; "
+        f"an unspecified port moves up if busy)",
+    )
+    demo.add_argument(
+        "--no-browser",
+        action="store_true",
+        help="do not try to open a browser; just print the URL",
+    )
+    demo.add_argument(
+        "--scenario",
+        metavar="ID",
+        help="open the UI with this scenario preselected (see --list)",
+    )
+    demo.add_argument(
+        "--list",
+        action="store_true",
+        dest="list_scenarios",
+        help="list the bundled scenarios and exit, without starting a server",
+    )
+    demo.add_argument(
+        "--print-paths",
+        action="store_true",
+        help="print the bundled repository and change-document paths, and exit",
+    )
+
+    web = subparsers.add_parser(
+        "web",
+        parents=[verbosity_parent],
+        help="serve the same UI against a repository of your own",
+        description=(
+            "The UI from `patchahead demo`, pointed at your repository and your "
+            "change documents. Binds to localhost only, and runs your test "
+            "command -- see docs/safety.md."
+        ),
+    )
+    web.add_argument("--repo", metavar="PATH", help="repository to analyze")
+    web.add_argument("--changes", metavar="PATH", help="directory of change documents")
+    web.add_argument("--port", type=int, default=demo_serve.DEFAULT_PORT)
+
     subparsers.add_parser(
         "handlers",
         parents=[verbosity_parent],
@@ -254,6 +318,69 @@ def _cmd_handlers(args: argparse.Namespace) -> int:
     print("Anything else is reported as unsupported rather than guessed at.")
     print("To add a family, see docs/migrations.md.")
     return EXIT_OK
+
+
+def _render_scenarios() -> str:
+    """The bundled scenarios as a table, for ``patchahead demo --list``."""
+    from patchahead import demo as demo_module
+
+    lines = [
+        f"PatchAhead {__version__} ships {len(demo_module.scenarios())} demo scenarios.",
+        "",
+    ]
+    for scenario in demo_module.scenarios():
+        lines.append(f"  {scenario.id}")
+        lines.append(f"    {scenario.title} ({scenario.family})")
+        lines.append(f"    expects: {scenario.expect.value}")
+        lines.append(f"    {scenario.headline}")
+        lines.append("")
+    lines.append("Not every scenario succeeds, on purpose: one is refused, one is")
+    lines.append("rejected by the tests, and one is patched without evidence.")
+    return "\n".join(lines)
+
+
+def _cmd_demo(args: argparse.Namespace) -> int:
+    from patchahead import demo as demo_module
+    from patchahead.demo import serve as serve_module
+
+    if args.print_paths:
+        # Single-token labels so the output is greppable: these paths land
+        # inside site-packages after a wheel install, and the first thing
+        # anyone wants to do with them is paste them into another command.
+        print(f"repository {demo_module.repo_root()}")
+        print(f"changes    {demo_module.changes_root()}")
+        return EXIT_OK
+
+    if args.list_scenarios:
+        print(_render_scenarios())
+        return EXIT_OK
+
+    if args.scenario:
+        # Validate before starting a server, so a typo is a one-line error
+        # rather than a running process and a confusing page.
+        demo_module.find(args.scenario)
+
+    # argparse cannot tell a default from a value the user typed, and the two
+    # mean different things here: an occupied default moves up, an occupied
+    # explicit port is an error rather than a silent redirect.
+    explicit = any(arg == "--port" or arg.startswith("--port=") for arg in sys.argv[1:])
+    return serve_module.serve(
+        port=args.port,
+        port_was_explicit=explicit,
+        open_browser=not args.no_browser,
+        scenario=args.scenario or "",
+    )
+
+
+def _cmd_web(args: argparse.Namespace) -> int:
+    from patchahead.web import server as web_server
+
+    argv: list[str] = ["--port", str(args.port)]
+    if args.repo:
+        argv += ["--repo", args.repo]
+    if args.changes:
+        argv += ["--changes", args.changes]
+    return web_server.main(argv)
 
 
 def _cmd_analyze(args: argparse.Namespace) -> int:
@@ -352,8 +479,10 @@ def main(argv: list[str] | None = None) -> int:
     observability.init_error_reporting()
 
     dispatch = {
+        "demo": _cmd_demo,
         "analyze": _cmd_analyze,
         "migrate": _cmd_migrate,
+        "web": _cmd_web,
         "handlers": _cmd_handlers,
     }
 
@@ -362,7 +491,7 @@ def main(argv: list[str] | None = None) -> int:
     except KeyboardInterrupt:
         print("interrupted", file=sys.stderr)
         return EXIT_INTERRUPTED
-    except (RepositoryError, IngestError, ConfigError, WorkspaceError) as exc:
+    except (RepositoryError, IngestError, ConfigError, WorkspaceError, DemoError) as exc:
         # Expected, actionable failures: say what is wrong, not a traceback.
         log.error("%s", exc)
         return EXIT_USAGE

@@ -96,6 +96,35 @@
       "expect_outcome": "migrated"
     },
     {
+      "id": "an_uncovered_migration_beside_a_broken_test_is_unverified_not_rejected",
+      "note": "The migrated module has no tests of its own, and an unrelated test was already red. There is no red-to-green evidence -- but there is no failure either, and the gate used to say so as FAILED, over a detail claiming the suite was 'green'. It reached that by reading the regression gate's PASSED (which is baseline-relative, so it passes over a red suite) as 'the tests are green now'. The honest verdict is `patched_unverified`: a correct patch nobody can prove is correct.",
+      "mode": "engine",
+      "change": "### Order field renamed: `total` -> `amount`\n\nThe monetary field on each `order` object was renamed.\n\n- **Migration:** read `amount` instead of `total`.\n",
+      "files": {
+        "conftest.py": "import os\nimport sys\n\nsys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))\n",
+        "app/__init__.py": "",
+        "sdk.py": "ORDERS = [{\"id\": 1, \"amount\": 10.0}]\n",
+        "app/report.py": "def revenue(orders):\n    return sum(order[\"total\"] for order in orders)\n",
+        "app/broken.py": "def unrelated():\n    return 1\n",
+        "tests/test_broken.py": "from app.broken import unrelated\n\n\ndef test_unrelated_is_already_failing():\n    assert unrelated() == 2\n"
+      },
+      "expect_gates": {
+        "syntax": "passed",
+        "scope": "passed",
+        "targeted_tests": "skipped",
+        "regression_tests": "passed",
+        "migration_assertion": "skipped"
+      },
+      "expect_gate_detail": {
+        "targeted_tests": "no tests could be mapped",
+        "regression_tests": "already failing",
+        "migration_assertion": "none of the tests that were failing before it pass now"
+      },
+      "expect_verified": false,
+      "expect_passed": true,
+      "expect_outcome": "patched_unverified"
+    },
+    {
       "id": "a_repository_with_no_tests_cannot_verify",
       "note": "Nothing ran, so nothing is proven. The patch is still produced and shown; it is the claim of success that is withheld.",
       "mode": "engine",
@@ -196,16 +225,20 @@
     },
     {
       "id": "an_unrunnable_test_command_skips_rather_than_fails",
-      "note": "A missing runner is absent evidence, not evidence of breakage. Failing here cries wolf on every misconfigured repository; passing here would call an unverified patch verified. Found by this suite: the targeted gate gets this right and the regression gate does not.",
+      "note": "A missing runner is absent evidence, not evidence of breakage. Failing here cries wolf on every misconfigured repository; passing here would call an unverified patch verified. Found by this suite, which caught the regression gate reading exit 127 as a test failure and then blaming the patch for it while the targeted gate two lines earlier skipped on the same condition.",
       "mode": "direct",
-      "test_command": "patchahead-no-such-test-runner",
+      "test_command": "patchahead-no-such-pytest-runner",
       "files": {
         "app/__init__.py": "",
-        "app/report.py": "def revenue(orders):\n    return sum(order[\"total\"] for order in orders)\n"
+        "app/report.py": "def revenue(orders):\n    return sum(order[\"total\"] for order in orders)\n",
+        "tests/test_report.py": "from app.report import revenue\n\n\ndef test_revenue():\n    assert revenue([{\"amount\": 10.0}]) == 10.0\n"
       },
       "patch": {
         "app/report.py": "def revenue(orders):\n    return sum(order[\"amount\"] for order in orders)\n"
       },
+      "expected_tests": [
+        "tests/test_report.py"
+      ],
       "expect_gates": {
         "syntax": "passed",
         "scope": "passed",
@@ -214,7 +247,44 @@
         "migration_assertion": "skipped"
       },
       "expect_verified": false,
-      "known_gap": "the regression gate treats exit 127 from a runner that never started as a regression, while the targeted gate two lines earlier correctly skips on the same condition; the run is then reported as `validation_failed` because pytest is not installed"
+      "expect_gate_detail": {
+        "targeted_tests": "could not start",
+        "regression_tests": "could not start",
+        "migration_assertion": "did not complete"
+      },
+      "expect_passed": true
+    },
+    {
+      "id": "a_test_command_that_is_not_executable_skips_rather_than_fails",
+      "note": "The other half of the pair, and the half no message text can catch: `run-pytest-suite.sh` exists, so the shell says nothing about it not being found -- it just exits 126. Only the status distinguishes 'the runner never started' from 'the tests failed', which is why PatchAhead reads the status and not the shell's prose.",
+      "mode": "direct",
+      "test_command": "./run-pytest-suite.sh",
+      "files": {
+        "app/__init__.py": "",
+        "app/report.py": "def revenue(orders):\n    return sum(order[\"total\"] for order in orders)\n",
+        "tests/test_report.py": "from app.report import revenue\n\n\ndef test_revenue():\n    assert revenue([{\"amount\": 10.0}]) == 10.0\n",
+        "run-pytest-suite.sh": "#!/bin/sh\nexec python -m pytest \"$@\"\n"
+      },
+      "patch": {
+        "app/report.py": "def revenue(orders):\n    return sum(order[\"amount\"] for order in orders)\n"
+      },
+      "expected_tests": [
+        "tests/test_report.py"
+      ],
+      "expect_gates": {
+        "syntax": "passed",
+        "scope": "passed",
+        "targeted_tests": "skipped",
+        "regression_tests": "skipped",
+        "migration_assertion": "skipped"
+      },
+      "expect_gate_detail": {
+        "targeted_tests": "could not start",
+        "regression_tests": "could not start",
+        "migration_assertion": "did not complete"
+      },
+      "expect_verified": false,
+      "expect_passed": true
     },
     {
       "id": "an_empty_patch_does_not_validate",

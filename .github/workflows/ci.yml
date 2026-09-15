@@ -88,24 +88,32 @@ jobs:
         run: patchahead --help
       - name: patchahead handlers
         run: patchahead handlers
+      - name: patchahead demo --list
+        run: patchahead demo --list
+      - name: patchahead demo --print-paths resolves the bundled fixtures
+        run: |
+          patchahead demo --print-paths
+          test -d "$(patchahead demo --print-paths | awk '/^repository/ {print $2}')"
+          test -d "$(patchahead demo --print-paths | awk '/^changes/ {print $2}')"
       - name: analyze the bundled example
         run: |
           patchahead analyze \
-            --repo examples/orders-service \
-            --change examples/changes/pagination-cursor.md
+            --repo src/patchahead/demo/fixtures/orders-service \
+            --change src/patchahead/demo/fixtures/changes/pagination-cursor.md
       - name: migrate the bundled example end to end
         run: |
           patchahead migrate \
-            --repo examples/orders-service \
-            --change examples/changes/pagination-cursor.md \
+            --repo src/patchahead/demo/fixtures/orders-service \
+            --change src/patchahead/demo/fixtures/changes/pagination-cursor.md \
             --no-artifacts
-      - name: the example repository must be unchanged afterwards
-        run: git diff --exit-code examples/
+      - name: the bundled repository must be unchanged afterwards
+        run: git diff --exit-code src/patchahead/demo/fixtures/
       - name: an unsupported change must exit 3, not 0
         run: |
           printf '### Orders endpoint moved\n\nThe endpoint moved to /v2/orders.\n' > /tmp/change.md
           set +e
-          patchahead analyze --repo examples/orders-service --change /tmp/change.md
+          patchahead analyze \
+            --repo src/patchahead/demo/fixtures/orders-service --change /tmp/change.md
           actual=$?
           set -e
           if [ "$actual" -ne 3 ]; then
@@ -133,3 +141,26 @@ jobs:
           /tmp/clean/bin/pip install dist/*.whl
           /tmp/clean/bin/patchahead --version
           /tmp/clean/bin/patchahead handlers
+      - name: The demo must work from the installed package, not just a checkout
+        # `patchahead demo` is the first thing a new user runs. If the bundled
+        # repository or the UI's page did not make it into the wheel, it fails
+        # for everyone who did not clone the repo -- which is everyone.
+        run: |
+          python -m venv /tmp/demo
+          /tmp/demo/bin/pip install "$(ls dist/*.whl)[demo]"
+          cd /tmp   # deliberately not the checkout: nothing may resolve relatively
+          /tmp/demo/bin/patchahead demo --print-paths
+          /tmp/demo/bin/patchahead demo --list
+          repo=$(/tmp/demo/bin/patchahead demo --print-paths | awk '/^repository/ {print $2}')
+          changes=$(/tmp/demo/bin/patchahead demo --print-paths | awk '/^changes/ {print $2}')
+          test -f "$changes/field-rename.md"
+          /tmp/demo/bin/patchahead migrate --repo "$repo" \
+            --change "$changes/field-rename.md" --no-artifacts
+      - name: The web UI page must ship in the wheel
+        run: |
+          /tmp/demo/bin/python -c "
+          from patchahead.web.server import index_path
+          page = index_path().read_text()
+          assert 'Upstream change' in page, 'the demo UI page is missing its content'
+          print('web UI page found at', index_path())
+          "

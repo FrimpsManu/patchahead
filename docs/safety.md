@@ -184,11 +184,19 @@ The API key is read from `ANTHROPIC_API_KEY` and never logged.
 
 ### 6. The web UI has no authentication
 
-`web/server.py` binds to `127.0.0.1` and has no auth, CSRF protection, or rate
-limiting. Its `/api/migrate` endpoint runs your test command. **Do not expose it
-to a network.** Change-document names are resolved inside one configured
-directory and path traversal is refused, but that is the only access control it
-has.
+`patchahead.web.server` — reached through `patchahead demo` and
+`patchahead web` — binds to `127.0.0.1` and has no auth, CSRF protection, or
+rate limiting. Its `/api/migrate` endpoint runs your test command. **Do not
+expose it to a network.** Change-document names are resolved inside one
+configured directory and path traversal is refused, but that is the only access
+control it has.
+
+`patchahead demo` is narrower than that and still not a sandbox. It serves only
+the bundled fixtures that ship inside the package, so the test command it runs
+is one PatchAhead wrote rather than one an untrusted repository supplied — but
+it is still `python -m pytest` executing as you, in a copy of that repository,
+on the loopback interface. Nothing about the demo widens the trust boundary
+described above, and nothing about it makes the boundary a sandbox.
 
 ---
 

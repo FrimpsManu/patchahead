@@ -48,9 +48,14 @@ class AccessKind(str, enum.Enum):
 class CodeReference:
     """A precise location in a source file.
 
-    Columns are 0-indexed byte offsets into the line, matching ``ast``. ``line``
-    is 1-indexed, matching every editor and traceback. Ranges are half-open on
-    the end column, again matching ``ast``.
+    Columns are 0-indexed **character** offsets into the line -- not the byte
+    offsets ``ast`` reports. The two agree only while a line is pure ASCII, and
+    :mod:`patchahead.analysis.python_ast` converts at the single point where
+    ``ast`` data enters the system, so everything downstream of it (this class
+    included) is character-based and can index a Python ``str`` directly.
+
+    ``line`` is 1-indexed, matching every editor and traceback. Ranges are
+    half-open on the end column, matching ``ast``.
     """
 
     #: Path relative to the repository root, always POSIX-style.

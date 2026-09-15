@@ -1,8 +1,17 @@
 """Validation results: the gates a proposal must pass to be called a migration.
 
-A migration is successful only when :attr:`ValidationResult.passed` is true, and
-that is true only when every non-skipped gate passed. Nothing else in the
-codebase is permitted to decide that a migration worked.
+Two properties, and the difference between them is the point.
+:attr:`ValidationResult.passed` is true when no gate failed and at least one
+actually ran -- necessary, and not sufficient.
+:attr:`ValidationResult.verified` additionally requires the
+``migration_assertion`` gate to have *passed*, meaning a test that failed before
+the patch passes after it.
+
+:attr:`~patchahead.domain.result.MigrationResult.succeeded` is defined in terms
+of ``verified``, not ``passed``: a run where every gate was happy but nothing
+demonstrated the break was fixed reports ``patched_unverified``, which is not a
+success. Nothing else in the codebase is permitted to decide that a migration
+worked.
 """
 
 from __future__ import annotations
@@ -139,9 +148,13 @@ class ValidationResult:
         =========================  ===========================================
         red before, green after    PASSED  -> verified
         green before, green after  SKIPPED -> the tests do not cover the change
+        red before, still red      SKIPPED -> nothing was repaired to point at
         no runnable tests          SKIPPED -> nothing ran
         a test this patch broke    the regression gate FAILS first
         =========================  ===========================================
+
+        Verification requires affirmative evidence, never merely the absence of
+        a regression -- which is why every row but the first lands short of it.
         """
         assertion = self.get(GateName.MIGRATION_ASSERTION)
         return self.passed and assertion is not None and assertion.passed

@@ -156,6 +156,30 @@ Headline metrics exclude known gaps, so a recorded limitation does not erode the
 regression floor CI asserts. `*_including_gaps` metrics include them, so the
 floor does not hide the limitation. Both are printed on every run.
 
+### The gaps that remain
+
+All four are in `adversarial`, all four are the same gap wearing different
+clothes, and all four are *under*-patching: PatchAhead finds the site, explains
+it, and declines to rewrite it. None can be a false positive -- the harness
+counts a wrong edit as fatal and no marker excuses it -- so what each costs is a
+hand-edit, not a broken call site.
+
+| Case | What it needs | Why it stays |
+|---|---|---|
+| `loop_variable_aliases_the_owner` | `for o in orders:` -- knowing `o` is an `order` | Alias analysis over the iterable |
+| `a_local_variable_aliases_the_owner` | `current = order` | Local dataflow |
+| `an_attribute_aliases_the_owner_across_methods` | `self._order` set in `__init__`, read elsewhere | Cross-method attribute tracking |
+| `a_chained_call_returns_the_named_receiver` | `factory.get_client().fetch_orders()` | Return-type information |
+
+Each needs PatchAhead to track *what a name refers to* rather than what it is
+called, which is a different kind of analysis from the syntactic matching
+everything here is built on -- a dataflow layer, not a patch to an existing
+handler. That is a deliberate boundary, not an oversight: the alternative
+available today is to rewrite on the name alone, which is exactly the
+false-positive behaviour the adversarial suite exists to prevent. Until the
+analysis exists, refusing is the correct answer, and these four cases keep the
+cost of refusing visible in every run.
+
 ## Adding a case
 
 1. Pick the suite whose question your case asks.

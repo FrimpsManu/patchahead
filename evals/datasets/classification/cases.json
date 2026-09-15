@@ -103,8 +103,7 @@
     },
     {
       "id": "kwarg_rename_without_a_named_function",
-      "known_gap": "the sentence is unambiguous -- `retries` -> `max_retries` -- but the kwarg patterns require a named function, so nothing is extracted and the document is classified `unknown` (roadmap PR #6)",
-      "note": "A real release-note shape. Missing it is safe -- the document is reported as unreadable rather than misread -- but it is still a document a correct tool acts on.",
+      "note": "A real release-note shape the rename patterns could not read, because they expected the renamed name to sit directly beside the word `to`. Reading it is safe only because the kwarg handler refuses to patch a rename with no named function -- see `kwarg_rename_with_no_named_function_is_refused` in the adversarial suite. Classifying it without that refusal would have turned a parsing gap into a false positive.",
       "text": "### Timeouts\n\nWe renamed the `retries` keyword argument to `max_retries`.",
       "expected_kind": "kwarg_rename",
       "expected_symbol": "retries",
