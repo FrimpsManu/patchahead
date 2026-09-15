@@ -11,9 +11,9 @@ Two entry points:
     Analysis, then plan, then patch **inside an isolated copy**, then validate,
     then report. The user's repository is never written to.
 
-There is no demo-only branch anywhere in here. The bundled example repository in
-``examples/`` goes through exactly this path, which is the point: if the example
-works, the same code made it work for any other repository.
+There is no demo-only branch anywhere in here. The bundled example repository
+that ``patchahead demo`` serves goes through exactly this path, which is the
+point: if the demo works, the same code made it work for any other repository.
 """
 
 from __future__ import annotations

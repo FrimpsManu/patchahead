@@ -1,9 +1,15 @@
 """Shared fixtures.
 
 The guiding rule (from ``docs/contributing.md``): build realistic repositories on
-disk and run the real engine over them. The only thing ever mocked is the
-Anthropic API, because it is the one dependency that is remote, paid, and
-non-deterministic.
+disk and run the real engine over them. The Anthropic API is the one *external
+service* that is mocked, because it is remote, paid, and non-deterministic;
+everything else -- filesystem workspaces, subprocess test runs, wheel builds --
+happens for real.
+
+A few tests in ``tests/test_demo.py`` do substitute functions this project owns
+(the server start, the port probe, the browser launch) where the behaviour under
+test is the wiring rather than the effect. No part of the migration pipeline is
+ever substituted.
 """
 
 from __future__ import annotations
@@ -13,14 +19,18 @@ from pathlib import Path
 
 import pytest
 
+from patchahead import demo
 from patchahead.analysis import analyze_source
 from patchahead.analysis.index import RepoIndex
 from patchahead.config import Config
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-EXAMPLES = REPO_ROOT / "examples"
-EXAMPLE_REPO = EXAMPLES / "orders-service"
-EXAMPLE_CHANGES = EXAMPLES / "changes"
+#: The bundled example repository and change documents. They live inside the
+#: package so `patchahead demo` works from a wheel install; the tests reach them
+#: the same way the demo does rather than by a path relative to the checkout.
+EXAMPLES = demo.fixtures_root()
+EXAMPLE_REPO = demo.repo_root()
+EXAMPLE_CHANGES = demo.changes_root()
 
 
 @pytest.fixture

@@ -1,8 +1,17 @@
 """Validation results: the gates a proposal must pass to be called a migration.
 
-A migration is successful only when :attr:`ValidationResult.passed` is true, and
-that is true only when every non-skipped gate passed. Nothing else in the
-codebase is permitted to decide that a migration worked.
+Two properties, and the difference between them is the point.
+:attr:`ValidationResult.passed` is true when no gate failed and at least one
+actually ran -- necessary, and not sufficient.
+:attr:`ValidationResult.verified` additionally requires the
+``migration_assertion`` gate to have *passed*, meaning a test that failed before
+the patch passes after it.
+
+:attr:`~patchahead.domain.result.MigrationResult.succeeded` is defined in terms
+of ``verified``, not ``passed``: a run where every gate was happy but nothing
+demonstrated the break was fixed reports ``patched_unverified``, which is not a
+success. Nothing else in the codebase is permitted to decide that a migration
+worked.
 """
 
 from __future__ import annotations

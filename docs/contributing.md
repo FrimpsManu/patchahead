@@ -239,8 +239,17 @@ LLM is off", and fixing that is half of what this rewrite was.
 No dicts.
 
 **Tests use real repositories.** The `make_repo` fixture writes files to a temp
-directory and the real engine runs over them. The only thing mocked in this
-suite is the Anthropic API, because it is remote, paid, and non-deterministic.
+directory and the real engine runs over them. The Anthropic API is the one
+*external service* that is mocked, because it is remote, paid, and
+non-deterministic — everything else the engine does, including subprocess test
+runs and wheel builds, happens for real.
+
+Substituting a function you own is a narrower thing and is fine where the
+behaviour under test is the wiring rather than the effect: `tests/test_demo.py`
+replaces the server start, the port probe and the browser launch, because the
+question there is "was it called with the right arguments", not "does uvicorn
+bind a socket". Never substitute a piece of the migration pipeline — analysis,
+planning, patching or a gate — to make a test easier.
 
 **Assert on outcomes, not on implementation.** `assert 'o["amount"]' in patched`
 is a good test. `assert handler._grade_subscript(...) == ...` is not.

@@ -7,6 +7,68 @@ this project uses [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **`patchahead demo`.** One command, no configuration: it serves the local UI
+  against a bundled, deliberately-broken example service with six scenarios.
+  Three end in a verified migration; the other three do not, on purpose — one is
+  refused, one is rejected by the tests, and one is patched with the tests
+  switched off. It is the real engine throughout: a scenario supplies a change
+  document and whether tests execute, both ordinary engine inputs, and
+  `tests/test_web.py` asserts that running through a scenario and calling
+  `engine.migrate` directly produce the same diff and the same verdict.
+- **`patchahead web`**, the same UI pointed at a repository of your own,
+  replacing `python web/server.py`.
+- **A rebuilt UI** that tells the pipeline as six numbered steps — upstream
+  change, impact, plan, patch, the five gates, outcome — with an unmistakable
+  `VERIFIED MIGRATION` / `PATCHED, NOT VERIFIED` / `REFUSED` / `REJECTED BY THE
+  TESTS` verdict at the top, and the release note shown beside what PatchAhead
+  made of it.
+- **A `demo` extra** (`pip install -e '.[demo]'`): the web UI plus pytest,
+  because a migration is only verified when tests actually run, and without a
+  runner every scenario reports — honestly but uselessly — that the test command
+  could not start. `patchahead demo` says so on startup if pytest is missing.
+- **`docs/demo-recording.md`**, a 45-second recording sequence, and
+  `docs/media/`, holding real screenshots of the running UI.
+
+### Fixed (documentation)
+
+- **The evaluation claim now matches what the harness computes.** Patch
+  precision, recall and false positives come from the 28 site-detection cases
+  (`impact` + `adversarial`, 31 expected patch sites) -- not from all 48, whose
+  other 20 measure classification accuracy and end-to-end migration. The number
+  is unchanged and the scope is now stated.
+- **"The only thing mocked is the Anthropic API" was no longer true.** It is the
+  only external *service* that is mocked, and the demo tests substitute the
+  server start, port probe and browser launch -- functions this project owns,
+  where the behaviour under test is the wiring. The README, `docs/contributing.md`
+  and `tests/conftest.py` all said the stronger thing.
+- **Install instructions no longer promise a PyPI release that does not exist.**
+  PatchAhead is not published and has no publishing workflow, so the README, the
+  recording script and the optional-dependency error messages all name the
+  source install that actually works. The `patchahead[...]` spellings are noted
+  as what they become after a release rather than presented as current.
+- **`CodeReference` said its columns were `ast` byte offsets.** They have been
+  character offsets since the UTF-8 fix; the docstring had not caught up, which
+  is worse than no comment on a field a contributor would index a string with.
+- **`domain/validation.py` said `ValidationResult.passed` decided success.** It
+  is necessary and not sufficient: `MigrationResult.succeeded` requires
+  `verified`, which requires the migration-assertion gate to have passed.
+
+### Changed
+
+- **The bundled example moved into the package**, from `examples/orders-service`
+  and `examples/changes` to `patchahead/demo/fixtures/`, and the web UI's page
+  from `web/index.html` to `patchahead/web/static/`. `patchahead demo` has to
+  work from `pip install` in an empty directory, and files that only exist in a
+  git checkout do not. `patchahead demo --print-paths` prints where they landed.
+  `tests/test_packaging.py` builds a real wheel and sdist and compares their
+  contents against the fixture tree on disk, so a `package-data` pattern one
+  directory too shallow fails the build instead of silently shipping a demo with
+  no repository in it.
+- **The README leads with the demo**, the proof numbers, and the refusal
+  scenario rather than with architecture.
+
 ### Fixed
 
 - **Renames no longer cross object boundaries.** When a change document asserts

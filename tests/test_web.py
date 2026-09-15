@@ -7,12 +7,11 @@ to return the same result objects the engine produces.
 
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 
 import pytest
 
-from tests.conftest import EXAMPLE_CHANGES, EXAMPLE_REPO, REPO_ROOT
+from tests.conftest import EXAMPLE_CHANGES, EXAMPLE_REPO
 
 pytest.importorskip("fastapi", reason="the web UI is an optional extra")
 try:
@@ -23,8 +22,8 @@ except (ImportError, RuntimeError) as exc:
     # fails outright. `httpx2` is in the `dev` extra; a partial install skips.
     pytest.skip(f"the web test client is unavailable: {exc}", allow_module_level=True)
 
-sys.path.insert(0, str(REPO_ROOT / "web"))
-import server as web_server  # noqa: E402
+from patchahead import demo, engine  # noqa: E402
+from patchahead.web import server as web_server  # noqa: E402
 
 
 @pytest.fixture
@@ -69,8 +68,6 @@ class TestAnalyze:
         assert data["reports"][0]["affected_files"] == ["app/order_sync.py"]
 
     def test_matches_the_engine_called_directly(self, client):
-        from patchahead import engine
-
         via_http = client.post("/api/analyze", params={"document": "field-rename.md"}).json()
         direct = engine.analyze(EXAMPLE_REPO, EXAMPLE_CHANGES / "field-rename.md").to_dict()
 
@@ -120,3 +117,97 @@ class TestSafety:
         response = client.post("/api/analyze", params={"document": name})
 
         assert response.status_code == 404
+
+
+@pytest.fixture
+def demo_client():
+    """The app as ``patchahead demo`` builds it: fixtures plus scenarios."""
+    app = web_server.create_app(demo.repo_root(), demo.changes_root(), demo.scenarios())
+    return TestClient(app)
+
+
+class TestDemoMode:
+    """Scenarios are presentation only. They must not become a second engine."""
+
+    def test_context_advertises_the_bundled_scenarios(self, demo_client):
+        data = demo_client.get("/api/context").json()
+
+        assert data["demo"] is True
+        assert [s["id"] for s in data["scenarios"]] == [s.id for s in demo.scenarios()]
+        assert all(s["headline"] and s["watch_for"] for s in data["scenarios"])
+
+    def test_a_plain_instance_advertises_no_scenarios(self, client):
+        data = client.get("/api/context").json()
+
+        assert data["demo"] is False
+        assert data["scenarios"] == []
+
+    def test_the_raw_release_note_is_readable(self, demo_client):
+        data = demo_client.get("/api/document", params={"document": "field-rename.md"}).json()
+
+        assert "total" in data["text"]
+        assert data["name"] == "field-rename.md"
+
+    def test_the_document_endpoint_refuses_traversal(self, demo_client):
+        response = demo_client.get("/api/document", params={"document": "../../pyproject.toml"})
+
+        assert response.status_code == 404
+
+    def test_an_unknown_scenario_is_a_404(self, demo_client):
+        response = demo_client.post(
+            "/api/migrate", params={"document": "field-rename.md", "scenario": "nope"}
+        )
+
+        assert response.status_code == 404
+
+    @pytest.mark.slow
+    def test_a_scenario_only_chooses_a_document_and_whether_tests_run(self, demo_client):
+        """The claim that the demo has no code path of its own, asserted.
+
+        Running through the scenario parameter and running the engine directly
+        with the same two inputs must produce the same diff and the same
+        verdict -- otherwise something in the demo layer is deciding outcomes.
+        """
+        via_scenario = demo_client.post(
+            "/api/migrate", params={"document": "ignored.md", "scenario": "field-rename"}
+        ).json()
+        direct = engine.migrate(
+            demo.repo_root(),
+            demo.find("field-rename").change_path,
+            engine.EngineOptions(write_artifacts=False),
+        ).to_dict()
+
+        assert (
+            via_scenario["results"][0]["proposal"]["diff"]
+            == direct["results"][0]["proposal"]["diff"]
+        )
+        assert via_scenario["results"][0]["outcome"] == direct["results"][0]["outcome"]
+        assert via_scenario["succeeded"] == direct["succeeded"]
+
+    @pytest.mark.slow
+    def test_the_tests_off_scenario_reaches_patched_unverified(self, demo_client):
+        data = demo_client.post(
+            "/api/migrate", params={"document": "ignored.md", "scenario": "no-evidence"}
+        ).json()
+
+        assert data["run_tests"] is False
+        assert data["results"][0]["outcome"] == "patched_unverified"
+        assert data["succeeded"] is False
+
+    @pytest.mark.slow
+    def test_the_refusal_scenario_reports_sites_and_rewrites_none(self, demo_client):
+        data = demo_client.post(
+            "/api/migrate", params={"document": "ignored.md", "scenario": "receiver-mismatch"}
+        ).json()
+        result = data["results"][0]
+
+        assert result["outcome"] == "not_plannable"
+        assert result["impact"]["findings"]
+        assert all(not f["patchable"] for f in result["impact"]["findings"])
+
+    def test_the_page_is_served_from_the_package(self, demo_client):
+        response = demo_client.get("/")
+
+        assert response.status_code == 200
+        assert "PatchAhead" in response.text
+        assert "Upstream change" in response.text

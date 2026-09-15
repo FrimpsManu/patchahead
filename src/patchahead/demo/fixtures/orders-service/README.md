@@ -9,7 +9,7 @@ This repo is **intentionally broken**. The vendored upstream client in
 `app/` is still written against the old (v1) contract. So:
 
 ```console
-$ cd examples/orders-service
+$ cd "$(patchahead demo --print-paths | awk '/^repository/ {print $2}')"
 $ python -m pytest
 ...
 FAILED tests/test_order_sync.py::test_sync_all_orders - KeyError: 'total_pages'
@@ -28,12 +28,20 @@ breaking change described in `../changes/`:
 | `../changes/kwarg-rename.md` | `timeout_seconds=` -> `timeout=` | `app/client.py` |
 | `../changes/method-rename.md` | `fetch_orders()` -> `list_orders()` | `app/client.py` |
 | `../changes/pagination-cursor.json` | the same pagination change, as structured JSON | `app/order_sync.py` |
+| `../changes/sdk-v2.md` | both SDK changes in one release note | `app/client.py` |
+| `../changes/invoice-field-rename.md` | a rename on `invoice` objects — **nothing here** | nothing: it is refused |
 
-From the PatchAhead repo root:
+The easiest way to see all of this is `patchahead demo`, which serves these
+files through the UI with a short explanation of each scenario. To drive them
+from the command line instead, `patchahead demo --print-paths` prints where this
+directory and `../changes` landed in your installation:
 
 ```bash
-patchahead analyze --repo examples/orders-service --change examples/changes/pagination-cursor.md
-patchahead migrate --repo examples/orders-service --change examples/changes/pagination-cursor.md
+repo=$(patchahead demo --print-paths | awk '/^repository/ {print $2}')
+changes=$(patchahead demo --print-paths | awk '/^changes/ {print $2}')
+
+patchahead analyze --repo "$repo" --change "$changes/pagination-cursor.md"
+patchahead migrate --repo "$repo" --change "$changes/pagination-cursor.md"
 ```
 
 `migrate` copies this repo into a temporary workspace, patches the copy, runs the

@@ -33,14 +33,26 @@ llm = ["anthropic>=0.40"]
 yaml = ["PyYAML>=6.0"]
 sentry = ["sentry-sdk>=2.0"]
 web = ["fastapi>=0.110", "uvicorn>=0.29"]
+# `patchahead demo` migrates a bundled repository whose configured test command
+# is `python -m pytest`, and a migration is only verified when tests actually
+# run. pytest is therefore part of the demo, not an afterthought -- without it
+# every scenario would honestly but uselessly report "the test command could
+# not start".
+demo = ["patchahead[web]", "pytest>=7.4"]
 # `httpx2` is what starlette's TestClient needs; without it the web tests
 # error at import rather than skipping, which is not a useful failure.
-dev = ["pytest>=7.4", "ruff>=0.6", "build>=1.2", "httpx2>=0.28"]
+# `setuptools` is the build backend: it is declared in `[build-system]`, but pip
+# builds in an isolated environment and does not leave it behind, and Python
+# 3.12+ venvs no longer ship it. `tests/test_packaging.py` builds a real wheel
+# with `--no-isolation` so the check is offline and deterministic, which needs
+# it present.
+dev = ["pytest>=7.4", "ruff>=0.6", "build>=1.2", "httpx2>=0.28", "setuptools>=68"]
 all = [
   "patchahead[llm]",
   "patchahead[yaml]",
   "patchahead[sentry]",
   "patchahead[web]",
+  "patchahead[demo]",
 ]
 
 [project.scripts]
@@ -55,10 +67,24 @@ Changelog = "https://github.com/FrimpsManu/patchahead/blob/main/CHANGELOG.md"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+# `patchahead demo` (the `[demo]` extra) has to work from an install in an empty
+# directory, so the page it serves and the repository it migrates ship inside
+# the wheel rather than living beside it in a git checkout. `orders-service` is
+# not a valid Python identifier, so package discovery skips that subtree and
+# these patterns are what actually carry it.
+patchahead = [
+  "web/static/*",
+  "demo/fixtures/changes/*",
+  "demo/fixtures/orders-service/*",
+  "demo/fixtures/orders-service/*/*",
+]
+
 [tool.pytest.ini_options]
-# PatchAhead's own tests. The example repository under `examples/` is
-# intentionally broken (that is what it demonstrates) and is exercised through
-# the engine by the integration tests, never collected directly.
+# PatchAhead's own tests. The bundled example repository under
+# `src/patchahead/demo/fixtures/` is intentionally broken (that is what it
+# demonstrates) and is exercised through the engine by the integration tests,
+# never collected directly -- which is what `testpaths` guarantees.
 testpaths = ["tests"]
 addopts = "-q --strict-markers"
 markers = [
@@ -68,7 +94,7 @@ markers = [
 [tool.ruff]
 line-length = 100
 target-version = "py310"
-extend-exclude = ["examples/orders-service"]
+extend-exclude = ["src/patchahead/demo/fixtures"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B", "C4", "SIM"]
