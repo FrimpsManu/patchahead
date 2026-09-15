@@ -68,6 +68,32 @@ this project uses [semantic versioning](https://semver.org/spec/v2.0.0.html).
   no repository in it.
 - **The README leads with the demo**, the proof numbers, and the refusal
   scenario rather than with architecture.
+- **The evaluation benchmark is a package with its own tests.** Datasets load
+  into typed, strictly-validated case objects: an unknown key, a missing
+  required key, a value of the wrong shape, a duplicate id, or an empty dataset
+  is a load error rather than a silently unscored field. A mistyped
+  `expect_patched` used to assert nothing and pass, which is the same failure
+  mode as a deleted test.
+- **A `validation` suite.** The subsystem that decides what "working" means had
+  no evaluation coverage. Ten cases assert the verdict of every gate, including
+  the syntax and scope failures that only a misbehaving patch generator can
+  produce and that no deterministic handler can reach.
+- **`known_gap` cases.** A dataset may record a case PatchAhead is expected to
+  fail, with a stated reason. It is scored honestly and reported, does not fail
+  the build — and *does* fail the build if it starts passing, so a closed gap
+  cannot leave a stale marker behind. A known gap may only under-patch: one that
+  rewrites the wrong code fails regardless of the marker.
+- **Metrics for the dimensions that had none.** F1, confidence calibration,
+  refusal precision and recall, separate owner and owner-assertion accuracy, a
+  five-way migration outcome taxonomy (successful / missed / safe refusal /
+  incorrect / unnecessary), patch size, and per-gate verdict counts. Headline
+  numbers exclude known gaps so the regression floor stays meaningful;
+  `*_including_gaps` numbers include them so the floor cannot hide a limitation.
+- **Adversarial cases for aliases, imports, several affected files and partial
+  migration**, and `docs/evaluation.md` describing all of it.
+- **A Markdown benchmark report**, written by
+  `python evals/run.py --format markdown --out <path>` and uploaded as a CI
+  artifact.
 
 ### Fixed
 
@@ -87,6 +113,37 @@ this project uses [semantic versioning](https://semver.org/spec/v2.0.0.html).
 - **`migrated` now requires red-to-green evidence.** A green-to-green run is
   reported `patched_unverified`: no gate objected, but nothing demonstrated the
   migration did anything.
+- **A keyword rename with no named function no longer rewrites every call using
+  that keyword.** `retries` is an ordinary word: a change document that renames
+  it without saying which function it belongs to gives nothing to distinguish
+  the upstream SDK's `retries=` from another library's, and
+  `send_email(to=..., retries=5)` was being rewritten on the strength of the
+  shared name. The sites are now reported and the migration reports
+  `not_plannable`. The refusal does not depend on the confidence threshold, so
+  `--min-confidence low` does not reopen it.
+- **The migration-assertion gate no longer fails a patch for the absence of
+  evidence.** It reports whether a test went red-to-green, so its answers are
+  PASSED and SKIPPED; breakage is the regression gate's verdict, given once. Two
+  shapes used to come out FAILED: a suite still red with nothing repaired, and a
+  patch that repaired one test while breaking another. It also read the
+  *regression gate's* status as "the suite is green" — and that gate is
+  baseline-relative, so it passes over a red suite — producing the
+  self-contradictory "the run is green but none of the tests that failed before
+  the patch were among them" on a repository that was simply already broken.
+- **A test runner that cannot start is no longer reported as a code
+  regression.** Exit 127 (command not found) and 126 (not executable) mean
+  nothing ran; the targeted gate skipped on them and the regression gate called
+  them a test failure, then blamed the patch. Detection now reads the exit
+  status rather than the shell's wording — `bash` says "command not found" and
+  `dash` says "not found", and only the first spelling was matched. Both gates
+  skip with the same message, which names `test_command` and the missing runner
+  so the reader has a next step, and the migration stays unverified.
+- **The classifier reads "renamed the `x` keyword argument to `y`".** The rename
+  patterns required the renamed name to sit directly beside the word `to`, so a
+  common release-note shape was reported as unreadable. The intervening words
+  are matched from a fixed noun list rather than as "any two words", so
+  "renamed the `client` argument passed to `fetch_orders`" — which renames
+  nothing — still does not match.
 
 ### Changed
 

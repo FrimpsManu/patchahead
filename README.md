@@ -57,9 +57,10 @@ alone.
 
 | | |
 |---|---|
-| **0 false-positive patches** | across 28 impact and adversarial cases covering 31 expected patch sites, with 1.0 precision and recall; 48/48 total evaluation cases passed across classification, impact detection, adversarial safety, and end-to-end migration suites. The 20 adversarial cases are written to fool it — unrelated objects sharing a field name, strings that merely contain it, Unicode before an edit site, nested scopes, comprehensions, already-migrated code. Recomputed on every CI run. |
-| **368 automated tests** | covering unit, integration, and end-to-end behavior. Deterministic migrations, filesystem workspaces, subprocess test execution, packaging, and clean-wheel installs are exercised for real; the Anthropic API is mocked because it is remote, paid, and non-deterministic. |
-| **Five gates decide, nothing else** | `syntax → scope → targeted_tests → regression_tests → migration_assertion`. `MigrationResult.succeeded` is defined as "the assertion gate passed". A green-to-green run reports `patched_unverified`, not success. |
+| **0 false-positive patches** | across the 37 site-detection cases (`impact` + `adversarial`), covering 38 scored patch sites: 38 found, 0 wrong, precision and recall 1.0. The other 37 cases measure classification, end-to-end migration, and the validation gates themselves — 70 of 74 pass, and the 4 that do not are recorded gaps, listed in [docs/evaluation.md](docs/evaluation.md#the-gaps-that-remain). The 29 adversarial cases are written to fool it: unrelated objects sharing a field name, strings that merely contain it, Unicode before an edit site, nested scopes, comprehensions, already-migrated code. Recomputed on every CI run. |
+| **4 recorded gaps, none of them a wrong edit** | Each is a case stating what a *correct* tool does, run and scored on every build. All four are aliasing — `for o in orders`, `current = order`, `self._order`, `factory.get_client()` — and in all four PatchAhead finds the site and declines to rewrite it. A gap may only under-patch: a marked case that produces a wrong edit fails the build anyway, and a marked case that starts passing fails it too. |
+| **433 automated tests** | covering unit, integration, and end-to-end behavior. Deterministic migrations, filesystem workspaces, subprocess test execution, packaging, and clean-wheel installs are exercised for real; the Anthropic API is mocked because it is remote, paid, and non-deterministic. |
+| **Five gates decide, nothing else** | `syntax → scope → targeted_tests → regression_tests → migration_assertion`. `MigrationResult.succeeded` is defined as "the assertion gate passed", and that gate passes only on red-to-green evidence — a green-to-green run, a suite still red, or a test runner that never started all report `patched_unverified`, not success. |
 | **No runtime dependencies** | on Python 3.11+. The core is `argparse` and `ast`. A migration tool a team has to vet three transitive dependencies for is one they will not install. |
 
 ![The five validation gates](docs/media/demo-gates.png)
@@ -342,9 +343,18 @@ and it runs your test command.
 pip install -e '.[dev]'
 python -m pytest            # the test suite
 python -m pytest -m "not slow"   # skip tests that spawn a real pytest
-python evals/run.py         # classification / impact / migration metrics
+python evals/run.py         # the evaluation benchmark
 ruff check src tests evals
 ```
+
+The benchmark has five suites — classification, impact, adversarial, migrations
+and validation — and reports precision, recall, F1, confidence calibration, a
+five-way migration outcome taxonomy, patch size, and per-gate verdicts. Cases
+PatchAhead is expected to *fail* are in the datasets on purpose, marked with a
+reason; a marked case that starts passing fails the build, because a stale
+marker is a benchmark lying in the other direction.
+[docs/evaluation.md](docs/evaluation.md) explains the suites and how to add a
+case.
 
 To record the demo: [docs/demo-recording.md](docs/demo-recording.md).
 

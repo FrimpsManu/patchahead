@@ -10,7 +10,7 @@ pip install -e '.[dev]'
 
 python -m pytest                  # the suite (~15s; spawns real pytest subprocesses)
 python -m pytest -m "not slow"    # ~2s, no subprocesses
-python evals/run.py               # measured accuracy / precision / success rate
+python evals/run.py               # the evaluation benchmark (see docs/evaluation.md)
 ruff check src tests
 ```
 
@@ -200,8 +200,12 @@ engine, validation, reporting, and the web UI all work unchanged.
 - a no-impact repository
 - confidence grading at each level you produce
 
-Then an end-to-end case in `tests/test_engine_e2e.py` and an eval case in
-`evals/datasets/migrations/cases.json`.
+Then an end-to-end case in `tests/test_engine_e2e.py` and eval cases in
+`evals/datasets/migrations/cases.json` — at least one that must migrate and one
+that must be refused. [docs/evaluation.md](evaluation.md) describes the suites,
+the strict dataset schema, and what to do when your case fails because
+PatchAhead is genuinely not there yet: mark it `known_gap` with a reason rather
+than deleting it or weakening the expectation.
 
 ### Step 6 — document it
 
@@ -265,3 +269,8 @@ is a good test. `assert handler._grade_subscript(...) == ...` is not.
 - Never lower an eval threshold to make a build pass. If a change genuinely
   trades accuracy for something else, say so explicitly in the PR and make the
   case.
+- Never delete an eval case to make a build pass, and never weaken one into
+  asserting less. Deleting a case fails nothing, which is exactly why it is the
+  dangerous option. If PatchAhead cannot yet do what the case asks, mark it
+  `known_gap` with a reason: the case keeps running, the miss stays visible, and
+  the build goes red again the day it starts passing.
