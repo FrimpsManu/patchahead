@@ -7,6 +7,30 @@ this project uses [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Security
+
+- **The web UI can no longer be driven by other websites.** It bound to
+  `127.0.0.1` but accepted any request, so a page open in the same browser could
+  POST to `/api/migrate` -- running the repository's test command, or with
+  `use_llm=true` sending its source to the model provider on the user's key --
+  and a DNS-rebinding page could read `/api/context`. Every request must now
+  address a loopback host, a cross-origin `Origin` is refused, and anything but
+  a read needs a per-process token embedded in the served page.
+- **Sentry events no longer carry source code.** sentry-sdk attaches every
+  stack frame's local variables by default, and here those include whole files
+  of the repository. `include_local_variables` is off, and the event scrubber
+  removes frame locals as well.
+- **Test commands lose the model's credentials once model-written code is in
+  the workspace.** `ANTHROPIC_API_KEY` and `ANTHROPIC_AUTH_TOKEN` are withheld
+  from the test command after an LLM proposal is applied.
+- **An LLM proposal that moves a method out of its class is rejected.** The
+  contract check read the proposal on its own, so a method sent back
+  unindented -- which still parses, as a module-level function -- was accepted.
+  Placement is now checked against the patched file.
+- **A rejected LLM proposal writes nothing.** Every file is patched and checked
+  before any is written; a rejection on the second file used to leave the first
+  one modified in the shared workspace.
+
 ### Fixed (wrong edits reported as verified)
 
 - **A common method name no longer renames unrelated calls.** A `get` ->

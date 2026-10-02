@@ -26,10 +26,82 @@ from patchahead import demo, engine  # noqa: E402
 from patchahead.web import server as web_server  # noqa: E402
 
 
+def local_client(app, *, token: bool = True) -> TestClient:
+    """A client the server accepts: loopback host and, unless told not to, the token."""
+    headers = {web_server.TOKEN_HEADER: app.state.token} if token else {}
+    return TestClient(app, base_url="http://127.0.0.1:8000", headers=headers)
+
+
 @pytest.fixture
 def client():
-    app = web_server.create_app(Path(EXAMPLE_REPO), Path(EXAMPLE_CHANGES))
-    return TestClient(app)
+    return local_client(web_server.create_app(Path(EXAMPLE_REPO), Path(EXAMPLE_CHANGES)))
+
+
+class TestRequestGuard:
+    """Binding to 127.0.0.1 keeps out other machines, not other web pages."""
+
+    @pytest.fixture
+    def app(self):
+        return web_server.create_app(Path(EXAMPLE_REPO), Path(EXAMPLE_CHANGES))
+
+    def test_a_request_without_the_token_cannot_run_anything(self, app, monkeypatch):
+        """The CSRF case: a page elsewhere POSTs to the server; it cannot read the token."""
+        calls = []
+        monkeypatch.setattr(engine, "migrate", lambda *a, **k: calls.append(a))
+
+        response = local_client(app, token=False).post(
+            "/api/migrate", params={"document": "field-rename.md"}
+        )
+
+        assert response.status_code == 403
+        assert calls == [], "the engine must not run for a rejected request"
+
+    def test_a_wrong_token_is_refused(self, app):
+        response = TestClient(
+            app, base_url="http://127.0.0.1:8000", headers={web_server.TOKEN_HEADER: "guess"}
+        ).post("/api/analyze", params={"document": "field-rename.md"})
+
+        assert response.status_code == 403
+
+    def test_a_foreign_host_is_refused_even_for_reads(self, app):
+        """DNS rebinding: attacker.example re-pointed at 127.0.0.1 could read responses."""
+        response = TestClient(app, base_url="http://attacker.example").get("/api/context")
+
+        assert response.status_code == 403
+
+    def test_a_cross_origin_request_is_refused_even_with_the_token(self, app):
+        response = local_client(app).post(
+            "/api/analyze",
+            params={"document": "field-rename.md"},
+            headers={"Origin": "https://evil.example"},
+        )
+
+        assert response.status_code == 403
+
+    def test_a_same_origin_request_with_the_token_is_accepted(self, app):
+        response = local_client(app).post(
+            "/api/analyze",
+            params={"document": "field-rename.md"},
+            headers={"Origin": "http://127.0.0.1:8000"},
+        )
+
+        assert response.status_code == 200
+
+    @pytest.mark.parametrize("host", ["http://localhost:8000", "http://[::1]:8000"])
+    def test_every_loopback_spelling_is_accepted(self, app, host):
+        assert TestClient(app, base_url=host).get("/api/context").status_code == 200
+
+    def test_the_served_page_carries_this_servers_token(self, app):
+        page = local_client(app, token=False).get("/").text
+
+        assert app.state.token in page
+        assert web_server.TOKEN_PLACEHOLDER not in page
+
+    def test_each_server_has_its_own_token(self):
+        first = web_server.create_app(Path(EXAMPLE_REPO), Path(EXAMPLE_CHANGES))
+        second = web_server.create_app(Path(EXAMPLE_REPO), Path(EXAMPLE_CHANGES))
+
+        assert first.state.token != second.state.token
 
 
 class TestContext:
@@ -122,8 +194,9 @@ class TestSafety:
 @pytest.fixture
 def demo_client():
     """The app as ``patchahead demo`` builds it: fixtures plus scenarios."""
-    app = web_server.create_app(demo.repo_root(), demo.changes_root(), demo.scenarios())
-    return TestClient(app)
+    return local_client(
+        web_server.create_app(demo.repo_root(), demo.changes_root(), demo.scenarios())
+    )
 
 
 class TestDemoMode:

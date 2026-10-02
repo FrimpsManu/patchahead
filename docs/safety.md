@@ -102,8 +102,10 @@ outcome `patched_unverified`, not `migrated`.
 
 `observability.redact` scrubs credential-shaped keys and values from every
 structured log field, and a logging filter scrubs formatted messages. If Sentry
-is configured, environment context and request bodies are stripped before the
-event is sent.
+is configured, environment context, request bodies, and stack-frame local
+variables are stripped before the event is sent. Frame locals are also turned
+off at initialization: sentry-sdk attaches them by default, and here they hold
+the repository's source.
 
 ---
 
@@ -174,7 +176,18 @@ Controls:
   it, and `--use-llm` cannot override that. Put it in any repository whose
   source must not leave your network.
 
-The API key is read from `ANTHROPIC_API_KEY` and never logged.
+The API key is read from `ANTHROPIC_API_KEY` and never logged. Once a
+model-written function is in the workspace, test commands run there no longer
+receive `ANTHROPIC_API_KEY` or `ANTHROPIC_AUTH_TOKEN`: the model's output is
+shaped by text PatchAhead did not write — a vendor's release note, your
+repository's source — and code it wrote should not be handed the key that pays
+for it. A test suite that needs that key to pass will fail validation after an
+LLM patch rather than pass with it.
+
+A proposal is rejected in full if any function in it fails a check, before any
+file is written, and a function that no longer sits where the original did — a
+method returned unindented, which still parses as a module-level function — is
+rejected even though its signature matches.
 
 ### 5. Destructive writes into your output directory
 
@@ -182,14 +195,28 @@ The API key is read from `ANTHROPIC_API_KEY` and never logged.
 `.patchahead/`), overwriting files with the same names from a previous run.
 `--no-artifacts` disables this. Add `.patchahead/` to your `.gitignore`.
 
-### 6. The web UI has no authentication
+### 6. The web UI has no user authentication
 
 `patchahead.web.server` — reached through `patchahead demo` and
-`patchahead web` — binds to `127.0.0.1` and has no auth, CSRF protection, or
-rate limiting. Its `/api/migrate` endpoint runs your test command. **Do not
-expose it to a network.** Change-document names are resolved inside one
-configured directory and path traversal is refused, but that is the only access
-control it has.
+`patchahead web` — binds to `127.0.0.1`. Its `/api/migrate` endpoint runs your
+test command, and with `use_llm` sends source to the model provider on your key.
+**Do not expose it to a network.**
+
+Binding to loopback keeps other machines out, but not other web pages: any site
+open in your browser can send requests to `127.0.0.1`. So:
+
+- **Every request must address a loopback host** (`127.0.0.1`, `localhost`,
+  `::1`). That defeats DNS rebinding, where an attacker's domain is re-pointed
+  at `127.0.0.1` so their page can read the responses.
+- **A cross-origin `Origin` is refused**, even with a valid token.
+- **Anything but a read needs a per-process token**, embedded in the page the
+  server serves and sent as `X-PatchAhead-Token`. Another origin cannot read
+  that page, so it cannot learn the token.
+
+These stop other *websites*. They do not stop other *software on your machine*:
+any local process running as you can read the page and the token, as it can
+read your files. There is no rate limiting. Change-document names are resolved
+inside one configured directory and path traversal is refused.
 
 `patchahead demo` is narrower than that and still not a sandbox. It serves only
 the bundled fixtures that ship inside the package, so the test command it runs

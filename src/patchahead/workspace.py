@@ -32,6 +32,11 @@ from patchahead.domain.plan import TextEdit
 log = logging.getLogger(__name__)
 
 
+#: Environment variables that authenticate PatchAhead to its model provider.
+#: Withheld from test commands once model-written code is in the workspace.
+MODEL_CREDENTIALS = ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN")
+
+
 class WorkspaceError(Exception):
     """Raised when an isolated workspace cannot be created or used."""
 
@@ -129,6 +134,9 @@ class Workspace:
     #: :meth:`restore` and :meth:`diff` always have a true baseline.
     _originals: dict[str, str] = field(default_factory=dict, repr=False)
     _cleaned_up: bool = field(default=False, repr=False)
+    #: Set once a model-written function has been written into the copy. From
+    #: then on, commands run here do not receive the model's credentials.
+    contains_model_code: bool = field(default=False, repr=False)
 
     # -- lifecycle ---------------------------------------------------------
 
@@ -314,6 +322,12 @@ class Workspace:
         env["PATH"] = os.pathsep.join(
             [interpreter_dir] + ([env["PATH"]] if env.get("PATH") else [])
         )
+        if self.contains_model_code:
+            # The model's output is shaped by text PatchAhead did not write --
+            # a vendor's release note, the repository's own source. Code it
+            # wrote must not be handed the key that pays for it.
+            for name in MODEL_CREDENTIALS:
+                env.pop(name, None)
         env.update(extra_env or {})
 
         log.debug("running in workspace: %s", command)
