@@ -11,16 +11,17 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from evals.harness.result import SuiteResult
-from evals.suites import classification, migrations, sites, validation
+from evals.suites import classification, migrations, release_notes, sites, validation
 
 #: Ordered cheapest-first, so a dataset mistake or a classification regression
 #: surfaces in milliseconds instead of after the suites that spawn subprocesses.
 SUITES: dict[str, Callable[[], SuiteResult]] = {
     "classification": classification.run,
+    "release_notes": release_notes.run,
     "impact": sites.run_impact,
     "adversarial": sites.run_adversarial,
     "migrations": migrations.run,
     "validation": validation.run,
 }
 
-__all__ = ["SUITES", "classification", "migrations", "sites", "validation"]
+__all__ = ["SUITES", "classification", "migrations", "release_notes", "sites", "validation"]

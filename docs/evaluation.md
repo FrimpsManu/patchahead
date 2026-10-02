@@ -24,6 +24,7 @@ including the numbers quoted in the README and in pull request descriptions.
 | Suite | Question | Dataset |
 |---|---|---|
 | `classification` | Does it read a change document correctly, and refuse the ones it should? | `evals/datasets/classification/` |
+| `release_notes` | Does it find *every* change in a release note written the way vendors write them? | `evals/datasets/release_notes/` |
 | `impact` | Which sites does it find, and which does it rewrite? | `evals/datasets/impact/` |
 | `adversarial` | The same, on cases written to fool it | `evals/datasets/adversarial/` |
 | `migrations` | Does a whole engine run take a real repository from red to green? | `evals/datasets/migrations/` |
@@ -51,6 +52,29 @@ Two more properties of the reading rather than its content:
   low-confidence readings are as accurate as high-confidence ones, the grading
   carries no information and should not be shown to users as though it does.
   `calibration_monotonic` is 1 when accuracy never rises as confidence falls.
+
+### `release_notes`
+
+Whole documents, modeled on real kinds of upstream change and written the way
+vendors publish them: tables of renames, Keep-a-Changelog bullets, conventional
+commit footers, reStructuredText, "is now", "deprecated in favor of", "use X
+instead of Y". Each case lists every change a correct reading finds, and is
+scored change by change:
+
+* **found** -- the right kind and every field the case asserts (names, owner,
+  whether the owner was asserted, pagination field names).
+* **missed** -- an expected change nothing matched, including an unsupported
+  change that was dropped instead of reported. `change_recall` is the share
+  found.
+* **misread** -- a reading of a *supported* kind that matches nothing expected:
+  the wrong names, the wrong kind, or a change the document does not describe.
+  That is the reading that reaches a repository, so `misread_changes` is
+  asserted at zero and a known-gap marker cannot excuse it.
+
+Documents that should not be acted on are in the dataset on purpose: a
+namespace move (`openai.Completion.create` -> `client.completions.create`), a
+type change ("is now `float`"), a dotted rename that could be a method or an
+attribute, a deprecation with no replacement, additions only.
 
 ### `impact` and `adversarial`
 
@@ -162,7 +186,15 @@ floor does not hide the limitation. Both are printed on every run.
 
 ### The gaps that remain
 
-All four are in `adversarial`, all four are the same gap wearing different
+Two are in `release_notes`, and both are readings PatchAhead declines rather
+than guesses at:
+
+| Case | What it needs |
+|---|---|
+| `before_after_code_fences_only` | The rename is visible only by comparing a Before and an After code sample |
+| `aws_style_token_pagination` | Renamed request parameters (`PageNumber` -> `NextToken`) in the pagination contract; today the change is reported as unsupported |
+
+Four are in `adversarial`, all four are the same gap wearing different
 clothes, and all four are *under*-patching: PatchAhead finds the site, explains
 it, and declines to rewrite it. None can be a false positive -- the harness
 counts a wrong edit as fatal and no marker excuses it -- so what each costs is a

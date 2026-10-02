@@ -530,3 +530,82 @@ class TestAssertionsNoCurrentCaseTriggers:
 
         assert not suite.ok
         assert "does not mention" in suite.failures[0].detail
+
+
+class TestReleaseNotesSuite:
+    """The release-notes suite must be able to disagree with the parser."""
+
+    NOTE = "## Breaking\n\n- `fetch_all()` was renamed to `list_all()`.\n"
+
+    def run(self, datasets, cases):
+        from evals.suites import release_notes
+
+        write_dataset(datasets, "release_notes", cases)
+        return release_notes.run()
+
+    def test_a_correct_reading_passes(self, datasets):
+        """The control."""
+        suite = self.run(
+            datasets,
+            [
+                {
+                    "id": "ok",
+                    "text": self.NOTE,
+                    "expected_changes": [
+                        {"kind": "method_rename", "symbol": "fetch_all", "replacement": "list_all"}
+                    ],
+                }
+            ],
+        )
+
+        assert suite.ok, [c.detail for c in suite.failures]
+        assert suite.metrics["change_recall"] == 1.0
+
+    def test_a_reading_with_other_names_is_a_misread_even_in_a_known_gap(self, datasets):
+        suite = self.run(
+            datasets,
+            [
+                {
+                    "id": "wrong_names",
+                    "known_gap": "pretend this is expected to fail",
+                    "text": self.NOTE,
+                    "expected_changes": [
+                        {"kind": "method_rename", "symbol": "fetch_all", "replacement": "get_all"}
+                    ],
+                }
+            ],
+        )
+
+        assert not suite.ok
+        assert suite.metrics["misread_changes"] == 1
+
+    def test_a_change_nobody_reported_is_missed(self, datasets):
+        suite = self.run(
+            datasets,
+            [
+                {
+                    "id": "dropped",
+                    "text": self.NOTE,
+                    "expected_changes": [
+                        {"kind": "method_rename", "symbol": "fetch_all", "replacement": "list_all"},
+                        {"kind": "unsupported"},
+                    ],
+                }
+            ],
+        )
+
+        assert not suite.ok
+        assert "missed unsupported" in suite.failures[0].detail
+
+    def test_an_unknown_key_in_an_expected_change_is_rejected(self, datasets):
+        with pytest.raises(DatasetError, match="unknown key"):
+            self.run(
+                datasets,
+                [
+                    {
+                        "id": "typo",
+                        "text": self.NOTE,
+                        "expected_changes": [{"kind": "method_rename", "symbl": "fetch_all"}],
+                    }
+                ],
+            )
