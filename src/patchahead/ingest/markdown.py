@@ -449,17 +449,27 @@ def _collect_evidence(section: _Section, kind: ChangeKind, symbol: str) -> list[
 def _pagination_contract(text: str) -> PaginationContract:
     """Read non-default pagination field names out of the notes."""
     contract = PaginationContract()
-    identifiers = set(re.findall(r"`(\w+)`", text)) | set(
-        re.findall(r"\b(\w*(?:cursor|page|more)\w*)\b", text.lower())
+    # In document order, backticked names first: they are the vendor's literal
+    # spelling. The first candidate for each field wins. This used to iterate a
+    # `set`, so with several candidates the field chosen depended on the hash
+    # seed -- the same note could produce a different migration on each run.
+    identifiers = dict.fromkeys(
+        re.findall(r"`(\w+)`", text) + re.findall(r"\b(\w*(?:cursor|page|more)\w*)\b", text.lower())
     )
+    assigned: set[str] = set()
     for candidate in identifiers:
         low = candidate.lower()
         if low.endswith("_pages") or low == "total_pages":
-            contract.total_pages_key = candidate
+            key = "total_pages_key"
         elif low.startswith("next") and "cursor" in low:
-            contract.next_cursor_key = candidate
+            key = "next_cursor_key"
         elif low in ("has_more", "hasmore", "more"):
-            contract.has_more_key = candidate
+            key = "has_more_key"
+        else:
+            continue
+        if key not in assigned:
+            assigned.add(key)
+            setattr(contract, key, candidate)
     return contract
 
 

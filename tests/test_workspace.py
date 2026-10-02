@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import os
+import subprocess
+
 import pytest
 
 from patchahead.config import Config
@@ -91,6 +94,23 @@ class TestWorkspaceIsolation:
             assert not (workspace.root / "__pycache__").exists()
             assert (workspace.root / "README.md").exists()
 
+    def test_top_level_dot_directories_are_not_copied(self, make_repo):
+        """`.git` used to become `git` before the exclusion check, and was copied."""
+        root = make_repo(
+            {
+                "app/a.py": "x = 1\n",
+                ".git/objects/pack/big.pack": "data",
+                ".tox/py312/lib/site.py": "x = 1\n",
+                ".mypy_cache/3.12/a.json": "{}",
+                ".patchahead/old.diff": "stale",
+            }
+        )
+
+        with Workspace.materialize(Repository.open(root)) as workspace:
+            for name in (".git", ".tox", ".mypy_cache", ".patchahead"):
+                assert not (workspace.root / name).exists(), name
+            assert (workspace.root / "app/a.py").exists()
+
     def test_refuses_to_write_outside_the_workspace(self, repository):
         with (
             Workspace.materialize(repository) as workspace,
@@ -165,3 +185,59 @@ class TestCommandExecution:
     def test_a_failing_command_returns_its_code_rather_than_raising(self, repository):
         with Workspace.materialize(repository) as workspace:
             assert workspace.run("exit 3").returncode == 3
+
+    def test_output_that_is_not_utf8_does_not_crash_the_run(self, repository):
+        with Workspace.materialize(repository) as workspace:
+            completed = workspace.run(
+                "python -c \"import sys; sys.stdout.buffer.write(b'ok \\xff\\n')\""
+            )
+
+            assert completed.returncode == 0
+            assert completed.stdout.startswith("ok \ufffd")
+
+    @pytest.mark.skipif(os.name != "posix", reason="process groups are POSIX")
+    def test_a_timeout_stops_the_test_runner_not_just_the_shell(self, repository):
+        """The shell is killed either way; the child it started used to keep running."""
+        command = (
+            'python -c "import os, time; '
+            "open('child.pid', 'w').write(str(os.getpid())); time.sleep(60)\""
+            # A second step keeps the shell alive as the child's parent, as in
+            # `make test` or `pytest && coverage report`; a lone command is
+            # often exec'd in place of the shell, which hides the leak.
+            " && echo finished"
+        )
+        with Workspace.materialize(repository) as workspace:
+            with pytest.raises(subprocess.TimeoutExpired):
+                workspace.run(command, timeout=2)
+
+            pid = int((workspace.root / "child.pid").read_text())
+            with pytest.raises(ProcessLookupError):
+                os.kill(pid, 0)
+
+
+class TestLineEndings:
+    """A Windows-style file stays Windows-style, and its diff applies to it."""
+
+    def test_a_crlf_file_keeps_its_line_endings_through_a_patch(self, make_repo):
+        root = make_repo({"conftest.py": ""})
+        (root / "a.py").write_bytes(b"def f(order):\r\n    return order['total']\r\n")
+
+        with Workspace.materialize(Repository.open(root)) as workspace:
+            source = workspace.read("a.py")
+            workspace.write("a.py", source.replace("'total'", "'amount'"))
+
+            assert (workspace.root / "a.py").read_bytes() == (
+                b"def f(order):\r\n    return order['amount']\r\n"
+            )
+            assert "-    return order['total']\r\n" in workspace.diff()
+
+    def test_restore_writes_the_original_bytes_back(self, make_repo):
+        root = make_repo({"conftest.py": ""})
+        original = b"x = 1\r\ny = 2\r\n"
+        (root / "a.py").write_bytes(original)
+
+        with Workspace.materialize(Repository.open(root)) as workspace:
+            workspace.write("a.py", "x = 3\r\ny = 2\r\n")
+            workspace.restore()
+
+            assert (workspace.root / "a.py").read_bytes() == original

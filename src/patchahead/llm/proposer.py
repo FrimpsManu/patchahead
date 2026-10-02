@@ -164,7 +164,7 @@ def find_function_span(module, symbol: str) -> FunctionSpan | None:
         line=start_line,
         end_line=end_line,
         col=0,
-        end_col=len(lines[end_line - 1].rstrip("\n")) if end_line <= len(lines) else 0,
+        end_col=len(lines[end_line - 1].rstrip("\r\n")) if end_line <= len(lines) else 0,
         source=source,
         contract=FunctionContract.of(node),
     )
@@ -483,14 +483,17 @@ class LLMProposer:
             if rejection:
                 return _reject(plan, str(rejection))
 
-            normalized = new_source.rstrip("\n") + "\n"
+            # Written in the file's own line ending, so a Windows-style file
+            # does not come back with one function's worth of Unix lines in it.
+            newline = edit_utils.newline_of(span.source)
+            new_text = new_source.replace("\r\n", "\n").rstrip("\n").replace("\n", newline)
             edits_by_path.setdefault(path, []).append(
                 TextEdit(
                     line=span.line,
                     col=0,
                     end_line=span.end_line,
                     end_col=span.end_col,
-                    new_text=normalized.rstrip("\n"),
+                    new_text=new_text,
                     description=f"LLM-proposed replacement for `{name}`",
                 )
             )

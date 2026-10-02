@@ -7,6 +7,33 @@ this project uses [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed (reliability)
+
+- **`.git` and other top-level dot-directories are no longer copied into the
+  workspace.** The exclusion check stripped `"./"` as a *set of characters*, so
+  `.git` became `git` and matched nothing -- nor did `.tox`, `.mypy_cache`,
+  `.pytest_cache`, `.hg` or `.patchahead`. A large `.git` was copied on every
+  run, and `max_workspace_files`, which counted correctly, did not bound what
+  was actually copied.
+- **A timed-out test command no longer leaves its test runner running.** Only
+  the shell was killed; the process it started kept running in a workspace
+  that was then deleted. The command now leads its own process group, and the
+  group is killed.
+- **Test output that is not UTF-8 no longer crashes the run.** It ended the
+  migration with an unexpected `UnicodeDecodeError`; undecodable bytes are now
+  replaced.
+- **Windows (`\r\n`) line endings are preserved.** Files were read with
+  newline translation and written back with `\n`, so a one-token rename
+  rewrote every line, and the diff did not apply to the original file.
+  Sources are now read and written byte-for-byte, and LLM-proposed functions
+  are written in the file's own line ending.
+- **The same release note reads the same way on every run.** Pagination field
+  names were collected into a `set`, so with several candidates the one chosen
+  depended on the hash seed. The first candidate in document order now wins.
+- **Analysis no longer slows quadratically with the number of findings.** Test
+  discovery ran once per finding rather than once per file: 15,000 findings
+  took 11.6s to analyze, and now take 0.8s.
+
 ### Security
 
 - **The web UI can no longer be driven by other websites.** It bound to
