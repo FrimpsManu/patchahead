@@ -241,6 +241,21 @@ class TestFieldRename:
         assert plan.transformations == []
         assert "below the `high` threshold" in plan.skipped[0]
 
+    def test_a_key_on_a_nested_object_needs_an_owner(self, make_index):
+        """`charge["customer"]["amount_cents"]` belongs to the nested customer."""
+        source = (
+            "def f(charge):\n"
+            "    return charge['amount_cents'], charge['customer']['amount_cents']\n"
+        )
+        index = make_index({"a.py": source})
+
+        report, plan = run(change(ChangeKind.FIELD_RENAME, "amount_cents", "amount"), index)
+
+        assert [f.patchable for f in report.findings] == [True, False]
+        assert patched(source, plan, "a.py").endswith(
+            "charge['amount'], charge['customer']['amount_cents']\n"
+        )
+
 
 class TestMethodRename:
     def test_renames_only_the_callee_token(self, make_index):
@@ -321,6 +336,95 @@ class TestMethodRename:
 
         assert all(not f.patchable for f in report.findings)
         assert plan.transformations == []
+
+    def test_a_name_shared_with_a_builtin_method_needs_a_recognised_receiver(self, make_index):
+        """`get` is a method of every dict; the name alone is not evidence.
+
+        Before this guard, a `get` -> `retrieve` rename turned `os.environ.get`
+        into `os.environ.retrieve`, and a test covering only the client call
+        reported the whole patch as migrated.
+        """
+        source = (
+            "import os\n"
+            "SETTINGS = {}\n"
+            "def f(client):\n"
+            "    return client.get(1), os.environ.get('A'), SETTINGS.get('b')\n"
+        )
+        index = make_index({"a.py": source})
+
+        report, plan = run(
+            change(ChangeKind.METHOD_RENAME, "get", "retrieve", "client", owner_is_explicit=False),
+            index,
+        )
+
+        graded = {f.matched_contract: (f.confidence, f.patchable) for f in report.findings}
+        assert graded["client.get()"] == (Confidence.HIGH, True)
+        assert graded["os.environ.get()"] == (Confidence.LOW, False)
+        assert graded["SETTINGS.get()"] == (Confidence.LOW, False)
+        assert "built-in" in report.findings[1].reason
+        assert patched(source, plan, "a.py").endswith(
+            "client.retrieve(1), os.environ.get('A'), SETTINGS.get('b')\n"
+        )
+
+    def test_a_bare_builtin_call_is_not_an_sdk_function(self, make_index):
+        """Pydantic's `.dict()` -> `.model_dump()` is not a rename of `dict()`."""
+        source = "def f(user, data):\n    return user.dict(), dict(data)\n"
+        index = make_index({"a.py": source})
+
+        report, plan = run(change(ChangeKind.METHOD_RENAME, "dict", "model_dump"), index)
+
+        assert patched(source, plan, "a.py").endswith("user.model_dump(), dict(data)\n")
+        bare = next(f for f in report.findings if f.matched_contract == "dict()")
+        assert bare.patchable is False
+
+    def test_a_builtin_name_imported_from_the_sdk_is_patched(self, make_index):
+        """An explicit import is the evidence a bare built-in name otherwise lacks."""
+        source = "from sdk import dict\n\ndef f(data):\n    return dict(data)\n"
+        index = make_index({"a.py": source})
+
+        _, plan = run(change(ChangeKind.METHOD_RENAME, "dict", "model_dump"), index)
+
+        assert "return model_dump(data)" in patched(source, plan, "a.py")
+
+    def test_a_name_the_repository_defines_in_another_module_is_not_renamed(self, make_index):
+        """The same-module guard cannot see `ProductRepo.fetch_all` in `repo.py`."""
+        index = make_index(
+            {
+                "repo.py": "class ProductRepo:\n    def fetch_all(self):\n        return []\n",
+                "sync.py": "def go(client, repo):\n    return client.fetch_all(), repo.fetch_all()\n",
+            }
+        )
+
+        report, plan = run(
+            change(
+                ChangeKind.METHOD_RENAME,
+                "fetch_all",
+                "list_all",
+                "client",
+                owner_is_explicit=False,
+            ),
+            index,
+        )
+
+        graded = {f.matched_contract: f.patchable for f in report.findings}
+        assert graded == {"client.fetch_all()": True, "repo.fetch_all()": False}
+        assert [t.reference.line for t in plan.transformations] == [2]
+
+    def test_an_sdk_import_outweighs_a_same_named_definition_elsewhere(self, make_index):
+        index = make_index(
+            {
+                "local.py": "def fetch_orders():\n    return []\n",
+                "uses_sdk.py": "from sdk import fetch_orders\n\ndef go():\n    return fetch_orders()\n",
+                "uses_local.py": (
+                    "from local import fetch_orders\n\ndef go():\n    return fetch_orders()\n"
+                ),
+            }
+        )
+
+        report, _ = run(change(ChangeKind.METHOD_RENAME, "fetch_orders", "list_orders"), index)
+
+        calls = {f.path: f.patchable for f in report.findings}
+        assert calls == {"uses_local.py": False, "uses_sdk.py": True}
 
 
 class TestKwargRename:

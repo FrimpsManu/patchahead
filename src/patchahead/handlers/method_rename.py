@@ -14,8 +14,18 @@ Site (change document names ``client``)   Confidence  Patched by default?
 ``fetch_orders()`` (bare, no receiver)    LOW         no -- reported
 ========================================  ==========  ====================
 
-With no declared owner, any receiver is graded MEDIUM and patched -- there is
-nothing to check against, and the document is asserting the name is unique.
+With no declared owner, a call is graded MEDIUM and patched only when the
+name itself is evidence. Three things take that evidence away, and each turns
+the site into a LOW finding that is reported rather than rewritten:
+
+- The name is also a method of a Python built-in type -- ``get``, ``update``,
+  ``items``, ``copy``. ``SETTINGS.get("timeout")`` and ``os.environ.get(...)``
+  are dict calls, not SDK calls, and a shared name says nothing about which is
+  which. Only a receiver matching the document's example is patched.
+- A bare call to a Python built-in -- ``dict(...)`` for a ``dict`` ->
+  ``model_dump`` rename -- that the module does not import from anywhere.
+- The repository defines a function or method with that name in another
+  module, so a call on an unrecognised receiver may be to its own code.
 
 The edit replaces the callee name token and nothing else, so arguments,
 formatting, and any chained call are preserved exactly.
@@ -23,7 +33,10 @@ formatting, and any chained call are preserved exactly.
 
 from __future__ import annotations
 
+import ast
+import builtins
 import logging
+from dataclasses import dataclass
 
 from patchahead.analysis import receiver_matches_owner
 from patchahead.analysis.index import RepoIndex
@@ -34,6 +47,17 @@ from patchahead.domain.plan import MigrationPlan, Risk, TextEdit, Transformation
 from patchahead.handlers.base import MigrationHandler, register
 
 log = logging.getLogger(__name__)
+
+# Method names a call on *any* object might have: every public method of the
+# built-in types. A rename of `get` matches `os.environ.get` and `config.get`
+# as readily as `client.get`, so the name alone proves nothing.
+_BUILTIN_METHOD_NAMES = frozenset(
+    name
+    for kind in (dict, list, tuple, set, frozenset, str, bytes, int, float, object)
+    for name in dir(kind)
+    if not name.startswith("_")
+)
+_BUILTIN_NAMES = frozenset(name for name in dir(builtins) if not name.startswith("_"))
 
 
 class MethodRenameHandler(MigrationHandler):
@@ -52,6 +76,9 @@ class MethodRenameHandler(MigrationHandler):
         "`client.fetch_orders` rename.",
         "A module that defines a function with the same name locally is left "
         "alone entirely -- those calls are to its own code.",
+        "With no receiver named, a name shared with a built-in type's method "
+        "(`get`, `update`, `items`), a bare built-in call (`dict()`), or a name "
+        "the repository defines elsewhere is reported but not rewritten.",
     )
 
     def supports(self, change: BreakingChange) -> bool:
@@ -63,19 +90,21 @@ class MethodRenameHandler(MigrationHandler):
         owner = change.target.owner if change.target.owner_is_explicit else ""
         hint = "" if change.target.owner_is_explicit else change.target.owner
         findings: list[ImpactFinding] = []
+        definers = [path for path in index.non_test_paths() if _defines(index.modules[path], old)]
 
         for path in index.non_test_paths():
             module = index.modules[path]
 
             # A repository that *defines* this name owns it; renaming calls to
             # its own function would break the code rather than migrate it.
-            defines_locally = _defines(module, old)
+            defines_locally = path in definers
+            ambiguity = _ambiguity(old, module, [p for p in definers if p != path])
 
             for call in module.calls:
                 if call.name != old:
                     continue
                 confidence, reason, patchable, blocked = self._grade(
-                    call.receiver, owner, defines_locally, hint
+                    call.receiver, owner, defines_locally, hint, ambiguity
                 )
                 findings.append(
                     ImpactFinding(
@@ -137,12 +166,18 @@ class MethodRenameHandler(MigrationHandler):
         )
 
     def _grade(
-        self, receiver: str, owner: str, defines_locally: bool, hint: str = ""
+        self,
+        receiver: str,
+        owner: str,
+        defines_locally: bool,
+        hint: str = "",
+        ambiguity: _Ambiguity | None = None,
     ) -> tuple[Confidence, str, bool, str]:
         """Grade one call site.
 
         Returns ``(confidence, reason, patchable, blocked_reason)``.
         """
+        ambiguity = ambiguity or _Ambiguity()
         if defines_locally:
             return (
                 Confidence.LOW,
@@ -174,6 +209,15 @@ class MethodRenameHandler(MigrationHandler):
                 f"change document's example",
                 True,
                 "",
+            )
+        blocked = ambiguity.method if receiver else ambiguity.bare
+        if blocked:
+            return (
+                Confidence.LOW,
+                f"call to `{receiver + '.' if receiver else ''}{blocked.name}()`, but "
+                f"{blocked.why}; name the receiver in the change document to migrate it",
+                False,
+                blocked.short,
             )
         if receiver:
             return (
@@ -254,10 +298,88 @@ class MethodRenameHandler(MigrationHandler):
         return plan
 
 
+@dataclass(frozen=True)
+class _Reason:
+    """Why a name match is not evidence on its own."""
+
+    name: str
+    why: str
+    short: str
+
+
+@dataclass(frozen=True)
+class _Ambiguity:
+    """What, in one module, makes a call to the renamed name unconvincing.
+
+    ``method`` applies to ``obj.name()`` calls, ``bare`` to ``name()`` calls.
+    ``None`` means the name is distinctive enough to act on.
+    """
+
+    method: _Reason | None = None
+    bare: _Reason | None = None
+
+
+def _ambiguity(name: str, module, other_definers: list[str]) -> _Ambiguity:
+    elsewhere = None
+    if other_definers:
+        shown = ", ".join(f"`{path}`" for path in other_definers[:3])
+        elsewhere = _Reason(
+            name,
+            f"the repository defines its own `{name}` in {shown}, so this may be a "
+            f"call to that code rather than to the upstream SDK",
+            f"the repository defines its own `{name}` elsewhere",
+        )
+
+    method = elsewhere
+    if name in _BUILTIN_METHOD_NAMES:
+        method = _Reason(
+            name,
+            f"`{name}` is also a method of Python's built-in types, so the name "
+            f"alone cannot tell this call apart from, say, a dict's",
+            f"`{name}` is also a built-in type's method; receiver not recognised",
+        )
+
+    sources = _import_sources(module, name)
+    if sources:
+        # `from sdk import fetch_orders` is the evidence a bare call otherwise
+        # lacks -- unless what it imports is the repository's own definition.
+        local = [
+            source
+            for source in sources
+            if source is None or _is_repo_module(source, other_definers)
+        ]
+        bare = elsewhere if local else None
+    elif name in _BUILTIN_NAMES:
+        bare = _Reason(
+            name,
+            f"`{name}` here is Python's built-in -- the module does not import a "
+            f"`{name}` from anywhere",
+            f"`{name}()` is the Python built-in, not an imported SDK function",
+        )
+    else:
+        bare = elsewhere
+    return _Ambiguity(method=method, bare=bare)
+
+
+def _import_sources(module, name: str) -> list[str | None]:
+    """Modules a module imports ``name`` from; ``None`` for a relative import."""
+    return [
+        None if node.level else node.module
+        for node in ast.walk(module.tree)
+        if isinstance(node, ast.ImportFrom)
+        for alias in node.names
+        if (alias.asname or alias.name) == name
+    ]
+
+
+def _is_repo_module(dotted: str, definers: list[str]) -> bool:
+    """Whether ``dotted`` names one of the repository files that define the name."""
+    modules = (path.removesuffix(".py").replace("/", ".") for path in definers)
+    return any(module == dotted or module.endswith(f".{dotted}") for module in modules)
+
+
 def _defines(module, name: str) -> bool:
     """Whether a module defines a function or method with this name."""
-    import ast
-
     return any(
         isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == name
         for node in ast.walk(module.tree)

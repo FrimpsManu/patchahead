@@ -25,8 +25,12 @@ Exit codes are meaningful, because this is meant to run in CI:
 =====  ======================================================================
 Code   Meaning
 =====  ======================================================================
-0      Success. ``analyze`` ran; ``migrate`` migrated and validation passed.
-1      Impact found but not migrated: validation failed, or no plan was possible.
+0      Success. ``analyze`` ran; ``migrate`` produced red-to-green evidence;
+       a dry run completed; nothing to migrate on a passing suite; or the
+       patch is unverified because ``--no-tests`` asked for that.
+1      Not migrated: validation failed, no plan was possible, the tests ran
+       (or could not start) without verifying the patch, or nothing was found
+       while the suite was already failing.
 2      Usage error: bad arguments, missing file, unreadable configuration.
 3      The change is real but unsupported by this version.
 4      Interrupted.
@@ -443,28 +447,38 @@ def _cmd_migrate(args: argparse.Namespace) -> int:
         except OSError as exc:
             log.error("could not write the PR summary to %s: %s", path, exc)
 
-    return _migration_exit_code(run)
+    return _migration_exit_code(run, tests_requested=options.run_tests)
 
 
-def _migration_exit_code(run) -> int:
+def _migration_exit_code(run, *, tests_requested: bool = True) -> int:
     if not run.results:
         return EXIT_USAGE
     outcomes = {result.outcome for result in run.results}
     if outcomes == {Outcome.UNSUPPORTED_CHANGE}:
         return EXIT_UNSUPPORTED
-    # A dry run reports on planning, not on migrating; nothing was attempted.
-    # Likewise a run where every change turned out to have no downstream impact.
-    # `patched_unverified` is what the user asked for when they passed
-    # `--no-tests`, so it is not an error -- the outcome still says it is
-    # unverified, which is the part that matters.
-    if outcomes <= {
-        Outcome.DRY_RUN,
-        Outcome.NO_IMPACT,
-        Outcome.UNSUPPORTED_CHANGE,
-        Outcome.PATCHED_UNVERIFIED,
-    }:
-        return EXIT_OK
-    return EXIT_OK if run.succeeded else EXIT_NOT_MIGRATED
+    # Exit 0 is a claim a CI job will act on, so every result has to earn it.
+    acceptable = all(_exits_cleanly(result, tests_requested) for result in run.results)
+    return EXIT_OK if acceptable else EXIT_NOT_MIGRATED
+
+
+def _exits_cleanly(result, tests_requested: bool) -> bool:
+    """Whether one result is consistent with exit 0.
+
+    A dry run attempted nothing, and an unsupported change is reported by its own
+    code when it is the only result. `no_impact` is clean unless the baseline
+    suite was already red: then the change document probably named something
+    PatchAhead did not find, and "nothing to migrate" would be a guess.
+    `patched_unverified` is clean only when the user turned the tests off -- a
+    run that asked for tests and got no evidence has not verified anything.
+    """
+    if result.outcome in (Outcome.DRY_RUN, Outcome.UNSUPPORTED_CHANGE):
+        return True
+    if result.outcome is Outcome.NO_IMPACT:
+        baseline = result.baseline_tests
+        return baseline is None or baseline.passed or baseline.errored
+    if result.outcome is Outcome.PATCHED_UNVERIFIED:
+        return not tests_requested
+    return result.succeeded
 
 
 def main(argv: list[str] | None = None) -> int:

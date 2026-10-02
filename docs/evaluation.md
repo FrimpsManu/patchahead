@@ -72,8 +72,12 @@ asserted at zero and is not negotiable downward.
 The adversarial dataset covers unrelated objects sharing a field name, strings
 and comments containing it, Unicode before and on an edit site, nested functions
 and classes, comprehensions and lambdas, decorated async methods, multiline
-calls, module aliases, imported versus locally-defined symbols, several affected
-files, partially-migrated repositories, and unsupported code shapes.
+calls, module aliases, imported versus locally-defined symbols, a method name
+shared with built-in types (`get` on `os.environ` and a settings dict), a
+built-in call sharing a renamed method's name (`dict()`), a method the
+repository defines in another module, a renamed key read off a nested object,
+several affected files, partially-migrated repositories, and unsupported code
+shapes.
 
 ### `migrations`
 

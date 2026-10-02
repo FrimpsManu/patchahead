@@ -495,6 +495,97 @@
       ]
     },
     {
+      "id": "common_method_name_on_builtin_receivers",
+      "note": "`get` is a method of every dict. A rename of the SDK's `client.get` must not turn `os.environ.get` and a settings dict's `.get` into `.retrieve`; tests that only cover the client call would never notice.",
+      "change": {
+        "kind": "method_rename",
+        "symbol": "get",
+        "replacement": "retrieve",
+        "owner": "client",
+        "owner_explicit": false
+      },
+      "files": {
+        "app/jobs.py": "import os\n\nSETTINGS = {\"timeout\": 5}\n\n\ndef status(client, jid):\n    return client.get(jid)\n\n\ndef mode():\n    return os.environ.get(\"MODE\")\n\n\ndef timeout():\n    return SETTINGS.get(\"timeout\")\n"
+      },
+      "expect_patched": [
+        "app/jobs.py:7"
+      ],
+      "expect_reported_only": [
+        "app/jobs.py:11",
+        "app/jobs.py:15"
+      ],
+      "expect_source_contains": [
+        "os.environ.get(\"MODE\")",
+        "SETTINGS.get(\"timeout\")"
+      ]
+    },
+    {
+      "id": "builtin_call_shares_the_renamed_name",
+      "note": "Pydantic v2 renamed `.dict()` to `.model_dump()`. The built-in `dict(...)` is not that method, and the module imports no `dict` that could make it one.",
+      "change": {
+        "kind": "method_rename",
+        "symbol": "dict",
+        "replacement": "model_dump"
+      },
+      "files": {
+        "app/a.py": "def dump(user, data):\n    payload = dict(data, source=\"api\")\n    return user.dict(), payload\n"
+      },
+      "expect_patched": [
+        "app/a.py:3"
+      ],
+      "expect_reported_only": [
+        "app/a.py:2"
+      ],
+      "expect_source_contains": [
+        "dict(data, source=\"api\")"
+      ]
+    },
+    {
+      "id": "repository_defines_the_method_in_another_module",
+      "note": "The repository's own `ProductRepo` has a `fetch_all` too, defined in a different module from the call. The same-module guard does not see it; renaming `repo.fetch_all()` would break the repository's own code.",
+      "change": {
+        "kind": "method_rename",
+        "symbol": "fetch_all",
+        "replacement": "list_all",
+        "owner": "client",
+        "owner_explicit": false
+      },
+      "files": {
+        "app/repo.py": "class ProductRepo:\n    def fetch_all(self):\n        return []\n",
+        "app/sync.py": "def go(client, repo):\n    client.fetch_all()\n    return repo.fetch_all()\n"
+      },
+      "expect_patched": [
+        "app/sync.py:2"
+      ],
+      "expect_reported_only": [
+        "app/sync.py:3"
+      ],
+      "expect_source_contains": [
+        "return repo.fetch_all()"
+      ]
+    },
+    {
+      "id": "renamed_key_on_a_nested_object_without_an_owner",
+      "note": "With no owner asserted, `charge[\"amount_cents\"]` is evidence; `charge[\"customer\"][\"amount_cents\"]` reads the key off a different, nested object.",
+      "change": {
+        "kind": "field_rename",
+        "symbol": "amount_cents",
+        "replacement": "amount"
+      },
+      "files": {
+        "app/a.py": "def amounts(charge):\n    own = charge[\"amount_cents\"]\n    nested = charge[\"customer\"][\"amount_cents\"]\n    return own, nested\n"
+      },
+      "expect_patched": [
+        "app/a.py:2"
+      ],
+      "expect_reported_only": [
+        "app/a.py:3"
+      ],
+      "expect_source_contains": [
+        "charge[\"customer\"][\"amount_cents\"]"
+      ]
+    },
+    {
       "id": "loop_variable_aliases_the_owner",
       "known_gap": "the loop variable `o` is an `order`, but showing that needs alias analysis over the iterable; PatchAhead reports the site and declines to patch it (roadmap PR #8)",
       "note": "The dominant known false negative, written down as an executable case rather than left out of the dataset. Under-migrating is survivable -- a missed site is fixed by hand -- but it is still a miss, and it stays visible in the benchmark until it is fixed.",

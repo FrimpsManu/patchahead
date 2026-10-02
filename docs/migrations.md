@@ -63,10 +63,13 @@ When the document asserts **no** owner, there is nothing to check against:
 | `anything["total"]` | medium | yes |
 | `anything.get("total")` | medium | yes |
 | `anything.total` | low | no — reported |
+| `charge["customer"]["total"]` | low | no — reported |
 
 A constant string key matching a renamed field is decent evidence on its own,
 because that is how API responses arrive in Python. A bare attribute is not:
-`.total` collides across unrelated libraries.
+`.total` collides across unrelated libraries. Nor is a key read off a nested or
+computed expression: `charge["customer"]["total"]` is a field of the customer,
+not of the charge.
 
 ### Asserted versus inferred owners
 
@@ -117,6 +120,16 @@ untouched.
 | `client.fetch_orders()` | high | yes |
 | `self.client.fetch_orders()` | high | yes |
 | `analytics.fetch_orders()` | low | no — reported |
+
+With no receiver asserted, a call is patched only when the name itself is
+evidence. These are reported, not patched, unless the receiver matches the
+change document's example:
+
+| Site (no receiver asserted) | Why it is not evidence |
+|---|---|
+| `os.environ.get(...)` for a `get` rename | `get` is also a method of Python's built-in types — so are `update`, `items`, `copy`, `pop` |
+| `dict(data)` for a `.dict()` → `.model_dump()` rename | the built-in, unless the module imports a `dict` from somewhere |
+| `repo.fetch_all()` when the repository defines its own `fetch_all` in another module | the call may be to the repository's code |
 
 **Does not**
 

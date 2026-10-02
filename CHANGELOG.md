@@ -7,6 +7,39 @@ this project uses [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed (wrong edits reported as verified)
+
+- **A common method name no longer renames unrelated calls.** A `get` ->
+  `retrieve` rename, with the receiver taken from the document's example rather
+  than asserted, rewrote `os.environ.get(...)` and a settings dict's `.get(...)`
+  along with `client.get(...)`. A test covering only the client call then
+  reported the whole patch as `migrated`. A name that is also a method of a
+  built-in type (`get`, `update`, `items`, `copy`, ...) now needs a receiver
+  matching the document before it is patched; other sites are reported.
+- **A bare call to a Python built-in is not an SDK function.** A Pydantic-style
+  `.dict()` -> `.model_dump()` rename rewrote `dict(data)` too. The built-in is
+  now left alone unless the module imports a `dict` from somewhere.
+- **A name the repository defines in another module is not renamed on name
+  alone.** The guard against renaming calls to the repository's own code only
+  looked at the calling module, so `repo.fetch_all()` was rewritten when
+  `ProductRepo.fetch_all` lived in `repo.py`. An explicit
+  `from sdk import fetch_all` still counts as evidence; an import of the
+  repository's own definition does not.
+- **A renamed key on a nested object is not patched without an owner.**
+  `charge["customer"]["amount_cents"]` reads the customer's field, not the
+  charge's, and was rewritten whenever the document named no owner.
+- Four adversarial eval cases cover these, each verified to fail before the fix.
+
+### Changed (exit codes)
+
+- **`patched_unverified` exits 1 unless `--no-tests` was passed.** It exited 0,
+  which the README defined as "migration verified": tests that ran and proved
+  nothing, or a test runner that could not start, looked like a pass in CI.
+- **`no_impact` on a suite that was already failing exits 1** and says so. A
+  change document PatchAhead misread finds nothing, and "Nothing to migrate"
+  with exit 0 hid the failures the change had caused. On a passing suite it
+  still exits 0.
+
 ### Added
 
 - **`patchahead demo`.** One command, no configuration: it serves the local UI
