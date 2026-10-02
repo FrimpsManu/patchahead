@@ -1,19 +1,34 @@
 # PatchAhead
 
-**An upstream API changes. Which of your code breaks, what is the smallest
-correct fix, and can it be proven to work?**
+**When an API you depend on changes, PatchAhead updates your Python code to
+match, and proves the fix works with your own tests.**
 
-PatchAhead reads a release note, finds the affected call sites with AST
-analysis, patches a throwaway copy of your repository, and runs your tests
-against it. A migration counts as done only when a test that failed *before* the
-patch passes *after* it — and when the evidence is not there, it says so instead
-of claiming success.
+You give it the release note. It finds the code that breaks, writes the
+smallest fix in a temporary copy of your project, and runs your tests. It only
+calls a fix done when a test that failed before the fix passes after it. When it
+is not sure, it says so and leaves your code alone.
 
 ```text
-release note → classify → AST impact → plan → minimal patch → 5 gates → verdict
+release note  ->  find affected code  ->  plan  ->  patch a copy  ->  run your tests  ->  verdict
 ```
 
-## See it work
+## Why this exists
+
+Almost every app talks to services it does not control: payments, email,
+storage, AI models. Those services change. A field gets renamed, a method gets
+a new name, pagination switches from page numbers to cursors. Your code did not
+change, but it is now broken.
+
+Keeping up is slow and risky by hand. Someone has to read the release note,
+search the codebase, fix every spot without touching unrelated code that
+happens to use the same name, and test it all. Teams put it off, and old
+versions pile up.
+
+PatchAhead automates that work, and it is deliberately careful about it. A
+migration tool that makes a wrong edit is worse than no tool, so every step can
+refuse, and nothing is called a success without evidence from your tests.
+
+## See it in 30 seconds
 
 ```bash
 git clone https://github.com/FrimpsManu/patchahead
@@ -22,96 +37,32 @@ pip install -e '.[demo]'
 patchahead demo
 ```
 
-> PatchAhead is **not published to PyPI yet** — there is no release and no
-> publishing workflow — so a source install is the real path. `pip install
-> 'patchahead[demo]'` is what this becomes after the first release, and the
-> package builds and installs as a wheel today (CI checks exactly that); it is
-> simply not on an index for `pip` to find.
+This opens a local page with six example scenarios against a small, deliberately
+broken service. Three end in a verified fix. The other three show it refusing,
+being rejected by the tests, and reporting a patch it could not prove.
 
-That serves a local page at `http://127.0.0.1:8000` with six bundled scenarios
-against a deliberately-broken example service. No repository of your own to find,
-nothing to configure, and no demo-only code path: every scenario calls the same
-`patchahead.engine` the CLI does, copies the bundled repository to a temporary
-directory, patches the copy, and runs its tests there.
+![A verified migration in the PatchAhead demo](https://raw.githubusercontent.com/FrimpsManu/patchahead/main/docs/media/demo-verified.png)
 
-<!-- DEMO RECORDING GOES HERE.
-     docs/demo-recording.md has an exact 45-second sequence to capture.
-     Save the result as docs/media/demo.gif and replace this comment with:
-         ![PatchAhead demo](docs/media/demo.gif)
-     The stills below are real captures of the same UI and can stay. -->
+PatchAhead is not on PyPI yet, so for now it installs from a clone.
 
-![A verified migration in the PatchAhead demo](docs/media/demo-verified.png)
+## What it looks like
 
-Three of the scenarios end in a verified migration. Three do not, on purpose —
-because the interesting claim is not "it rewrites code", it is that it knows
-when not to:
-
-![PatchAhead refusing to migrate](docs/media/demo-refusal.png)
-
-That release note is about `invoice` objects; the repository only has `order`
-objects. The field name is identical, so a text-matching tool rewrites both
-sites. PatchAhead finds them, explains them, grades them low, and leaves them
-alone.
-
-## Proof, not adjectives
-
-| | |
-|---|---|
-| **0 false-positive patches** | across the 42 site-detection cases (`impact` + `adversarial`), covering 43 scored patch sites: 43 found, 0 wrong, precision and recall 1.0. The other 70 cases measure release-note reading, end-to-end migration, and the validation gates themselves — 106 of 112 pass, and the 6 that do not are recorded gaps, listed in [docs/evaluation.md](docs/evaluation.md#the-gaps-that-remain). The 33 adversarial cases are written to fool it: unrelated objects sharing a field name, strings that merely contain it, `os.environ.get` beside a renamed `client.get`, the built-in `dict()` beside a renamed `.dict()`, Unicode before an edit site, nested scopes, comprehensions, already-migrated code. Recomputed on every CI run. |
-| **4 recorded gaps, none of them a wrong edit** | Each is a case stating what a *correct* tool does, run and scored on every build. All four are aliasing — `for o in orders`, `current = order`, `self._order`, `factory.get_client()` — and in all four PatchAhead finds the site and declines to rewrite it. A gap may only under-patch: a marked case that produces a wrong edit fails the build anyway, and a marked case that starts passing fails it too. |
-| **488 automated tests** | covering unit, integration, and end-to-end behavior. Deterministic migrations, filesystem workspaces, subprocess test execution, packaging, and clean-wheel installs are exercised for real; the Anthropic API is mocked because it is remote, paid, and non-deterministic. |
-| **Five gates decide, nothing else** | `syntax → scope → targeted_tests → regression_tests → migration_assertion`. `MigrationResult.succeeded` is defined as "the assertion gate passed", and that gate passes only on red-to-green evidence — a green-to-green run, a suite still red, or a test runner that never started all report `patched_unverified`, not success. |
-| **No runtime dependencies** | on Python 3.11+. The core is `argparse` and `ast`. A migration tool a team has to vet three transitive dependencies for is one they will not install. |
-
-![The five validation gates](docs/media/demo-gates.png)
-
-## Supported migrations
-
-`field_rename` · `method_rename` · `kwarg_rename` · `pagination_page_to_cursor`
-
-Four families, each with parsing, analysis, planning, patching, validation,
-tests and documentation — that is the bar for inclusion. Anything else is
-reported as **unsupported** rather than forced into a family that happens to
-fit. `patchahead handlers` prints what each one explicitly does *not* do, and
-[docs/migrations.md](docs/migrations.md) has the confidence tables.
-
-## Safety, stated plainly
-
-PatchAhead never writes to your repository: `Repository` has no `write` method,
-so there is no call to make by mistake. But **the workspace copy is not a
-sandbox** — `migrate` runs your repository's configured test command with
-`shell=True`, as you, with your environment and your network. Running it on a
-repository you do not trust is the same decision as running `pytest` in one.
-
-[docs/safety.md](docs/safety.md) separates the three things that are easy to
-conflate: where PatchAhead writes, what the workspace isolates (filesystem
-writes in the copy, and nothing else), and what a test command can do.
-
-## What the CLI prints
+Given a release note that says the `page` parameter was replaced by `cursor`:
 
 ```console
 $ patchahead migrate --repo ./my-service --change ./release-notes.md
 
 Pagination is now cursor-based
-  kind        pagination_page_to_cursor
-  severity    high    confidence high
-
-  1 finding(s) in 1 file(s), scanned 5 file(s) in 4ms
+  1 finding(s) in 1 file(s), scanned 8 file(s) in 0ms
   + app/order_sync.py:12  high  sync_all_orders  while True: ... page=page ...
 
 proposed diff
-  @@ -9,16 +9,16 @@
-   def sync_all_orders(api_client):
   -    page = 1
   +    cursor = None
-       all_orders = []
-       while True:
   -        response = api_client.get_orders(page=page)
   +        response = api_client.get_orders(cursor=cursor)
-           all_orders.extend(response["orders"])
   -        if page >= response["total_pages"]:
   +        if not response.get("has_more"):
-               break
   -        page += 1
   +        cursor = response.get("next_cursor")
 
@@ -120,289 +71,163 @@ validation
   [pass] scope                1 file(s) changed, all named by the plan; 8 diff line(s)
   [pass] targeted_tests       tests/test_order_sync.py: 1 passed
   [pass] regression_tests     no new failures
-  [pass] migration_assertion  tests that failed before the patch now pass
+  [pass] migration_assertion  the targeted tests failed before the patch and pass after it
 
 migrated: migrated 1 file(s); 5/5 gates passed
 ```
 
-Your repository was never written to. That diff was produced in a temporary
-copy, and the tests that verified it ran there.
+Your repository was not touched. The diff was made in a temporary copy, and the
+tests ran there. You review it and apply it.
 
----
+## What it can fix
 
-## The idea
-
-> Static evidence identifies risk. AI can propose. Tests verify. Humans approve.
-
-Each of those is a separate stage with a separate output, and each stage can say
-"I don't know":
-
-| Stage | Produces | Can refuse |
-|---|---|---|
-| Ingest a change document | `BreakingChange` with graded confidence | yes — `unknown` / `unsupported` |
-| Analyze the repository (AST) | `ImpactReport` with per-site confidence | yes — reports a site without patching it |
-| Plan the migration | `MigrationPlan` you can read before anything changes | yes — `blocked_reason` |
-| Generate a patch | `PatchProposal` + unified diff | yes — structured error |
-| Validate | `ValidationResult`, five gates | it is the thing that refuses |
-
-`MigrationResult.succeeded` is defined as "validation verified it". Nothing else
-in the codebase is allowed to decide that a migration worked.
-
-## What it is not
-
-- **Not a general code-repair tool.** It performs four documented migration
-  families (`patchahead handlers`). Everything else is reported as unsupported.
-- **Not a sandbox.** It runs your repository's test command with your
-  privileges. See [docs/safety.md](docs/safety.md).
-- **Not a changelog monitor.** You give it a file. It does not watch registries,
-  poll feeds, or open pull requests.
-- **Not an autonomous agent.** It proposes; it never applies, commits, or merges.
-
-## Install
-
-From a clone, which is the only path until there is a release:
-
-```bash
-pip install -e .                 # core tool: no third-party runtime deps on 3.11+
-pip install -e '.[demo]'         # + the local UI and the bundled walkthrough
-pip install -e '.[llm]'          # + LLM proposals when a shape is unrecognized
-pip install -e '.[all]'          # everything
-patchahead --help
-```
-
-Python 3.10+.
-
-| Extra | Brings | For |
-|---|---|---|
-| `web` | FastAPI, uvicorn | `patchahead web` against your own repository |
-| `demo` | `web` + pytest | `patchahead demo` — the bundled repository's tests have to actually run, or nothing can be *verified* |
-| `llm` | `anthropic` | the constrained fallback, off by default |
-| `yaml` | PyYAML | YAML change documents; JSON needs nothing |
-| `sentry` | `sentry-sdk` | optional error reporting |
-
-The same names work as `pip install 'patchahead[demo]'` once the project is
-published; it is not on PyPI today, so `pip` cannot resolve that yet.
-
-## Your first migration
-
-`patchahead demo` is the shortest route, but everything it does is available
-from the command line. The bundled example service ships inside the package;
-`--print-paths` says where it landed in your installation:
-
-```bash
-repo=$(patchahead demo --print-paths | awk '/^repository/ {print $2}')
-changes=$(patchahead demo --print-paths | awk '/^changes/ {print $2}')
-
-# 1. What does this change break?
-patchahead analyze --repo "$repo" --change "$changes/pagination-cursor.md"
-
-# 2. What would you do about it? (nothing is changed)
-patchahead migrate --repo "$repo" --change "$changes/pagination-cursor.md" --dry-run
-
-# 3. Do it, in a temporary copy, and prove it with the tests.
-patchahead migrate --repo "$repo" --change "$changes/pagination-cursor.md"
-```
-
-`patchahead demo --list` describes every bundled scenario, including the ones
-that are supposed to fail.
-
-Then point it at your own repository. Release notes in Markdown work; so does a
-structured JSON/YAML description if the prose is too vague
-(see [docs/migrations.md](docs/migrations.md#structured-change-documents)).
-
-## Supported change types
-
-```console
-$ patchahead handlers
-```
-
-| Family | Example | Notes |
-|---|---|---|
-| `field_rename` | `order["total"]` → `order["amount"]` | subscripts, `.get()`, attributes |
-| `method_rename` | `client.fetch_orders()` → `client.list_orders()` | call sites only |
-| `kwarg_rename` | `fetch(timeout_seconds=5)` → `fetch(timeout=5)` | explicit keyword arguments only |
-| `pagination_page_to_cursor` | `page`/`total_pages` → `cursor`/`has_more` | one documented loop shape |
-
-Each has parser support, AST impact analysis, planning, patch generation,
-validation, tests, and documentation — that is the bar for inclusion, and
-[docs/migrations.md](docs/migrations.md) states exactly what each one refuses to
-do. v1 supports four families deliberately; breadth without correctness is
-worse than nothing here.
-
-## Safety model
-
-1. **Your tree is never written to.** `Repository` has no `write` method.
-   Patching happens in a `Workspace` — a temporary copy. That copy confines
-   *PatchAhead's own writes*; it is not a sandbox, and your test command still
-   runs with your privileges. [docs/safety.md](docs/safety.md) separates the
-   three.
-2. **Minimal edits.** Patches replace AST-derived source *ranges*, not whole
-   files, so comments, formatting, and blank lines survive and diffs stay small.
-3. **Fail closed.** A code shape a handler does not recognize produces a stated
-   refusal, never a guess.
-4. **Five gates.** syntax → scope → targeted tests → regression → migration
-   assertion. `migrated` requires a test that *failed before the patch and
-   passes after it*; a green-to-green run is reported `patched_unverified`.
-5. **No auto-merge.** Ever. The output is a diff and a review checklist.
-
-Full threat model, including what PatchAhead does *not* protect you from:
-[docs/safety.md](docs/safety.md).
-
-## LLM mode
-
-Off by default. `--use-llm` is used in exactly one situation: a deterministic
-handler found real impact but **refused to plan** because the code shape was
-unfamiliar. A mechanical AST rename does not need a model.
-
-What the model gets: the breaking change, the failing test output, and **only
-the functions the impact findings point at**. Not the file, never the repository.
-
-What happens to its answer: rejected — not repaired — if it is not valid JSON,
-names a file the impact report does not implicate, does not parse as Python,
-renames a function, or changes a signature. Whatever survives goes through the
-same five gates as a deterministic patch.
-
-```bash
-export ANTHROPIC_API_KEY=...
-patchahead migrate --repo ./my-service --change ./notes.md --use-llm
-```
-
-A repository can forbid this outright with `allow_llm = false`; `--use-llm`
-cannot override it.
-
-## Configuration
-
-Optional. Sensible defaults work with no configuration at all. Put this in your
-`pyproject.toml`, or in a `.patchahead.toml`:
-
-```toml
-[tool.patchahead]
-test_command = "python -m pytest"   # what verifies a migration
-source_dirs = ["src"]               # where to look (tests are still found repo-wide)
-exclude = ["vendor"]                # added to the built-in exclusions
-max_changed_files = 10              # scope gate limit
-max_diff_lines = 400                # scope gate limit
-min_confidence = "medium"           # findings below this are reported, not patched
-allow_llm = true                    # false forbids `--use-llm` for this repository
-output_dir = ".patchahead"          # where the diff, plan, and result are written
-```
-
-An unknown key is an error, not a silent no-op.
-
-## Exit codes
-
-| Code | Meaning |
+| Change | Example |
 |---|---|
-| 0 | Succeeded — analysis ran; migration verified red-to-green; dry run completed; nothing to migrate on a passing suite; or `--no-tests` was passed, so the patch is unverified by request |
-| 1 | Not migrated — validation failed; no plan was possible; tests ran (or could not start) but did not verify the patch; or nothing was found while the suite was already failing, which usually means the change document was not understood |
-| 2 | Usage error — bad arguments, missing file, unreadable config |
-| 3 | The change is real but unsupported by this version |
+| A renamed field | `order["total"]` becomes `order["amount"]` |
+| A renamed method | `client.fetch_orders()` becomes `client.list_orders()` |
+| A renamed keyword argument | `fetch(timeout_seconds=5)` becomes `fetch(timeout=5)` |
+| Page numbers to cursors | a `page` / `total_pages` loop becomes `cursor` / `has_more` |
 
-## Architecture
+It reads release notes the way vendors write them: headings, bullet lists,
+tables, reStructuredText, and phrasings like "renamed to", "is now", or
+"deprecated in favor of". Anything outside these four kinds of change is
+reported as unsupported, not forced into one that almost fits.
 
-```
-change document ─▶ ingest ─────▶ BreakingChange   (kind, target, confidence, evidence)
-                                       │
-repository ──────▶ AST index ──▶ ImpactReport     (site, symbol, confidence, reason)
-                                       │
-                              handler.plan ─────▶ MigrationPlan  (inspectable; --dry-run stops here)
-                                       │
-                    isolated workspace ─▶ PatchProposal (range edits → unified diff)
-                                       │
-                          validation ──▶ ValidationResult (5 gates)
-                                       │
-                                MigrationResult ─▶ diff + PR summary  (a human approves)
-```
+## How it stays safe
 
-The CLI, the web UI, and the tests all call `patchahead.engine`. There is no
-second code path for demos. [docs/architecture.md](docs/architecture.md).
+- **Your code is never written to.** All patching happens in a temporary copy.
+- **It edits as little as possible.** Only the exact tokens that change, so
+  comments and formatting stay as they were.
+- **It refuses when unsure.** If `customer["total"]` appears next to the
+  `order["total"]` a note is about, it reports that site and leaves it alone.
+- **Tests decide.** A fix counts as done only when a test goes from failing to
+  passing. Tests that pass before and after prove nothing, and it says so.
+- **A human approves.** It never applies, commits, or merges anything.
 
-## Web UI (optional)
+It does run your test command, as you, so only point it at code you would run
+tests on anyway. [docs/safety.md](docs/safety.md) has the full threat model.
 
-```bash
-pip install -e '.[demo]'                                 # bundled walkthrough
-patchahead demo
+## System architecture
 
-pip install -e '.[web]'                                  # your own repository
-patchahead web --repo ./my-service --changes ./changes
-```
+**How one run flows.** A release note goes in, five steps run in order, and a
+verdict comes out. Your repository is only read; the patch is made in a copy.
 
-`[demo]` is `[web]` plus pytest: the walkthrough migrates a real repository and
-runs its tests, and without a runner nothing it shows can be verified. `[web]`
-alone is enough to point the UI at a repository that brings its own.
+```mermaid
+flowchart LR
+    note["Release note"] --> read
+    repo[("Your repository<br/>never written to")] --> find
 
-The same page in both cases — upstream change, impact, plan, diff, the five
-gates, and the pull-request summary — and the same engine underneath. The demo
-adds only a list of scenarios, each of which chooses a change document and
-whether tests run; both are ordinary engine inputs. Binds to `127.0.0.1` only,
-and it runs your test command.
+    subgraph engine["PatchAhead engine"]
+        read["1. Read<br/>what changed"] --> find["2. Find<br/>affected code"]
+        find --> plan["3. Plan<br/>the smallest fix"]
+        plan --> patch["4. Patch<br/>a temporary copy"]
+        patch --> prove["5. Prove<br/>five checks"]
+    end
 
-## Development
-
-```bash
-pip install -e '.[dev]'
-python -m pytest            # the test suite
-python -m pytest -m "not slow"   # skip tests that spawn a real pytest
-python evals/run.py         # the evaluation benchmark
-ruff check src tests evals
+    repo -. copied .-> patch
+    ai["AI fallback<br/>off by default"] -. only if a plan is refused .-> patch
+    prove --> result["Diff, verdict,<br/>PR summary"]
 ```
 
-The benchmark has five suites — classification, impact, adversarial, migrations
-and validation — and reports precision, recall, F1, confidence calibration, a
-five-way migration outcome taxonomy, patch size, and per-gate verdicts. Cases
-PatchAhead is expected to *fail* are in the datasets on purpose, marked with a
-reason; a marked case that starts passing fails the build, because a stale
-marker is a benchmark lying in the other direction.
-[docs/evaluation.md](docs/evaluation.md) explains the suites and how to add a
-case.
+**How the code is organized.** The command line, the local web UI, and the test
+suite all call the same engine, so there is no separate demo path that behaves
+differently from the real one. The engine runs each step through its own
+package, and the steps pass typed objects to each other through `domain`.
 
-To record the demo: [docs/demo-recording.md](docs/demo-recording.md).
+```mermaid
+flowchart TB
+    cli["Command line"] --> engine
+    web["Local web UI"] --> engine
+    bench["Tests and benchmark"] --> engine
+    engine["engine<br/>runs the five steps in order"]
 
-[docs/contributing.md](docs/contributing.md) walks through adding a migration
-family — the main way to extend PatchAhead without touching the core engine.
+    engine --> ingest["ingest<br/>reads release notes"]
+    engine --> analysis["analysis<br/>parses Python, finds sites"]
+    engine --> handlers["handlers<br/>one plugin per kind of change"]
+    engine --> workspace["workspace<br/>the temporary copy tests run in"]
+    engine --> validation["validation<br/>the five checks"]
+    engine -. optional .-> llm["llm<br/>AI fallback"]
+
+    ingest --> domain
+    analysis --> domain
+    handlers --> domain
+    workspace --> domain
+    validation --> domain
+    domain["domain<br/>the typed objects passed between steps"]
+```
+
+Each step hands a typed object to the next, and each one can stop the run with
+a reason:
+
+| Step | Done by | Produces | Stops the run when |
+|---|---|---|---|
+| 1. Read | `ingest` | one `BreakingChange` per change in the note, with a confidence | the note is unclear, or the change is not one it can migrate |
+| 2. Find | a handler, using `analysis` | an `ImpactReport`: every site using the old name, graded high, medium, or low, with a reason | no code uses the old name |
+| 3. Plan | the same handler | a `MigrationPlan` you can read before anything changes | no site is safe to change, or the code shape is unfamiliar |
+| 4. Patch | the handler, in a `workspace` | a `PatchProposal`: small text edits and a diff | an edit would not apply cleanly |
+| 5. Prove | `validation` | a `ValidationResult` from five checks | a check fails, or the tests prove nothing |
+
+The five checks run cheapest first:
+
+1. **Syntax**: every changed file still parses.
+2. **Scope**: only the files in the plan changed, within size limits.
+3. **Targeted tests**: the tests for the changed modules pass.
+4. **Regression**: no test that passed before now fails.
+5. **Migration assertion**: a test that failed before the patch passes after it.
+
+Only the fifth check can make a run `migrated`. Anything less is reported as
+`patched_unverified` or `validation_failed`.
+
+Each kind of change is a plugin: a handler class with four methods (`supports`,
+`analyze`, `plan`, `generate`) registered in one place, so the engine has no
+special cases. More detail: [docs/architecture.md](docs/architecture.md).
+
+## How it is measured
+
+- **488 automated tests**, covering unit, integration, and full end-to-end runs
+  with real test subprocesses.
+- **An evaluation benchmark of 112 cases**, run on every CI build: release notes
+  written the way vendors write them, repositories built to trick it (unrelated
+  objects with the same field name, `os.environ.get` next to a renamed
+  `client.get`, Unicode, nested scopes), full migrations, and the checks
+  themselves.
+- **Zero wrong edits** across all site cases, and **zero misread changes**
+  across all release notes. Both are enforced: a case that produces a wrong
+  edit fails the build.
+- **Known gaps are recorded, not hidden.** Six cases describe things it does
+  not do yet, and all of them fail safely by doing nothing. They are listed in
+  [docs/evaluation.md](docs/evaluation.md#the-gaps-that-remain).
+
+Run it yourself with `python evals/run.py`.
 
 ## Limitations
 
-Stated plainly, because a migration tool that overstates its reach is worse than
-no tool:
-
-- **Python only.** No TypeScript, Go, or anything else.
-- **No type inference.** Impact analysis matches *names*. When a change document
-  asserts an owner, only that receiver is patched — so `customer["total"]`
-  survives an `order.total` rename, and so does `o["total"]` in
-  `for o in orders`, because `o` cannot be shown to be an `order`. That is a
-  deliberate false negative: unrecoverable wrong edits are worse than
-  recoverable missed ones.
-- **No dataflow.** `t = order["total"]` is renamed; a later use of `t` is not
-  traced.
-- **One pagination loop shape.** Documented in `docs/migrations.md`. Anything
-  else is refused.
-- **Test discovery is name-based.** `app/client.py` → `tests/test_client.py`.
-  It does not trace imports, which is why the regression gate always runs the
-  full suite too.
-- **Release-note parsing is heuristic.** It reads headings, bullets, tables,
-  reStructuredText, and the common phrasings ("renamed to", "is now",
-  "deprecated in favor of", "use X instead of Y"), one change per statement.
-  Measured, not assumed: the `release_notes` benchmark scores 33 documents
-  written the way vendors publish them, and a reading with the wrong names is a
-  hard failure. A rename it cannot place -- `Client.fetch_all` -> `Client.list_all`
-  with nothing saying whether that is a method or an attribute -- is reported,
-  not guessed. Structured JSON/YAML input exists for when prose is not enough.
-- **Single repository, local only.** No monorepo-aware cross-package analysis,
-  no GitHub integration.
+- **Python only.**
+- **Four kinds of change.** Other changes are reported as unsupported.
+- **No type inference.** It matches names. In `for o in orders: o["total"]` it
+  cannot prove `o` is an order, so it reports the site and does not patch it.
+- **One pagination loop shape.** Other shapes are refused.
+- **Local and single-repository.** No GitHub integration yet.
 
 ## Roadmap
 
-Not implemented. Listed so the scope above stays unambiguous:
+- A GitHub Action that runs when a dependency is updated and opens the fix as a
+  pull request
+- Reading OpenAPI spec changes directly
+- More kinds of change, such as moved endpoints and changed response shapes
+- Tracking a renamed value through variables (`current = order`)
+- TypeScript
 
-- OpenAPI / spec-diff ingestion
-- SDK release monitoring
-- A GitHub App that opens the migration PR
-- TypeScript support
-- More migration families (response-shape changes, endpoint moves)
-- Dependency-graph-aware impact analysis
-- Richer test selection (import-graph based)
-- CI-native mode
+## Documentation
+
+| Read | For |
+|---|---|
+| [docs/usage.md](docs/usage.md) | Commands, configuration, exit codes, AI mode, web UI |
+| [docs/architecture.md](docs/architecture.md) | How the engine is built, and why |
+| [docs/migrations.md](docs/migrations.md) | Each kind of change in detail, including what it refuses |
+| [docs/safety.md](docs/safety.md) | What it protects you from, and what it does not |
+| [docs/evaluation.md](docs/evaluation.md) | The benchmark, and how to add a case |
+| [docs/contributing.md](docs/contributing.md) | Setting up, and adding a new kind of change |
 
 ## License
 

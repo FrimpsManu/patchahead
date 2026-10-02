@@ -13,8 +13,9 @@ A *migration family* is one class. It answers four questions, in order:
 
 Nothing outside this package needs an ``if change.kind == ...`` branch. The
 engine selects a handler through :func:`find_handler` and calls the interface,
-so adding a fifth family touches exactly two files: the new handler module and
-the registry import in ``handlers/__init__.py``.
+so adding a fifth family never touches the engine: it needs the new
+``ChangeKind``, the classifier's signals for it, the handler module, and the
+registry import in ``handlers/__init__.py`` (see ``docs/contributing.md``).
 
 Handlers must **fail closed**. A handler that cannot recognize the code shape it
 is looking at returns a plan with ``blocked_reason`` set, never a guess. The

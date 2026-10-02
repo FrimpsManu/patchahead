@@ -20,8 +20,10 @@ Everything must be green before a pull request: tests, evals, and ruff.
 
 ## Adding a migration family
 
-This is the main way to extend PatchAhead, and it touches **two files**: your new
-handler, and one import line. The core engine does not change.
+This is the main way to extend PatchAhead. It touches four places -- the new
+`ChangeKind` (step 1), the classifier's signals for it (step 2), your handler
+(step 3), and one import line -- plus tests and an eval case. The engine, the
+CLI, and the validation gates do not change.
 
 The worked example below is a real family PatchAhead does not ship: renaming an
 **import**, `from vendor import OldClient` → `from vendor import NewClient`.

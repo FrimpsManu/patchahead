@@ -1,0 +1,67 @@
+name: Release
+
+# Publishes to PyPI when a GitHub release is published, and only then.
+#
+# One-time setup, done by a maintainer:
+#   1. On PyPI, add a "trusted publisher" for this repository
+#      (Account settings -> Publishing): owner FrimpsManu, repository
+#      patchahead, workflow release.yml, environment pypi.
+#   2. On GitHub, create an environment named `pypi` (Settings ->
+#      Environments). Adding yourself as a required reviewer means every
+#      upload waits for a click.
+# No API token is stored anywhere: PyPI trusts this workflow's identity.
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: build and check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install build twine
+      - name: The tag must match the version being published
+        run: |
+          version=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
+          tag="${GITHUB_REF_NAME#v}"
+          if [ "$version" != "$tag" ]; then
+            echo "release tag ${GITHUB_REF_NAME} does not match pyproject version ${version}"
+            exit 1
+          fi
+      - name: Build sdist and wheel
+        run: python -m build
+      - name: Check metadata
+        run: twine check dist/*
+      - name: Install the wheel in a clean environment and run it
+        run: |
+          python -m venv /tmp/clean
+          /tmp/clean/bin/pip install dist/*.whl
+          /tmp/clean/bin/patchahead --version
+          /tmp/clean/bin/patchahead handlers
+          /tmp/clean/bin/patchahead demo --list
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  publish:
+    name: publish to PyPI
+    needs: build
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1
