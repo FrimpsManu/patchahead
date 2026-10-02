@@ -150,8 +150,17 @@ client.fetch_orders(timeout_seconds=5)   # renamed   (high)
 socket.connect(timeout_seconds=9)        # left alone (low, reported)
 ```
 
-When the document names no function, every call using the keyword is a medium
-candidate. Run `analyze` first to see the list.
+When the document names *no* function, nothing is rewritten:
+
+```python
+fetch_orders(retries=3)              # reported, not renamed (low)
+send_email(to=..., retries=5)        # reported, not renamed (low)
+```
+
+Keyword names are ordinary words, and two libraries sharing one is a
+coincidence rather than a relationship. With no function named there is nothing
+in the source that distinguishes the SDK's `retries` from the mailer's, so both
+sites are reported for a hand-edit and the migration reports `not_plannable`.
 
 **Does not**
 

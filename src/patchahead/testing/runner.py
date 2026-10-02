@@ -22,20 +22,43 @@ _SHORT_TALLY = re.compile(r"(\d+ (?:passed|failed|error|skipped)[^\n=]*)")
 _ASSERTION = re.compile(r"^E\s+(\w*(?:Error|Exception|AssertionError).*)$", re.MULTILINE)
 _NO_TESTS = re.compile(r"no tests ran|collected 0 items", re.IGNORECASE)
 _MISSING_RUNNER = re.compile(
-    r"No module named (\S+)|command not found|is not recognized as an internal"
+    r"No module named (\S+)|(?:command )?not found|is not recognized as an internal"
 )
+#: POSIX exit codes for "the shell could not run this at all": 127 is
+#: command-not-found, 126 is found-but-not-executable. Neither is a test
+#: result, and neither depends on how a particular shell words its error --
+#: bash says "command not found", dash says "not found", and a Windows shell
+#: says something else again. Matching on the status rather than the prose is
+#: what makes this reliable: relying on the wording meant `sh` reporting
+#: "not found" was read as a test failure and reported as a regression.
+CANNOT_START_CODES = (126, 127)
+#: Appended wherever a gate has to explain that nothing ran. A message that
+#: says only "could not run" leaves the reader with no next step.
+RUNNER_ADVICE = (
+    "Check `test_command` in the repository's PatchAhead configuration, and "
+    "that the test runner is installed in the environment PatchAhead is "
+    "running in."
+)
+
+
+def could_not_start(output: str, returncode: int) -> bool:
+    """Whether the command never got as far as running a test.
+
+    Two independent signals, because either alone misses cases: the exit status
+    (127/126, which no test runner produces) and the shell's message (which
+    covers a runner that exits non-zero while reporting a missing module).
+    """
+    if returncode in CANNOT_START_CODES:
+        return True
+    return returncode != 0 and bool(_MISSING_RUNNER.search(output))
 
 
 def _summarize(output: str, returncode: int) -> str:
     """One line describing what happened, for reports and logs."""
-    missing = _MISSING_RUNNER.search(output)
-    if missing and returncode != 0:
-        return (
-            f"the test command could not start ({missing.group(0).strip()}). "
-            f"Check `test_command` in the repository's PatchAhead configuration, "
-            f"and that the test runner is installed in the environment PatchAhead "
-            f"is running in."
-        )
+    if could_not_start(output, returncode):
+        missing = _MISSING_RUNNER.search(output)
+        reason = missing.group(0).strip() if missing else f"exit status {returncode}"
+        return f"the test command could not start ({reason}). {RUNNER_ADVICE}"
     if _NO_TESTS.search(output):
         return "no tests ran"
     tally = _SHORT_TALLY.search(output)
@@ -94,9 +117,11 @@ def run_tests(
     # pytest exit code 5 is "no tests collected", which is not a test failure.
     # Reporting it as one would make an empty repository look broken. A runner
     # that could not start at all is also "could not verify", not "verified and
-    # failed" -- the gates treat those differently on purpose.
-    errored = (completed.returncode == 5 and bool(_NO_TESTS.search(output))) or bool(
-        completed.returncode != 0 and _MISSING_RUNNER.search(output)
+    # failed" -- the gates treat those differently on purpose, and every gate
+    # that executes tests has to read it the same way or the same fact gets two
+    # different verdicts depending on which gate saw it.
+    errored = (completed.returncode == 5 and bool(_NO_TESTS.search(output))) or could_not_start(
+        output, completed.returncode
     )
 
     run = TestRun(

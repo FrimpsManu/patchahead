@@ -17,7 +17,8 @@
       "expected_kind": "field_rename",
       "expected_symbol": "total",
       "expected_replacement": "amount",
-      "expected_owner": "order"
+      "expected_owner": "order",
+      "expected_owner_explicit": true
     },
     {
       "id": "field_rename_prose",
@@ -25,14 +26,18 @@
       "expected_kind": "field_rename",
       "expected_symbol": "name",
       "expected_replacement": "full_name",
-      "expected_owner": "customer"
+      "expected_owner": "customer",
+      "expected_owner_explicit": true
     },
     {
       "id": "method_rename",
+      "note": "`client.fetch_orders()` appears only as an illustration of what was removed. It is the vendor's variable name, not a claim about what a downstream repository calls its client, so reading it as an assertion would refuse to migrate `api_client.fetch_orders()`.",
       "text": "### Client method renamed\n\nThe method renamed `fetch_orders` -> `list_orders`. The deprecated `client.fetch_orders()` was removed in v2.",
       "expected_kind": "method_rename",
       "expected_symbol": "fetch_orders",
-      "expected_replacement": "list_orders"
+      "expected_replacement": "list_orders",
+      "expected_owner": "client",
+      "expected_owner_explicit": false
     },
     {
       "id": "kwarg_rename",
@@ -40,7 +45,8 @@
       "expected_kind": "kwarg_rename",
       "expected_symbol": "timeout_seconds",
       "expected_replacement": "timeout",
-      "expected_owner": "fetch_orders"
+      "expected_owner": "fetch_orders",
+      "expected_owner_explicit": true
     },
     {
       "id": "kwarg_rename_prose",
@@ -74,6 +80,34 @@
       "text": "### Cleanup\n\nSome things were renamed. See the migration guide on our website for details.",
       "expected_kind": "unknown",
       "note": "A rename with no extractable symbols must not be reported as an actionable rename."
+    },
+    {
+      "id": "method_rename_dotted_arrow_asserts_the_receiver",
+      "note": "`client.fetch_orders -> client.list_orders` names the receiver on both sides of the arrow. That is an assertion: a call on a different receiver is a different method that happens to share a name.",
+      "text": "### Client method renamed\n\n`client.fetch_orders` -> `client.list_orders`.",
+      "expected_kind": "method_rename",
+      "expected_symbol": "fetch_orders",
+      "expected_replacement": "list_orders",
+      "expected_owner": "client",
+      "expected_owner_explicit": true
+    },
+    {
+      "id": "before_after_example_illustrates_rather_than_asserts",
+      "note": "Same receiver, opposite reading. A Before/After block is a usage example, and an owner extracted from one raises confidence on a match without vetoing a mismatch.",
+      "text": "### Client method renamed\n\nThe method renamed `fetch_orders` -> `list_orders`.\n\n- **Before:** `client.fetch_orders(limit=10)`\n- **After:** `client.list_orders(limit=10)`",
+      "expected_kind": "method_rename",
+      "expected_symbol": "fetch_orders",
+      "expected_replacement": "list_orders",
+      "expected_owner": "client",
+      "expected_owner_explicit": false
+    },
+    {
+      "id": "kwarg_rename_without_a_named_function",
+      "note": "A real release-note shape the rename patterns could not read, because they expected the renamed name to sit directly beside the word `to`. Reading it is safe only because the kwarg handler refuses to patch a rename with no named function -- see `kwarg_rename_with_no_named_function_is_refused` in the adversarial suite. Classifying it without that refusal would have turned a parsing gap into a false positive.",
+      "text": "### Timeouts\n\nWe renamed the `retries` keyword argument to `max_retries`.",
+      "expected_kind": "kwarg_rename",
+      "expected_symbol": "retries",
+      "expected_replacement": "max_retries"
     }
   ]
 }

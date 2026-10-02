@@ -148,9 +148,13 @@ class ValidationResult:
         =========================  ===========================================
         red before, green after    PASSED  -> verified
         green before, green after  SKIPPED -> the tests do not cover the change
+        red before, still red      SKIPPED -> nothing was repaired to point at
         no runnable tests          SKIPPED -> nothing ran
         a test this patch broke    the regression gate FAILS first
         =========================  ===========================================
+
+        Verification requires affirmative evidence, never merely the absence of
+        a regression -- which is why every row but the first lands short of it.
         """
         assertion = self.get(GateName.MIGRATION_ASSERTION)
         return self.passed and assertion is not None and assertion.passed

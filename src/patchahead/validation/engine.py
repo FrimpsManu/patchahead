@@ -16,15 +16,20 @@ running a test command.
                            larger than the configured limits.
 3    ``targeted_tests``    The tests mapped to the changed modules fail.
 4    ``regression_tests``  The patch broke a test that passed before it.
-5    ``migration_assertion``  The targeted tests did not actually go from
-                              failing to passing.
+5    ``migration_assertion``  Never. It reports evidence, not breakage.
 ===  ====================  ======================================================
 
 Gate 5 is the one that distinguishes a migration from a no-op. A patch can leave
 a green suite green without having fixed anything; this gate asserts that the
 specific breakage the change describes was real before the patch and gone after.
-When the suite was already green, the gate reports SKIPPED with that reason
-rather than claiming a success it cannot evidence.
+
+It is the one gate that cannot fail. Its question is "is there red-to-green
+evidence", so the only answers are PASSED and SKIPPED-because-there-is-none: a
+suite that was already green, a runner that never started, a repository whose
+remaining failures were failing before the patch too. Evidence of *breakage* is
+gate 4's to report, and a patch that broke something must be reported once, by
+the gate that measured it, rather than twice under two explanations that do not
+agree with each other.
 """
 
 from __future__ import annotations
@@ -260,13 +265,16 @@ class ValidationEngine:
         run = runner.run_tests(workspace, scoped, timeout=self.config.test_timeout_seconds)
         if run.errored:
             # The command could not start, or collected nothing. That is "could
-            # not verify", not "verified and failed" -- the same reading the
-            # regression gate takes. The run still ends as `patched_unverified`
-            # rather than `migrated`, because no test gate actually ran.
+            # not verify", not "verified and failed", and both test gates have to
+            # say so in the same words: a runner that is missing is one fact, and
+            # a gate that called it a failure while the other called it a skip
+            # was how the same fact ended up reported as a code regression. The
+            # run ends as `patched_unverified` rather than `migrated`, because no
+            # test gate actually ran.
             return GateResult(
                 name=GateName.TARGETED_TESTS,
                 status=GateStatus.SKIPPED,
-                detail=run.summary,
+                detail=f"the targeted tests did not run: {run.summary}",
                 duration_ms=run.duration_ms,
                 test_run=run,
             )
@@ -299,7 +307,7 @@ class ValidationEngine:
             return GateResult(
                 name=GateName.REGRESSION_TESTS,
                 status=GateStatus.SKIPPED,
-                detail=f"could not run the full suite: {run.summary}",
+                detail=f"the full suite did not run: {run.summary}",
                 duration_ms=run.duration_ms,
                 test_run=run,
             )
@@ -388,66 +396,105 @@ class ValidationEngine:
         It prefers the targeted gate's evidence and falls back to the full
         suite, because a repository whose test command cannot be narrowed to
         specific files still produces perfectly good red-to-green evidence --
-        it is just spread across the whole run.
-
-        Without a baseline, or with one that was already green, the gate reports
-        SKIPPED and says so. A green-to-green run is not evidence that a
-        migration did anything; the patch may well be right, but these tests did
-        not demonstrate it.
+        it is just spread across the whole run. A scope is only usable when both
+        of its runs completed; one that could not run is skipped over, and if no
+        scope is usable the gate says which ones were missing and why.
         """
-        # Prefer the narrow evidence; fall back to the full suite.
-        if targeted.status is not GateStatus.SKIPPED and baseline is not None:
-            before, after, scope = baseline, targeted, "targeted"
-        elif regression.status is not GateStatus.SKIPPED and full_baseline is not None:
-            before, after, scope = full_baseline, regression, "full suite"
-        else:
-            return GateResult(
-                name=GateName.MIGRATION_ASSERTION,
-                status=GateStatus.SKIPPED,
-                detail=("no before/after test evidence is available, so this patch is unverified"),
-            )
+        reasons: list[str] = []
+        for scope, before, gate in (
+            ("targeted", baseline, targeted),
+            ("full suite", full_baseline, regression),
+        ):
+            after = gate.test_run
+            if after is None and gate.status is GateStatus.SKIPPED:
+                # The gate declined to run at all (no mapped tests, a command
+                # that cannot be narrowed). Not a problem worth reporting here;
+                # the other scope may still carry the evidence.
+                continue
+            if after is None or after.errored:
+                reasons.append(
+                    f"the post-patch {scope} run did not complete"
+                    + (f": {after.summary}" if after is not None else "")
+                )
+                continue
+            if before is None:
+                reasons.append(f"no pre-patch {scope} run was recorded")
+                continue
+            if before.errored:
+                reasons.append(f"the pre-patch {scope} run did not complete: {before.summary}")
+                continue
+            return self._compare_runs(scope, before, after)
 
-        if before.errored:
-            return GateResult(
-                name=GateName.MIGRATION_ASSERTION,
-                status=GateStatus.SKIPPED,
-                detail=f"the baseline test run could not complete: {before.summary}",
-            )
-        if before.passed:
-            return GateResult(
-                name=GateName.MIGRATION_ASSERTION,
-                status=GateStatus.SKIPPED,
-                detail=(
-                    f"the {scope} tests already passed before the patch, so this run "
-                    f"cannot evidence that the migration fixed anything. The patch "
-                    f"may still be correct; these tests do not cover the change."
-                ),
-            )
-        if not after.passed:
-            return GateResult(
-                name=GateName.MIGRATION_ASSERTION,
-                status=GateStatus.FAILED,
-                detail=f"the {scope} tests still fail after the patch",
-            )
-
-        fixed = (
-            sorted(set(before.failing_tests) - set(after.test_run.failing_tests))
-            if (after.test_run)
-            else sorted(before.failing_tests)
-        )
-        if before.failing_tests and not fixed:
-            return GateResult(
-                name=GateName.MIGRATION_ASSERTION,
-                status=GateStatus.FAILED,
-                detail=(
-                    f"the {scope} run is green but none of the tests that failed "
-                    f"before the patch were among them"
-                ),
-            )
-
-        named = ", ".join(fixed[:3]) or before.summary
+        detail = "; ".join(dict.fromkeys(reasons)) or "no before/after test evidence is available"
         return GateResult(
             name=GateName.MIGRATION_ASSERTION,
-            status=GateStatus.PASSED,
-            detail=f"{scope} tests that failed before the patch now pass ({named})",
+            status=GateStatus.SKIPPED,
+            detail=f"{detail}, so this patch is unverified",
+        )
+
+    @staticmethod
+    def _compare_runs(scope: str, before: TestRun, after: TestRun) -> GateResult:
+        """Decide what one usable pair of runs evidences.
+
+        Exactly one shape is a pass: something that was failing before the patch
+        passes after it. Everything else is SKIPPED, never FAILED, because this
+        gate asks "is there migration evidence" and the answer "no" is an
+        absence of proof rather than proof of breakage. A patch that genuinely
+        broke something is the regression gate's verdict to give; giving it
+        again here, under a different explanation, is how two gates end up
+        contradicting each other about the same test run.
+        """
+
+        def verdict(status: GateStatus, detail: str) -> GateResult:
+            return GateResult(name=GateName.MIGRATION_ASSERTION, status=status, detail=detail)
+
+        if before.passed:
+            return verdict(
+                GateStatus.SKIPPED,
+                f"the {scope} tests already passed before the patch, so this run "
+                f"cannot evidence that the migration fixed anything. The patch "
+                f"may still be correct; these tests do not cover the change.",
+            )
+
+        fixed = sorted(set(before.failing_tests) - set(after.failing_tests))
+        broken = sorted(set(after.failing_tests) - set(before.failing_tests))
+        named = ", ".join(fixed[:3]) + (" ..." if len(fixed) > 3 else "")
+
+        if after.passed:
+            # Red before, green after. Whatever was failing passes now, named or
+            # not -- which is what makes this branch the one that works for a
+            # runner whose output PatchAhead cannot parse test names out of.
+            return verdict(
+                GateStatus.PASSED,
+                f"the {scope} tests failed before the patch and pass after it "
+                f"({named or before.summary})",
+            )
+
+        if not fixed:
+            # Still red, and nothing that was red is green. The patch may be
+            # incomplete or simply irrelevant to this failure; either way there
+            # is nothing here to verify a migration with.
+            return verdict(
+                GateStatus.SKIPPED,
+                f"the {scope} tests still fail after the patch and none of the "
+                f"tests that were failing before it pass now, so this run does "
+                f"not evidence a migration",
+            )
+
+        if broken:
+            # Some red went green and some green went red. The repair is real
+            # but so is the damage, and calling this verified would let the
+            # headline read "migrated" over a regression.
+            return verdict(
+                GateStatus.SKIPPED,
+                f"the patch repaired {len(fixed)} previously failing {scope} "
+                f"test(s) ({named}) but {len(broken)} test(s) that passed before "
+                f"it now fail; the regression gate reports those",
+            )
+
+        return verdict(
+            GateStatus.PASSED,
+            f"{len(fixed)} {scope} test(s) that failed before the patch now pass "
+            f"({named}); the {len(after.failing_tests)} still failing were "
+            f"already failing before it",
         )

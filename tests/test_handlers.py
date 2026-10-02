@@ -356,13 +356,62 @@ class TestKwargRename:
         assert "c.fetch_orders(timeout=5)" in result
         assert "s.connect(timeout_seconds=9)" in result
 
-    def test_with_no_named_function_every_call_is_a_medium_candidate(self, make_index):
+    def test_with_no_named_function_nothing_is_rewritten(self, make_index):
+        """A keyword name on its own does not identify a library.
+
+        `timeout_seconds=` here belongs to a socket, and the change document --
+        which names no function -- gives nothing to say otherwise. Rewriting it
+        would break a working call on the strength of a shared English word, so
+        the site is reported and left alone.
+        """
         index = make_index({"a.py": "def f(s):\n    return s.connect(timeout_seconds=9)\n"})
 
         report, plan = run(change(ChangeKind.KWARG_RENAME, "timeout_seconds", "timeout"), index)
 
-        assert report.findings[0].confidence is Confidence.MEDIUM
-        assert len(plan.transformations) == 1
+        assert len(report.findings) == 1, "the site is still reported"
+        assert report.findings[0].patchable is False
+        assert report.findings[0].confidence is Confidence.LOW
+        assert "names no function" in report.findings[0].unpatchable_reason
+        assert plan.transformations == []
+        assert plan.skipped, "and the plan says why it declined"
+
+    def test_with_no_named_function_an_unrelated_library_is_not_collateral(self, make_index):
+        """The shape that made this worth changing: two libraries, one keyword."""
+        index = make_index(
+            {
+                "a.py": (
+                    "from sdk import fetch_orders\n"
+                    "from mailer import send_email\n\n\n"
+                    "def go():\n"
+                    "    fetch_orders(retries=3)\n"
+                    '    send_email(to="x", retries=5)\n'
+                )
+            }
+        )
+
+        report, plan = run(change(ChangeKind.KWARG_RENAME, "retries", "max_retries"), index)
+
+        assert len(report.findings) == 2
+        assert not any(finding.patchable for finding in report.findings)
+        assert plan.transformations == []
+
+    def test_lowering_the_confidence_threshold_does_not_unlock_the_refusal(self, make_index):
+        """`--min-confidence low` opts into weaker evidence, not into no evidence.
+
+        The LOW grading alone would block this at the default threshold, which
+        makes the refusal look safe while resting on a setting the user can
+        change. `patchable=False` is what actually holds it, and this is the test
+        that tells the two apart.
+        """
+        index = make_index({"a.py": "def f(s):\n    return s.connect(timeout_seconds=9)\n"})
+
+        _, plan = run(
+            change(ChangeKind.KWARG_RENAME, "timeout_seconds", "timeout"),
+            index,
+            config=Config(min_confidence=Confidence.LOW),
+        )
+
+        assert plan.transformations == []
 
 
 class TestPagination:

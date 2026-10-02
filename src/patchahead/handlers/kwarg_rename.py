@@ -5,10 +5,20 @@ unambiguous: a keyword argument is a keyword argument, and ``ast`` hands back th
 exact range of the name token. The edit replaces that token and leaves the value
 expression, the other arguments, and the formatting exactly as written.
 
-The only real judgement is *which calls*. When the change document names the
-function (``timeout_seconds`` on ``fetch_orders``), only calls to that function
-are rewritten; a ``timeout_seconds=`` passed to some unrelated function keeps its
-name and is reported for review instead.
+The only real judgement is *which calls*, and it is the whole safety story for
+this family. When the change document names the function (``timeout_seconds`` on
+``fetch_orders``), only calls to that function are rewritten; a
+``timeout_seconds=`` passed to some unrelated function keeps its name and is
+reported for review instead.
+
+When the document names *no* function there is nothing to narrow by, and this
+handler rewrites nothing. Keyword names are ordinary words -- ``retries``,
+``timeout``, ``limit`` -- and two libraries sharing one is a coincidence rather
+than a relationship: rewriting on the name alone turns a note about one SDK into
+a ``send_email(max_retries=5)`` that some other library has never heard of.
+Nothing in the source says which calls belong to the upstream being migrated, so
+every site is reported and none is patched. Under-patching costs a hand-edit;
+this kind of over-patching costs a working call site.
 """
 
 from __future__ import annotations
@@ -36,8 +46,9 @@ class KwargRenameHandler(MigrationHandler):
         "expanded from `**kwargs`, is invisible to this handler.",
         "Does not rename the parameter in a function definition; this family is "
         "for calls into an upstream SDK.",
-        "When the change document names no function, every call using the keyword "
-        "is rewritten -- run `analyze` first to see the list.",
+        "When the change document names no function, nothing is rewritten: there "
+        "is no way to tell the renamed keyword from another library's keyword of "
+        "the same name. The sites are reported for a hand-edit.",
     )
 
     def supports(self, change: BreakingChange) -> bool:
@@ -107,11 +118,13 @@ class KwargRenameHandler(MigrationHandler):
                 f"call is to `{called}`, not the renamed function `{target_function}`",
             )
         return (
-            Confidence.MEDIUM,
-            f"keyword argument with the renamed name on a call to `{called}`; the "
-            f"change document names no function, so this could not be narrowed",
-            True,
-            "",
+            Confidence.LOW,
+            f"keyword argument with the renamed name on a call to `{called}`, but "
+            f"the change document names no function, so there is nothing to check "
+            f"`{called}` against",
+            False,
+            "the change document names no function, so this keyword cannot be "
+            "attributed to the renamed one",
         )
 
     def plan(
