@@ -1,0 +1,458 @@
+{
+  "description": "Can PatchAhead read a whole release note the way vendors actually write them? Each case is a document modeled on a real kind of upstream change -- tables, Keep-a-Changelog bullets, conventional commits, reStructuredText, 'is now', 'deprecated in favor of', 'use X instead of Y' -- and the full list of changes a correct reading yields. Every expected change must be found; a supported change read with the wrong names or kind fails the case outright, because that is the reading that reaches a repository; an unsupported change must be reported rather than dropped. Documents with nothing to act on expect nothing actionable.",
+  "cases": [
+    {
+      "id": "pydantic_style_method_table",
+      "note": "Modeled on a validation library's v1 -> v2 migration guide: a table of renamed model methods. Every row is its own change.",
+      "text": "## Migrating to v2\n\nSeveral `BaseModel` methods were renamed. The old names are removed.\n\n| v1 | v2 |\n|----|----|\n| `.dict()` | `.model_dump()` |\n| `.json()` | `.model_dump_json()` |\n| `.parse_obj()` | `.model_validate()` |\n| `.construct()` | `.model_construct()` |\n",
+      "expected_changes": [
+        {
+          "kind": "method_rename",
+          "symbol": "dict",
+          "replacement": "model_dump"
+        },
+        {
+          "kind": "method_rename",
+          "symbol": "json",
+          "replacement": "model_dump_json"
+        },
+        {
+          "kind": "method_rename",
+          "symbol": "parse_obj",
+          "replacement": "model_validate"
+        },
+        {
+          "kind": "method_rename",
+          "symbol": "construct",
+          "replacement": "model_construct"
+        }
+      ]
+    },
+    {
+      "id": "old_new_table_with_mixed_kinds",
+      "note": "An SDK upgrade guide that tabulates a method rename and a keyword-argument rename together.",
+      "text": "## Upgrading to 3.0\n\n| Old | New | Notes |\n|-----|-----|-------|\n| `client.fetch_orders()` | `client.list_orders()` | same signature |\n| `timeout_seconds=` | `timeout=` | still seconds |\n",
+      "expected_changes": [
+        {
+          "kind": "method_rename",
+          "symbol": "fetch_orders",
+          "replacement": "list_orders",
+          "owner": "client",
+          "owner_explicit": true
+        },
+        {
+          "kind": "kwarg_rename",
+          "symbol": "timeout_seconds",
+          "replacement": "timeout"
+        }
+      ]
+    },
+    {
+      "id": "field_table_on_a_named_object",
+      "note": "A payments API's changelog listing renamed properties of one object in a table.",
+      "text": "### Charge object\n\nThe following properties on the `Charge` object were renamed:\n\n| Before | After |\n| --- | --- |\n| `amount_cents` | `amount` |\n| `captured_at` | `capture_time` |\n",
+      "expected_changes": [
+        {
+          "kind": "field_rename",
+          "symbol": "amount_cents",
+          "replacement": "amount",
+          "owner": "Charge",
+          "owner_explicit": true
+        },
+        {
+          "kind": "field_rename",
+          "symbol": "captured_at",
+          "replacement": "capture_time",
+          "owner": "Charge",
+          "owner_explicit": true
+        }
+      ]
+    },
+    {
+      "id": "keep_a_changelog_changed_section",
+      "note": "Keep-a-Changelog style: a `### Changed` heading over a bullet per change, with no per-change headings.",
+      "text": "## [3.0.0] - 2026-03-01\n\n### Changed\n- **BREAKING:** `Client.fetch_all()` was renamed to `Client.list_all()`.\n- **BREAKING:** the `verify_ssl` keyword argument of `Client.get()` is now `verify`.\n\n### Added\n- `Client.list_all()` accepts a `page_size=` argument.\n",
+      "expected_changes": [
+        {
+          "kind": "method_rename",
+          "symbol": "fetch_all",
+          "replacement": "list_all",
+          "owner": "Client",
+          "owner_explicit": true
+        },
+        {
+          "kind": "kwarg_rename",
+          "symbol": "verify_ssl",
+          "replacement": "verify",
+          "owner": "get",
+          "owner_explicit": true
+        }
+      ]
+    },
+    {
+      "id": "bullets_mixing_supported_and_unsupported",
+      "note": "One section, four bullets. Two can be migrated; an endpoint move and an auth change cannot, and must be reported rather than dropped.",
+      "text": "## Breaking changes in 2.0\n\n- `fetch_all()` has been renamed to `list_all()`.\n- The `retries` keyword argument was renamed to `max_retries`.\n- The `/v1/orders` endpoint was moved to `/v2/orders`.\n- Authentication has changed: API keys must now be sent as a bearer token.\n",
+      "expected_changes": [
+        {
+          "kind": "method_rename",
+          "symbol": "fetch_all",
+          "replacement": "list_all"
+        },
+        {
+          "kind": "kwarg_rename",
+          "symbol": "retries",
+          "replacement": "max_retries"
+        },
+        {
+          "kind": "unsupported"
+        },
+        {
+          "kind": "unsupported"
+        }
+      ]
+    },
+    {
+      "id": "arrow_bullets_under_a_field_heading",
+      "note": "A terse list of arrows under a heading that says what they are.",
+      "text": "### Renamed response fields\n\n- `Order.total` \u2192 `Order.amount`\n- `Order.created` \u2192 `Order.created_at`\n",
+      "expected_changes": [
+        {
+          "kind": "field_rename",
+          "symbol": "total",
+          "replacement": "amount",
+          "owner": "Order",
+          "owner_explicit": true
+        },
+        {
+          "kind": "field_rename",
+          "symbol": "created",
+          "replacement": "created_at",
+          "owner": "Order",
+          "owner_explicit": true
+        }
+      ]
+    },
+    {
+      "id": "two_renames_in_one_sentence",
+      "note": "Two method renames joined by 'and' in a single sentence.",
+      "text": "### Client methods\n\nRenamed `fetch_orders()` to `list_orders()` and `fetch_order()` to `get_order()`.\n",
+      "expected_changes": [
+        {
+          "kind": "method_rename",
+          "symbol": "fetch_orders",
+          "replacement": "list_orders"
+        },
+        {
+          "kind": "method_rename",
+          "symbol": "fetch_order",
+          "replacement": "get_order"
+        }
+      ]
+    },
+    {
+      "id": "conventional_commit_breaking_change",
+      "note": "A release generated from conventional commits: the breaking change is a footer line, not a heading.",
+      "text": "## 4.0.0 (2026-05-02)\n\n### \u26a0 BREAKING CHANGES\n\n* **client:** `fetch_orders()` has been renamed to `list_orders()` ([#412](https://example.invalid/pull/412))\n\n### Features\n\n* **client:** add `list_orders(status=...)` filter ([#409](https://example.invalid/pull/409))\n",
+      "expected_changes": [
+        {
+          "kind": "method_rename",
+          "symbol": "fetch_orders",
+          "replacement": "list_orders"
+        }
+      ]
+    },
+    {
+      "id": "is_now_phrasing",
+      "note": "'X is now Y' with no verb 'renamed'.",
+      "text": "### Orders client\n\n- `OrdersClient.fetch_all()` is now `OrdersClient.list_all()`.\n",
+      "expected_changes": [
+        {
+          "kind": "method_rename",
+          "symbol": "fetch_all",
+          "replacement": "list_all",
+          "owner": "OrdersClient",
+          "owner_explicit": true
+        }
+      ]
+    },
+    {
+      "id": "is_now_called_field",
+      "note": "'is now called' for a response field.",
+      "text": "### Invoices\n\nThe `customer_id` field on `Invoice` objects is now called `customer`.\n",
+      "expected_changes": [
+        {
+          "kind": "field_rename",
+          "symbol": "customer_id",
+          "replacement": "customer",
+          "owner": "Invoice",
+          "owner_explicit": true
+        }
+      ]
+    },
+    {
+      "id": "deprecated_in_favor_of",
+      "note": "A deprecation that names its replacement is a rename the user should migrate to now.",
+      "text": "### Deprecations\n\n`Client.get()` is deprecated in favor of `Client.retrieve()` and will be removed in 5.0.\n",
+      "expected_changes": [
+        {
+          "kind": "method_rename",
+          "symbol": "get",
+          "replacement": "retrieve",
+          "owner": "Client",
+          "owner_explicit": true
+        }
+      ]
+    },
+    {
+      "id": "use_instead_of_reversed_order",
+      "note": "'Use NEW instead of OLD' states the rename with the names in reverse order.",
+      "text": "### Migration\n\nUse `list_all()` instead of `fetch_all()`; `fetch_all()` was removed.\n",
+      "expected_changes": [
+        {
+          "kind": "method_rename",
+          "symbol": "fetch_all",
+          "replacement": "list_all"
+        }
+      ]
+    },
+    {
+      "id": "replaced_by_phrasing",
+      "note": "'has been replaced by' for a keyword argument.",
+      "text": "### HTTP options\n\nThe `verify_ssl` parameter has been replaced by `verify`.\n",
+      "expected_changes": [
+        {
+          "kind": "kwarg_rename",
+          "symbol": "verify_ssl",
+          "replacement": "verify"
+        }
+      ]
+    },
+    {
+      "id": "field_returned_as_in_prose",
+      "note": "A response field rename described from the API's point of view.",
+      "text": "### Order responses\n\nIn API responses, the `total` field is now returned as `amount`.\n",
+      "expected_changes": [
+        {
+          "kind": "field_rename",
+          "symbol": "total",
+          "replacement": "amount"
+        }
+      ]
+    },
+    {
+      "id": "stripe_style_property_renamed",
+      "note": "'property on the X object has been renamed' -- the object is named in prose, capitalized as the API reference does.",
+      "text": "### API version 2026-04-01\n\nThe `amount_cents` property on the `Charge` object has been renamed to `amount`.\n",
+      "expected_changes": [
+        {
+          "kind": "field_rename",
+          "symbol": "amount_cents",
+          "replacement": "amount",
+          "owner": "Charge",
+          "owner_explicit": true
+        }
+      ]
+    },
+    {
+      "id": "dotted_method_without_the_word_method",
+      "note": "A GitHub release note: a dotted call renamed, with nothing calling it a method.",
+      "text": "## v2.0.0\n\n**Breaking:** `Client.fetch_all()` was renamed to `Client.list_all()`.\n",
+      "expected_changes": [
+        {
+          "kind": "method_rename",
+          "symbol": "fetch_all",
+          "replacement": "list_all",
+          "owner": "Client",
+          "owner_explicit": true
+        }
+      ]
+    },
+    {
+      "id": "kwarg_on_two_functions",
+      "note": "A keyword argument renamed on two functions at once. The rename is clear; which function owns it is not a single answer, so the owner is not asserted.",
+      "text": "### Requests\n\nThe `verify_ssl` keyword argument of `get()` and `post()` has been renamed to `verify`.\n",
+      "expected_changes": [
+        {
+          "kind": "kwarg_rename",
+          "symbol": "verify_ssl",
+          "replacement": "verify"
+        }
+      ]
+    },
+    {
+      "id": "object_named_without_backticks",
+      "note": "An API reference capitalizes the object and leaves it unformatted: 'on the Charge object'.",
+      "text": "### Charges\n\n- The `amount_cents` property on the Charge object has been renamed to `amount`.\n  Integrations reading `charge.amount_cents` must read `charge.amount` instead.\n",
+      "expected_changes": [
+        {
+          "kind": "field_rename",
+          "symbol": "amount_cents",
+          "replacement": "amount",
+          "owner": "Charge",
+          "owner_explicit": true
+        }
+      ]
+    },
+    {
+      "id": "kind_shown_only_by_the_example",
+      "note": "Nothing in the prose says 'method'; the code sample shows the old name being called. The owner is stated after the names.",
+      "text": "## Breaking\n\nWe renamed `fetch_all` to `list_all` on `Client`.\n\n```python\n# before\nitems = client.fetch_all(limit=10)\n# after\nitems = client.list_all(limit=10)\n```\n",
+      "expected_changes": [
+        {
+          "kind": "method_rename",
+          "symbol": "fetch_all",
+          "replacement": "list_all",
+          "owner": "Client",
+          "owner_explicit": true
+        }
+      ]
+    },
+    {
+      "id": "ambiguous_dotted_rename_is_not_guessed",
+      "note": "`Client.fetch_all` -> `Client.list_all` with no parentheses, noun, or example: a method or an attribute. Guessing either could patch the wrong construct.",
+      "text": "## 2.0.0\n\n### Changed\n\n- **Breaking:** `Client.fetch_all` is now `Client.list_all`.\n",
+      "expected_changes": []
+    },
+    {
+      "id": "type_change_is_not_a_rename",
+      "note": "'is now `float`' changes a type, not a name.",
+      "text": "### Timeouts\n\nThe `timeout` argument is now `float`; integers are still accepted.\n",
+      "expected_changes": []
+    },
+    {
+      "id": "rst_changelog",
+      "note": "A Python library's CHANGES.rst: underlined headings and double-backtick literals.",
+      "suffix": ".rst",
+      "text": "Version 3.0.0\n=============\n\nBreaking changes\n----------------\n\n- ``fetch_orders()`` was renamed to ``list_orders()``.\n- The ``timeout_seconds`` keyword argument was renamed to ``timeout``.\n",
+      "expected_changes": [
+        {
+          "kind": "method_rename",
+          "symbol": "fetch_orders",
+          "replacement": "list_orders"
+        },
+        {
+          "kind": "kwarg_rename",
+          "symbol": "timeout_seconds",
+          "replacement": "timeout"
+        }
+      ]
+    },
+    {
+      "id": "bundled_style_headed_sections",
+      "note": "The shape PatchAhead already reads: one heading per change, with Before/After bullets.",
+      "text": "# Orders SDK v2\n\n## Breaking changes\n\n### Client method renamed: `fetch_orders` \u2192 `list_orders`\n\n- **Before:** `client.fetch_orders(limit=10)`\n- **After:** `client.list_orders(limit=10)`\n\n### Keyword argument renamed: `timeout_seconds` \u2192 `timeout`\n\n- **Before:** `client.list_orders(timeout_seconds=30)`\n- **After:** `client.list_orders(timeout=30)`\n",
+      "expected_changes": [
+        {
+          "kind": "method_rename",
+          "symbol": "fetch_orders",
+          "replacement": "list_orders"
+        },
+        {
+          "kind": "kwarg_rename",
+          "symbol": "timeout_seconds",
+          "replacement": "timeout"
+        }
+      ]
+    },
+    {
+      "id": "pagination_with_vendor_field_names",
+      "note": "A cursor migration whose response fields are not the defaults.",
+      "text": "### List endpoints are now cursor-based\n\nPage-based pagination has been removed. Instead of `page` and `num_pages`,\npass `cursor` and read `next_page_cursor`; stop when `has_more` is false.\n",
+      "expected_changes": [
+        {
+          "kind": "pagination_page_to_cursor",
+          "pagination": {
+            "total_pages_key": "num_pages",
+            "next_cursor_key": "next_page_cursor",
+            "has_more_key": "has_more"
+          }
+        }
+      ]
+    },
+    {
+      "id": "namespace_move_is_not_a_rename",
+      "note": "Modeled on an AI SDK's v0 -> v1 move from module-level calls to a client object. The last name is unchanged; what changed is everything around it. Reading it as `create` -> `create` would be a no-op 'migration'.",
+      "text": "## v1.0.0 migration\n\n- `openai.ChatCompletion.create()` \u2192 `client.chat.completions.create()`\n- `openai.Completion.create()` \u2192 `client.completions.create()`\n",
+      "expected_changes": [
+        {
+          "kind": "unsupported"
+        },
+        {
+          "kind": "unsupported"
+        }
+      ]
+    },
+    {
+      "id": "removal_without_replacement",
+      "note": "A removal with no new name gives nothing to rename to.",
+      "text": "### Removed\n\n- The `retries` argument was removed. Configure retries on the transport instead.\n",
+      "expected_changes": []
+    },
+    {
+      "id": "deprecation_without_replacement",
+      "note": "Deprecated, no replacement named, nothing to migrate yet.",
+      "text": "### Deprecations\n\n- `fetch_orders()` is deprecated and will be removed in 3.0.\n",
+      "expected_changes": []
+    },
+    {
+      "id": "additions_only",
+      "note": "Only additions. Names appear, nothing breaks.",
+      "text": "## 2.4.0\n\n### Added\n- `list_orders()` now accepts `status=`.\n- New `Order.created_at` field.\n",
+      "expected_changes": []
+    },
+    {
+      "id": "vague_prose",
+      "note": "Breaking, but says nothing a tool can act on.",
+      "text": "## 5.0\n\nWe've modernised the orders client. Some methods and fields have changed; see the\nAPI reference for details.\n",
+      "expected_changes": []
+    },
+    {
+      "id": "renamed_argument_passed_to",
+      "note": "Names two symbols and renames neither: 'the `client` argument passed to `fetch_orders`'.",
+      "text": "### Notes\n\nWe renamed the `client` argument passed to `fetch_orders` in our examples for clarity.\n",
+      "expected_changes": []
+    },
+    {
+      "id": "config_class_restructure",
+      "note": "Modeled on a class-based config becoming a dict attribute: a restructuring, not a rename.",
+      "text": "### Model configuration\n\nThe inner `class Config:` has been replaced by a `model_config` dictionary.\n",
+      "expected_changes": [
+        {
+          "kind": "unsupported"
+        }
+      ]
+    },
+    {
+      "id": "before_after_code_fences_only",
+      "note": "The rename is only visible by comparing two code samples; the prose never names it.",
+      "known_gap": "reading a rename out of a before/after code diff needs comparing the two snippets, which the parser does not do",
+      "text": "### Timeouts\n\nBefore:\n\n```python\nclient.fetch(timeout_seconds=5)\n```\n\nAfter:\n\n```python\nclient.fetch(timeout=5)\n```\n",
+      "expected_changes": [
+        {
+          "kind": "kwarg_rename",
+          "symbol": "timeout_seconds",
+          "replacement": "timeout",
+          "owner": "fetch"
+        }
+      ]
+    },
+    {
+      "id": "aws_style_token_pagination",
+      "note": "Token pagination with vendor parameter names: the request parameter changes as well as the response fields.",
+      "known_gap": "the pagination contract reads response-field names but not renamed request parameters (`PageNumber` -> `NextToken`)",
+      "text": "### ListOrders pagination\n\n`ListOrders` no longer accepts `PageNumber`. Pass the `NextToken` from the previous\nresponse; the last page is the one whose `IsTruncated` is false.\n",
+      "expected_changes": [
+        {
+          "kind": "pagination_page_to_cursor",
+          "pagination": {
+            "page_param": "PageNumber",
+            "cursor_param": "NextToken",
+            "next_cursor_key": "NextToken",
+            "has_more_key": "IsTruncated"
+          }
+        }
+      ]
+    }
+  ]
+}

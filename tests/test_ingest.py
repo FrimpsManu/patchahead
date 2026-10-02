@@ -105,6 +105,153 @@ class TestSymbolExtraction:
         assert change.target.symbol == "name"
 
 
+class TestStatementsWithinASection:
+    """Vendors list several changes under one heading; each is read on its own."""
+
+    def readings(self, text: str, suffix: str = ".md"):
+        return [
+            (c.kind.value, c.target.symbol, c.target.replacement, c.target.owner)
+            for c in parse_text(text, suffix)
+        ]
+
+    def test_each_table_row_is_a_change(self):
+        assert self.readings(
+            """
+            ## Migrating to v2
+
+            | v1 | v2 |
+            |----|----|
+            | `.dict()` | `.model_dump()` |
+            | `.parse_obj()` | `.model_validate()` |
+            """
+        ) == [
+            ("method_rename", "dict", "model_dump", ""),
+            ("method_rename", "parse_obj", "model_validate", ""),
+        ]
+
+    def test_table_columns_are_chosen_by_their_headers(self):
+        """ "Notes | Before | After" -- the old name is not in the first column."""
+        assert self.readings(
+            """
+            ### Renamed Charge properties
+
+            | Notes | Before | After |
+            | --- | --- | --- |
+            | same type | `amount_cents` | `amount` |
+            """
+        ) == [("field_rename", "amount_cents", "amount", "")]
+
+    def test_a_bullet_that_cannot_be_migrated_is_reported_not_dropped(self):
+        changes = parse_text(
+            """
+            ## Breaking changes
+
+            - `fetch_all()` has been renamed to `list_all()`.
+            - The `/v1/orders` endpoint was moved to `/v2/orders`.
+            """
+        )
+
+        assert [c.kind for c in changes] == [ChangeKind.METHOD_RENAME, ChangeKind.UNSUPPORTED]
+        assert "endpoint" in changes[1].classification_reason
+
+    def test_two_renames_in_one_sentence(self):
+        assert self.readings(
+            "### Client\n\nRenamed `fetch_orders()` to `list_orders()` and `fetch_order()` "
+            "to `get_order()`.\n"
+        ) == [
+            ("method_rename", "fetch_orders", "list_orders", ""),
+            ("method_rename", "fetch_order", "get_order", ""),
+        ]
+
+    def test_a_clause_between_the_name_and_the_verb_does_not_become_the_name(self):
+        """ "of `get()` and `post()` has been renamed to `verify`" renames `verify_ssl`."""
+        assert self.readings(
+            """
+            ### Requests
+
+            The `verify_ssl` keyword argument of `get()` and `post()` has been renamed to `verify`.
+            """
+        ) == [("kwarg_rename", "verify_ssl", "verify", "")]
+
+    def test_a_statement_gets_its_own_line_number(self):
+        changes = parse_text(
+            """
+            ## Breaking changes
+
+            - `fetch_one()` -> `get_one()`
+            - `fetch_all()` -> `list()`
+            """
+        )
+
+        assert [c.evidence[0].line for c in changes] == [3, 4]
+
+    def test_a_single_rename_still_reads_its_before_after_example(self):
+        change = parse_text(
+            """
+            ### Method renamed: `fetch_orders` -> `list_orders`
+
+            - **Before:** `client.fetch_orders(limit=10)`
+            """
+        )[0]
+
+        assert (change.target.owner, change.target.owner_is_explicit) == ("client", False)
+        assert change.old_behavior == "`client.fetch_orders(limit=10)`"
+
+
+class TestWhatIsNotARename:
+    def test_a_namespace_move_is_unsupported(self):
+        """`create` -> `create` would be a migration that changes nothing."""
+        change = parse_text(
+            "### v1\n\n- `openai.Completion.create()` -> `client.completions.create()`\n"
+        )[0]
+
+        assert change.kind is ChangeKind.UNSUPPORTED
+        assert "move" in change.classification_reason
+
+    def test_a_type_change_is_not_a_rename(self):
+        changes = parse_text("### Timeouts\n\nThe `timeout` argument is now `float`.\n")
+
+        assert all(not c.target.is_rename for c in changes)
+
+    def test_cursor_pagination_that_never_names_the_cursor_is_unsupported(self):
+        """The handler would write `cursor=` and `next_cursor` -- names this vendor never used."""
+        change = parse_text(
+            """
+            ### Pagination is now cursor-based
+
+            Page-based pagination was removed. Pass `starting_after` with the last
+            object's ID; `has_more` tells you whether to continue.
+            """
+        )[0]
+
+        assert change.kind is ChangeKind.UNSUPPORTED
+        assert "never names a `cursor`" in change.classification_reason
+
+
+class TestRestructuredText:
+    def test_underlined_headings_and_double_backticks(self):
+        changes = parse_text(
+            """
+            Version 3.0.0
+            =============
+
+            Breaking changes
+            ----------------
+
+            - ``fetch_orders()`` was renamed to ``list_orders()``.
+            - The ``timeout_seconds`` keyword argument was renamed to ``timeout``.
+            """,
+            suffix=".rst",
+        )
+
+        assert [(c.kind, c.target.symbol) for c in changes] == [
+            (ChangeKind.METHOD_RENAME, "fetch_orders"),
+            (ChangeKind.KWARG_RENAME, "timeout_seconds"),
+        ]
+        # The underline became a blank line, so line numbers still match the file.
+        assert changes[0].evidence[0].line == 7
+
+
 class TestDocumentStructure:
     def test_a_multi_change_document_yields_several_changes(self):
         changes = parse_text(

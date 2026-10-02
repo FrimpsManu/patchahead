@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import subprocess
+import time
 
 import pytest
 
@@ -211,8 +212,7 @@ class TestCommandExecution:
                 workspace.run(command, timeout=2)
 
             pid = int((workspace.root / "child.pid").read_text())
-            with pytest.raises(ProcessLookupError):
-                os.kill(pid, 0)
+            assert _exits_within(pid, seconds=10), f"test runner {pid} is still running"
 
 
 class TestLineEndings:
@@ -241,3 +241,25 @@ class TestLineEndings:
             workspace.restore()
 
             assert (workspace.root / "a.py").read_bytes() == original
+
+
+def _exits_within(pid: int, seconds: float) -> bool:
+    """Whether ``pid`` stops running within ``seconds``.
+
+    A killed process lingers as a zombie until whoever inherits it reaps it --
+    here that is init, after the shell that started it was killed too -- and
+    that happens on its own schedule. A zombie runs nothing, so it counts.
+    """
+    deadline = time.monotonic() + seconds
+    while time.monotonic() < deadline:
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            return True
+        state = subprocess.run(
+            ["ps", "-o", "stat=", "-p", str(pid)], capture_output=True, text=True, check=False
+        ).stdout.strip()
+        if not state or state.startswith("Z"):
+            return True
+        time.sleep(0.05)
+    return False

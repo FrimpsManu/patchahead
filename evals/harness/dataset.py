@@ -78,6 +78,54 @@ class ClassificationCase(CaseSpec):
 
 
 @dataclass(frozen=True)
+class ReleaseNoteCase(CaseSpec):
+    """A whole release note and every change a correct reading finds in it.
+
+    Each entry of ``expected_changes`` has a ``kind`` and, optionally, the
+    ``symbol``, ``replacement``, ``owner`` and ``owner_explicit`` it must be read
+    with, and for a pagination change a ``pagination`` object of the contract
+    fields it must name -- an omitted field is not asserted. An empty list means
+    the document has nothing to act on.
+    """
+
+    text: str = ""
+    #: How the document is named on disk, which decides the parser.
+    suffix: str = ".md"
+    expected_changes: list[dict[str, Any]] = field(default_factory=list)
+
+    REQUIRED = ("id", "text", "expected_changes")
+
+    #: Keys an expected change may carry, and the kinds it may name.
+    CHANGE_KEYS = frozenset(
+        {"kind", "symbol", "replacement", "owner", "owner_explicit", "pagination"}
+    )
+    KINDS = frozenset(
+        {
+            "field_rename",
+            "method_rename",
+            "kwarg_rename",
+            "pagination_page_to_cursor",
+            "unsupported",
+        }
+    )
+
+    def __post_init__(self) -> None:
+        for expected in self.expected_changes:
+            if not isinstance(expected, dict):
+                raise DatasetError(f"case {self.id!r}: each expected change must be an object")
+            unknown = sorted(set(expected) - self.CHANGE_KEYS)
+            if unknown:
+                raise DatasetError(
+                    f"case {self.id!r}: expected change has unknown key(s) {', '.join(unknown)}"
+                )
+            if expected.get("kind") not in self.KINDS:
+                raise DatasetError(
+                    f"case {self.id!r}: expected change kind must be one of "
+                    f"{', '.join(sorted(self.KINDS))}, got {expected.get('kind')!r}"
+                )
+
+
+@dataclass(frozen=True)
 class SiteCase(CaseSpec):
     """A change plus a repository, and the sites a correct tool patches.
 

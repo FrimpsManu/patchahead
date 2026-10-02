@@ -7,6 +7,48 @@ this project uses [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed (reading release notes)
+
+- **One section can hold several changes.** Each bullet, table row, and
+  paragraph is read on its own, so a table of four renamed methods yields four
+  changes, and "Renamed `a()` to `b()` and `c()` to `d()`" yields two. A section
+  that states a single rename is still read as a whole, so its Before/After
+  example can still supply an owner.
+- **Changes that cannot be migrated are reported, not dropped.** A bullet about
+  an endpoint move or an authentication change next to two renames used to be
+  lost; it is now an `unsupported` change with a reason.
+- **More phrasings:** tables (columns chosen by their "Old"/"New",
+  "Before"/"After", "v1"/"v2" headers), "is now (called)", "has been replaced
+  by", "deprecated in favor of", "use X instead of Y", "replace X with Y",
+  conventional-commit footers, and reStructuredText (underlined headings,
+  double-backtick literals). Keep-a-Changelog `Added` and `Features` sections no
+  longer contribute changes; `Deprecations` sections now do, since a deprecation
+  that names its replacement is a migration.
+- **The kind of rename is read from how the names are written**: `x()` is a
+  call, `x=` a keyword, a noun beside the name ("the `x` property"), or how the
+  document's code examples use it -- before falling back to section-wide
+  signals.
+- **An owner named as a class matches the instance in code.** `Charge` matches
+  `charge`, `PaymentIntent` matches `payment_intent`. An API reference's
+  capitalized object name ("on the Charge object") is read without backticks.
+- A `release_notes` benchmark suite: 33 whole documents, scored change by
+  change, with `misread_changes` asserted at zero.
+
+### Fixed (reading release notes)
+
+- **A clause between a name and its verb no longer becomes the name.** "The
+  `verify_ssl` keyword argument of `get()` and `post()` has been renamed to
+  `verify`" was read as `post` -> `verify`.
+- **A namespace move is not a rename.** `openai.Completion.create()` ->
+  `client.completions.create()` keeps the name `create`; it is reported as
+  unsupported rather than read as a no-op rename.
+- **A type change is not a rename.** "The `timeout` argument is now `float`" is
+  no longer read as `timeout` -> `float`.
+- **Cursor pagination that never names its cursor is not migrated.** A note
+  moving to `starting_after` or `NextToken` was migrated with the default names
+  `cursor` and `next_cursor`, which that vendor never used. It is now reported
+  as unsupported.
+
 ### Fixed (reliability)
 
 - **`.git` and other top-level dot-directories are no longer copied into the

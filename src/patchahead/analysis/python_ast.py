@@ -30,6 +30,7 @@ The tree is walked once per file and the result is cached by
 from __future__ import annotations
 
 import ast
+import re
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 
@@ -152,9 +153,11 @@ def receiver_matches_owner(receiver: str, owner: str) -> bool:
 
     Matches on the leftmost or the rightmost segment, so both ``order`` and
     ``self.order`` match an owner of ``order`` while ``customer`` and
-    ``self.cache`` do not. Deliberately narrow: this is the predicate that
-    decides whether a rename is applied automatically, and a loose match here is
-    exactly how unrelated code gets corrupted.
+    ``self.cache`` do not. Case and naming style are ignored, so an owner of
+    ``Charge`` or ``PaymentIntent`` matches ``charge`` and ``payment_intent``.
+    Deliberately narrow otherwise: this is the predicate that decides whether a
+    rename is applied automatically, and a loose match here is exactly how
+    unrelated code gets corrupted.
 
     An unnameable receiver -- a comprehension, a chained subscript -- yields
     ``""`` and never matches, so it fails closed.
@@ -162,7 +165,15 @@ def receiver_matches_owner(receiver: str, owner: str) -> bool:
     if not receiver or not owner:
         return False
     segments = [segment.removesuffix("()") for segment in receiver.split(".")]
-    return owner in (segments[0], segments[-1])
+    # An API reference names the class (`Charge`, `PaymentIntent`); code names
+    # the instance (`charge`, `payment_intent`). Same object, two spellings.
+    wanted = _snake(owner)
+    return wanted in (_snake(segments[0]), _snake(segments[-1]))
+
+
+def _snake(name: str) -> str:
+    """``PaymentIntent`` -> ``payment_intent``; ``order`` is unchanged."""
+    return re.sub(r"(?<=[a-z0-9])(?=[A-Z])", "_", name).lower()
 
 
 def iter_own_scope(node: ast.AST) -> Iterator[ast.AST]:

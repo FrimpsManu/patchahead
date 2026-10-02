@@ -586,6 +586,28 @@
       ]
     },
     {
+      "id": "class_named_owner_matches_its_instance_only",
+      "note": "API references name the class (`Charge`); code names the instance (`charge`). The owner must match across that spelling and still refuse an unrelated `customer`.",
+      "change": {
+        "kind": "field_rename",
+        "symbol": "amount_cents",
+        "replacement": "amount",
+        "owner": "Charge"
+      },
+      "files": {
+        "app/a.py": "def totals(charge, customer, payment_intent):\n    paid = charge[\"amount_cents\"]\n    owed = customer[\"amount_cents\"]\n    return paid - owed\n"
+      },
+      "expect_patched": [
+        "app/a.py:2"
+      ],
+      "expect_reported_only": [
+        "app/a.py:3"
+      ],
+      "expect_source_contains": [
+        "customer[\"amount_cents\"]"
+      ]
+    },
+    {
       "id": "loop_variable_aliases_the_owner",
       "known_gap": "the loop variable `o` is an `order`, but showing that needs alias analysis over the iterable; PatchAhead reports the site and declines to patch it (roadmap PR #8)",
       "note": "The dominant known false negative, written down as an executable case rather than left out of the dataset. Under-migrating is survivable -- a missed site is fixed by hand -- but it is still a miss, and it stays visible in the benchmark until it is fixed.",

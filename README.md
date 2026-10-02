@@ -57,9 +57,9 @@ alone.
 
 | | |
 |---|---|
-| **0 false-positive patches** | across the 41 site-detection cases (`impact` + `adversarial`), covering 42 scored patch sites: 42 found, 0 wrong, precision and recall 1.0. The other 37 cases measure classification, end-to-end migration, and the validation gates themselves — 74 of 78 pass, and the 4 that do not are recorded gaps, listed in [docs/evaluation.md](docs/evaluation.md#the-gaps-that-remain). The 33 adversarial cases are written to fool it: unrelated objects sharing a field name, strings that merely contain it, `os.environ.get` beside a renamed `client.get`, the built-in `dict()` beside a renamed `.dict()`, Unicode before an edit site, nested scopes, comprehensions, already-migrated code. Recomputed on every CI run. |
+| **0 false-positive patches** | across the 42 site-detection cases (`impact` + `adversarial`), covering 43 scored patch sites: 43 found, 0 wrong, precision and recall 1.0. The other 70 cases measure release-note reading, end-to-end migration, and the validation gates themselves — 106 of 112 pass, and the 6 that do not are recorded gaps, listed in [docs/evaluation.md](docs/evaluation.md#the-gaps-that-remain). The 33 adversarial cases are written to fool it: unrelated objects sharing a field name, strings that merely contain it, `os.environ.get` beside a renamed `client.get`, the built-in `dict()` beside a renamed `.dict()`, Unicode before an edit site, nested scopes, comprehensions, already-migrated code. Recomputed on every CI run. |
 | **4 recorded gaps, none of them a wrong edit** | Each is a case stating what a *correct* tool does, run and scored on every build. All four are aliasing — `for o in orders`, `current = order`, `self._order`, `factory.get_client()` — and in all four PatchAhead finds the site and declines to rewrite it. A gap may only under-patch: a marked case that produces a wrong edit fails the build anyway, and a marked case that starts passing fails it too. |
-| **468 automated tests** | covering unit, integration, and end-to-end behavior. Deterministic migrations, filesystem workspaces, subprocess test execution, packaging, and clean-wheel installs are exercised for real; the Anthropic API is mocked because it is remote, paid, and non-deterministic. |
+| **488 automated tests** | covering unit, integration, and end-to-end behavior. Deterministic migrations, filesystem workspaces, subprocess test execution, packaging, and clean-wheel installs are exercised for real; the Anthropic API is mocked because it is remote, paid, and non-deterministic. |
 | **Five gates decide, nothing else** | `syntax → scope → targeted_tests → regression_tests → migration_assertion`. `MigrationResult.succeeded` is defined as "the assertion gate passed", and that gate passes only on red-to-green evidence — a green-to-green run, a suite still red, or a test runner that never started all report `patched_unverified`, not success. |
 | **No runtime dependencies** | on Python 3.11+. The core is `argparse` and `ast`. A migration tool a team has to vet three transitive dependencies for is one they will not install. |
 
@@ -380,9 +380,14 @@ no tool:
 - **Test discovery is name-based.** `app/client.py` → `tests/test_client.py`.
   It does not trace imports, which is why the regression gate always runs the
   full suite too.
-- **Release-note parsing is heuristic.** Measured, not assumed:
-  `python evals/run.py` reports current accuracy. Structured JSON/YAML input
-  exists for when prose is not good enough.
+- **Release-note parsing is heuristic.** It reads headings, bullets, tables,
+  reStructuredText, and the common phrasings ("renamed to", "is now",
+  "deprecated in favor of", "use X instead of Y"), one change per statement.
+  Measured, not assumed: the `release_notes` benchmark scores 33 documents
+  written the way vendors publish them, and a reading with the wrong names is a
+  hard failure. A rename it cannot place -- `Client.fetch_all` -> `Client.list_all`
+  with nothing saying whether that is a method or an attribute -- is reported,
+  not guessed. Structured JSON/YAML input exists for when prose is not enough.
 - **Single repository, local only.** No monorepo-aware cross-package analysis,
   no GitHub integration.
 

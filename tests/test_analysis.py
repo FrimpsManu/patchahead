@@ -275,6 +275,12 @@ class TestReceiverNames:
             ("", "order", False),
             ("order", "", False),
             ("get_orders()", "order", False),
+            # An API reference names the class; code names the instance.
+            ("charge", "Charge", True),
+            ("self.payment_intent", "PaymentIntent", True),
+            ("Client()", "Client", True),
+            ("customer", "Charge", False),
+            ("paymentintent", "PaymentIntent", False),
         ],
     )
     def test_receiver_matches_owner(self, receiver, owner, expected):
