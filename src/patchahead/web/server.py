@@ -21,14 +21,23 @@ look at, and nothing else.
 
 Binds to 127.0.0.1. It runs a repository's test command, so it must not be
 exposed to a network -- see ``docs/safety.md``.
+
+Binding to loopback keeps other machines out, but not other *web pages*: any
+site open in the same browser can send a request to ``127.0.0.1``. So every
+request must name a loopback host (which defeats DNS rebinding, where an
+attacker's domain is re-pointed at 127.0.0.1), a cross-origin ``Origin`` is
+refused, and anything that is not a read needs the per-process token embedded in
+the page this server serves -- which another origin cannot read.
 """
 
 from __future__ import annotations
 
 import argparse
 import logging
+import secrets
 from collections.abc import Sequence
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from patchahead import __version__, engine, handlers, observability, reporting
 from patchahead.config import ConfigError
@@ -41,6 +50,20 @@ log = logging.getLogger("patchahead.web")
 
 #: Allowed change-document extensions, mirroring what the ingest layer reads.
 DOCUMENT_SUFFIXES = {".md", ".txt", ".rst", ".json", ".yaml", ".yml"}
+
+#: Host names a request may address. Anything else is a page on another origin
+#: that resolved its own domain to 127.0.0.1.
+LOOPBACK_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
+
+#: The header a state-changing request must carry, and the placeholder in the
+#: served page that is replaced with its value.
+TOKEN_HEADER = "X-PatchAhead-Token"
+TOKEN_PLACEHOLDER = "__PATCHAHEAD_TOKEN__"
+
+
+def _hostname(netloc: str) -> str:
+    """``127.0.0.1:8000`` -> ``127.0.0.1``; ``[::1]:8000`` -> ``::1``."""
+    return (urlsplit(f"//{netloc}").hostname or "") if netloc else ""
 
 
 def static_root() -> Path:
@@ -70,7 +93,7 @@ def create_app(repo: Path, changes_dir: Path, scenarios: Sequence[Scenario] = ()
     both of which are ordinary engine inputs.
     """
     try:
-        from fastapi import FastAPI, HTTPException
+        from fastapi import FastAPI, HTTPException, Request
         from fastapi.responses import HTMLResponse, JSONResponse
     except ImportError:  # pragma: no cover - optional dependency
         raise SystemExit(
@@ -80,6 +103,24 @@ def create_app(repo: Path, changes_dir: Path, scenarios: Sequence[Scenario] = ()
 
     app = FastAPI(title="PatchAhead", version=__version__, docs_url=None, redoc_url=None)
     by_id = {scenario.id: scenario for scenario in scenarios}
+    token = secrets.token_urlsafe(32)
+    app.state.token = token
+
+    @app.middleware("http")
+    async def same_machine_same_page(request: Request, call_next):
+        """Refuse requests another web page could have made. See the module docstring."""
+        if _hostname(request.headers.get("host", "")) not in LOOPBACK_HOSTS:
+            return JSONResponse({"detail": "this server only answers to localhost"}, 403)
+        origin = request.headers.get("origin")
+        if origin is not None and _hostname(urlsplit(origin).netloc) not in LOOPBACK_HOSTS:
+            return JSONResponse({"detail": "cross-origin requests are refused"}, 403)
+        if request.method not in ("GET", "HEAD") and not secrets.compare_digest(
+            request.headers.get(TOKEN_HEADER, ""), token
+        ):
+            return JSONResponse(
+                {"detail": f"missing or wrong {TOKEN_HEADER}; reload the page"}, 403
+            )
+        return await call_next(request)
 
     def _resolve_change(name: str) -> Path:
         """Resolve a change-document name inside the configured directory.
@@ -94,7 +135,8 @@ def create_app(repo: Path, changes_dir: Path, scenarios: Sequence[Scenario] = ()
 
     @app.get("/", response_class=HTMLResponse)
     def index() -> HTMLResponse:
-        return HTMLResponse(index_path().read_text(encoding="utf-8"))
+        page = index_path().read_text(encoding="utf-8")
+        return HTMLResponse(page.replace(TOKEN_PLACEHOLDER, token))
 
     @app.get("/api/context")
     def context() -> JSONResponse:

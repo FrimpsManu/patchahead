@@ -655,3 +655,131 @@ class TestAvailability:
 
         assert ok is False
         assert reason
+
+
+METHOD_LOOP = """
+class Svc:
+    name = "svc"
+
+    def sync(self, api):
+        page = 1
+        out = []
+        while True:
+            r = api.get_orders(page=page)
+            out.extend(r["orders"])
+            if page >= r["total_pages"]:
+                break
+            page += 1
+        return out
+"""
+
+METHOD_MIGRATED = """    def sync(self, api):
+        cursor = None
+        out = []
+        while True:
+            r = api.get_orders(cursor=cursor)
+            out.extend(r["orders"])
+            if not r.get("has_more"):
+                break
+            cursor = r.get("next_cursor")
+        return out"""
+
+
+@pytest.fixture
+def two_file_scene(make_repo):
+    """A module-level function in one file and a method in another, both blocked."""
+    root = make_repo({"app/sync.py": LOOP, "app/svc.py": METHOD_LOOP, "conftest.py": ""})
+    workspace = Workspace.materialize(Repository.open(root))
+    change = BreakingChange(
+        title="Pagination is now cursor-based",
+        kind=ChangeKind.PAGINATION_PAGE_TO_CURSOR,
+        pagination=PaginationContract(),
+    )
+    report = ImpactReport(
+        change=change,
+        findings=[
+            ImpactFinding(
+                reference=CodeReference(path=path, line=line),
+                symbol=symbol,
+                matched_contract="while True: ... page=page",
+                access=AccessKind.PAGE_LOOP,
+                reason="page loop",
+                confidence=Confidence.HIGH,
+                patchable=False,
+            )
+            for path, line, symbol in (("app/sync.py", 8, "sync"), ("app/svc.py", 8, "Svc.sync"))
+        ],
+    )
+    plan = MigrationPlan(
+        change=change,
+        handler="pagination_page_to_cursor",
+        blocked_reason="`page` is also used outside the loop's bookkeeping",
+    )
+    try:
+        yield change, report, workspace.index(), workspace, plan
+    finally:
+        workspace.cleanup()
+
+
+def method_proposal(method_source: str) -> StubClient:
+    return StubClient(
+        response(
+            functions=[
+                {"path": "app/sync.py", "function": "sync", "new_source": MIGRATED},
+                {"path": "app/svc.py", "function": "Svc.sync", "new_source": method_source},
+            ]
+        )
+    )
+
+
+class TestPlacement:
+    """The contract check reads the proposal alone; placement needs the patched file."""
+
+    def test_a_method_sent_back_at_module_level_is_refused(self, two_file_scene):
+        """Same name, same parameters -- but no longer a method of `Svc`."""
+        dedented = "\n".join(line[4:] for line in METHOD_MIGRATED.splitlines())
+
+        result = propose(two_file_scene, method_proposal(dedented))
+
+        assert not result.ok
+        assert "no longer sits where the original did" in result.error
+
+    def test_a_correctly_indented_method_is_accepted(self, two_file_scene):
+        result = propose(two_file_scene, method_proposal(METHOD_MIGRATED))
+
+        assert result.ok, result.error
+        assert sorted(result.changed_files) == ["app/svc.py", "app/sync.py"]
+
+    def test_a_rejection_in_one_file_leaves_no_edit_in_another(self, two_file_scene):
+        """`app/sync.py` was valid and came first; it must not be written alone."""
+        _, _, _, workspace, _ = two_file_scene
+        dedented = "\n".join(line[4:] for line in METHOD_MIGRATED.splitlines())
+
+        propose(two_file_scene, method_proposal(dedented))
+
+        assert workspace.changed_files() == []
+        assert workspace.contains_model_code is False
+
+
+class TestCredentials:
+    """Code a model wrote does not get the key that pays for the model."""
+
+    COMMAND = "python -c \"import os; print(os.environ.get('ANTHROPIC_API_KEY', '<none>'))\""
+
+    def test_tests_keep_the_key_before_any_model_code_is_written(self, scene, monkeypatch):
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
+        _, _, _, workspace, _ = scene
+
+        assert workspace.run(self.COMMAND).stdout.strip() == "sk-test"
+
+    def test_tests_lose_the_key_once_a_model_proposal_is_applied(self, scene, monkeypatch):
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
+        _, _, _, workspace, _ = scene
+        stub = StubClient(
+            response(
+                functions=[{"path": "app/sync.py", "function": "sync", "new_source": MIGRATED}]
+            )
+        )
+
+        assert propose(scene, stub).ok
+        assert workspace.run(self.COMMAND).stdout.strip() == "<none>"

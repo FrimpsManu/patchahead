@@ -41,6 +41,7 @@ import logging
 import re
 from dataclasses import dataclass
 
+from patchahead.analysis import analyze_source
 from patchahead.analysis import edits as edit_utils
 from patchahead.analysis.index import RepoIndex
 from patchahead.config import Config
@@ -507,9 +508,16 @@ class LLMProposer:
         if not plan.transformations:
             return _reject(plan, "the model said it could migrate but proposed no changes")
 
-        # Apply and diff, exactly like a deterministic proposal.
-        files: list[FileEdit] = []
-        entries: list[tuple[str, str, str]] = []
+        # Apply and diff, exactly like a deterministic proposal. Every file is
+        # patched and checked before any is written: a rejection on the second
+        # file must not leave the first one modified in the shared workspace,
+        # where the next change's scope gate would trip over it.
+        names_by_path: dict[str, list[str]] = {}
+        for transformation in plan.transformations:
+            names_by_path.setdefault(transformation.reference.path, []).append(
+                transformation.symbol
+            )
+        staged: list[tuple[str, str, str, int]] = []
         for path, path_edits in edits_by_path.items():
             original = workspace.read(path)
             try:
@@ -521,13 +529,30 @@ class LLMProposer:
             if not ok:
                 return _reject(plan, f"the patched file does not parse: {error}")
 
+            # The contract check reads the proposal on its own, so it cannot
+            # see *where* the function landed. A method sent back at column 0
+            # still parses -- as a module-level function after the class.
+            moved = _moved_functions(patched, path, names_by_path[path])
+            if moved:
+                return _reject(
+                    plan,
+                    f"the proposed {', '.join(f'`{name}`' for name in moved)} no longer "
+                    f"sits where the original did (wrong indentation moves a method "
+                    f"out of its class)",
+                )
+            staged.append((path, original, patched, len(path_edits)))
+
+        files: list[FileEdit] = []
+        entries: list[tuple[str, str, str]] = []
+        workspace.contains_model_code = True
+        for path, original, patched, edit_count in staged:
             workspace.write(path, patched)
             files.append(
                 FileEdit(
                     path=path,
                     old_source=original,
                     new_source=patched,
-                    edit_count=len(path_edits),
+                    edit_count=edit_count,
                 )
             )
             entries.append((path, original, patched))
@@ -573,6 +598,12 @@ class LLMProposer:
                 difference,
             )
         return None
+
+
+def _moved_functions(source: str, path: str, names: list[str]) -> list[str]:
+    """Functions that can no longer be found at their dotted name in ``source``."""
+    module = analyze_source(source, path)
+    return [name for name in names if find_function_span(module, name) is None]
 
 
 def _reference(path: str, span: FunctionSpan):

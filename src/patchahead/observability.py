@@ -162,6 +162,10 @@ def init_error_reporting() -> bool:
             traces_sample_rate=float(os.environ.get("PATCHAHEAD_TRACES_SAMPLE_RATE", "0")),
             # Repository source is the user's proprietary code. Never attach it.
             send_default_pii=False,
+            # On by default in sentry-sdk: every stack frame would carry its
+            # local variables, and here those are `source`, `original`, a
+            # patched file -- the repository's code, in full.
+            include_local_variables=False,
             max_request_body_size="never",
             before_send=_scrub_event,
         )
@@ -177,8 +181,16 @@ def init_error_reporting() -> bool:
 
 
 def _scrub_event(event: dict[str, Any], _hint: Any) -> dict[str, Any]:
-    """Strip environment variables and request bodies from outgoing events."""
+    """Strip environment variables, request bodies, and frame locals from events.
+
+    Frame locals are also disabled at ``init``; removing them here as well means
+    a future change to that setting cannot quietly start sending source code.
+    """
     event.pop("request", None)
+    for section in ("exception", "threads"):
+        for value in (event.get(section) or {}).get("values") or []:
+            for frame in (value.get("stacktrace") or {}).get("frames") or []:
+                frame.pop("vars", None)
     contexts = event.get("contexts")
     if isinstance(contexts, dict):
         contexts.pop("env", None)
