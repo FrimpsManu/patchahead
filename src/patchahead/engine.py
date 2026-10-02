@@ -245,6 +245,7 @@ def _run_migration(
             patched.append(result)
 
     if not patched:
+        _flag_red_baseline(run, full_baseline)
         return
 
     # ---- phase 2: validate the combined result once --------------------
@@ -412,6 +413,31 @@ def _plan_only(
         ),
         timings=timer.as_dict(),
     )
+
+
+def _flag_red_baseline(run: MigrationRun, baseline: TestRun | None) -> None:
+    """Qualify "nothing to migrate" when the suite was failing before any patch.
+
+    A release note PatchAhead misread produces no findings, and no findings
+    reads as "nothing to migrate" -- while the tests it just ran fail on exactly
+    the change the note describes. Failing tests do not prove the note was
+    misread (a repository can be broken for other reasons), so the outcome stays
+    `no_impact`; but the message says what was seen, and the baseline is kept on
+    the result so the exit code does not report success.
+    """
+    if baseline is None or baseline.passed or baseline.errored:
+        return
+    failing = len(baseline.failing_tests)
+    count = f"{failing} test(s) fail" if failing else "the test suite fails"
+    for result in run.results:
+        if result.outcome is not Outcome.NO_IMPACT:
+            continue
+        result.baseline_tests = baseline
+        result.message += (
+            f" But {count} before any patch, so this may be a change PatchAhead "
+            f"did not recognise rather than one that does not apply. Check the "
+            f"failures before concluding nothing needs migrating."
+        )
 
 
 def _patch_one(

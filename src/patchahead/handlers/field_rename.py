@@ -39,9 +39,11 @@ inference PatchAhead does not do. A false negative is recoverable by hand; a
 silent wrong edit in unrelated code is not.
 
 When the document names **no** owner there is nothing to check the receiver
-against, so subscript and ``.get()`` accesses are graded MEDIUM (a constant
-string key matching a renamed field is strong evidence on its own) and attribute
-access stays LOW.
+against, so subscript and ``.get()`` accesses on a named receiver are graded
+MEDIUM (a constant string key matching a renamed field is strong evidence on its
+own) and attribute access stays LOW. A key on a nested or computed expression --
+``charge["customer"]["amount"]`` -- is LOW too: it reads a field of whatever the
+inner expression returns, which may be a different object entirely.
 """
 
 from __future__ import annotations
@@ -225,6 +227,19 @@ class FieldRenameHandler(MigrationHandler):
                 f"receiver used in the change document's example",
                 True,
                 "",
+            )
+        if not receiver:
+            # `charge["customer"]["amount"]`: the key belongs to whatever the
+            # inner expression returns, which is a different object from the one
+            # the access chain starts at. With no owner to check, there is no
+            # evidence it is the renamed field rather than a nested one.
+            return (
+                Confidence.LOW,
+                "dict access with the renamed key on a nested or computed "
+                "expression; the change document asserts no owning object, so "
+                "there is nothing to tell this field from one on a nested object",
+                False,
+                "receiver is a nested or computed expression and no owner is asserted",
             )
         return (
             Confidence.MEDIUM,

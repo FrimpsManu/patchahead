@@ -14,7 +14,17 @@ from patchahead.cli import (
     main,
 )
 from tests.conftest import EXAMPLE_CHANGES, EXAMPLE_REPO
-from tests.test_engine_e2e import FIELD_RENAME_DOC, SERVICE
+from tests.test_engine_e2e import FIELD_RENAME_DOC, SERVICE, SERVICE_WITH_UNRELATED_TESTS
+
+#: A rename of a field the service never reads.
+UNUSED_FIELD_DOC = """
+    ### Order field renamed: `discount` -> `rebate`
+
+    The `discount` field on each `order` object was renamed.
+
+    - **Before:** each order object had a `discount` field.
+    - **After:** the field is now named `rebate`.
+"""
 
 
 @pytest.fixture(autouse=True)
@@ -240,6 +250,77 @@ class TestMigrateCommand:
 
         assert code == EXIT_OK
         assert "unverified" in capsys.readouterr().out
+
+    @pytest.mark.slow
+    def test_unverified_exits_one_when_tests_were_requested(self, make_repo, write_change, capsys):
+        """Exit 0 is what CI acts on. Tests that ran and proved nothing are not a pass."""
+        code = main(
+            [
+                "migrate",
+                "--repo",
+                str(make_repo(SERVICE_WITH_UNRELATED_TESTS)),
+                "--change",
+                str(write_change(FIELD_RENAME_DOC)),
+                "--no-artifacts",
+            ]
+        )
+
+        assert code == EXIT_NOT_MIGRATED
+        assert "unverified" in capsys.readouterr().out
+
+    @pytest.mark.slow
+    def test_a_test_runner_that_cannot_start_exits_one(self, make_repo, write_change):
+        code = main(
+            [
+                "migrate",
+                "--repo",
+                str(make_repo(SERVICE)),
+                "--change",
+                str(write_change(FIELD_RENAME_DOC)),
+                "--test-command",
+                "definitely-not-a-test-runner",
+                "--no-artifacts",
+            ]
+        )
+
+        assert code == EXIT_NOT_MIGRATED
+
+    @pytest.mark.slow
+    def test_no_impact_on_a_red_suite_exits_one_and_says_why(self, make_repo, write_change, capsys):
+        """A note PatchAhead misread finds nothing -- while the tests are failing.
+
+        "Nothing to migrate" with exit 0 would turn a parsing miss into a pass.
+        """
+        code = main(
+            [
+                "migrate",
+                "--repo",
+                str(make_repo(SERVICE)),
+                "--change",
+                str(write_change(UNUSED_FIELD_DOC)),
+                "--no-artifacts",
+            ]
+        )
+        out = capsys.readouterr().out
+
+        assert code == EXIT_NOT_MIGRATED
+        assert "before any patch" in out
+
+    @pytest.mark.slow
+    def test_no_impact_on_a_green_suite_still_exits_zero(self, make_repo, write_change, capsys):
+        code = main(
+            [
+                "migrate",
+                "--repo",
+                str(make_repo(SERVICE_WITH_UNRELATED_TESTS)),
+                "--change",
+                str(write_change(UNUSED_FIELD_DOC)),
+                "--no-artifacts",
+            ]
+        )
+
+        assert code == EXIT_OK
+        assert "before any patch" not in capsys.readouterr().out
 
     @pytest.mark.slow
     def test_json_output_carries_the_whole_run(self, make_repo, write_change, capsys):
