@@ -68,19 +68,21 @@ def tests_for_path(index: RepoIndex, source_path: str) -> list[str]:
 
 
 def tests_for_paths(index: RepoIndex, source_paths: list[str]) -> list[str]:
-    """The union of tests covering several modules, order-preserving."""
-    found: list[str] = []
-    for source_path in source_paths:
-        for test_path in tests_for_path(index, source_path):
-            if test_path not in found:
-                found.append(test_path)
-    return found
+    """The union of tests covering several modules, order-preserving.
+
+    Callers pass one path per finding, so the same module can arrive thousands
+    of times; each distinct module is matched once.
+    """
+    found: dict[str, None] = {}
+    for source_path in dict.fromkeys(source_paths):
+        found.update(dict.fromkeys(tests_for_path(index, source_path)))
+    return list(found)
 
 
 def tests_by_file(index: RepoIndex, source_paths: list[str]) -> dict[str, list[str]]:
     """A ``source path -> test paths`` mapping, for the impact graph."""
     mapping: dict[str, list[str]] = {}
-    for source_path in source_paths:
+    for source_path in dict.fromkeys(source_paths):
         tests = tests_for_path(index, source_path)
         if tests:
             mapping[source_path] = tests

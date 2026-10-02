@@ -11,12 +11,35 @@ from __future__ import annotations
 
 import ast
 import difflib
+from pathlib import Path
 
 from patchahead.domain.plan import TextEdit
 
 
 class EditError(Exception):
     """Raised when a set of edits cannot be applied safely."""
+
+
+def read_source(path: Path) -> str:
+    """Read a file as UTF-8 text with its line endings exactly as they are.
+
+    ``Path.read_text`` translates ``\r\n`` to ``\n``, and writing that back
+    converts a whole Windows-style file to Unix endings: a two-token rename
+    becomes a diff of every line, and the patch no longer applies to the file
+    it was made from.
+    """
+    return path.read_bytes().decode("utf-8")
+
+
+def write_source(path: Path, text: str) -> None:
+    """Write UTF-8 text without translating line endings. See :func:`read_source`."""
+    path.write_bytes(text.encode("utf-8"))
+
+
+def newline_of(text: str) -> str:
+    """The line ending a file uses: ``\r\n`` if its first line ends that way."""
+    first = text.find("\n")
+    return "\r\n" if first > 0 and text[first - 1] == "\r" else "\n"
 
 
 def _offset(line_starts: list[int], line: int, col: int, length: int) -> int:

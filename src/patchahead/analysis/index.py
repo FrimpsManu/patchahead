@@ -12,6 +12,7 @@ import logging
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 
+from patchahead.analysis.edits import read_source
 from patchahead.analysis.python_ast import ModuleAnalysis, ParseError, analyze_source
 from patchahead.config import Config
 
@@ -179,7 +180,7 @@ def build(root: Path, config: Config) -> RepoIndex:
             index.skipped[relative] = f"file is {size} bytes (limit {MAX_FILE_BYTES})"
             continue
         try:
-            source = path.read_text(encoding="utf-8")
+            source = read_source(path)
         except UnicodeDecodeError as exc:
             index.skipped[relative] = f"not valid UTF-8: {exc.reason}"
             continue

@@ -783,3 +783,46 @@ class TestCredentials:
 
         assert propose(scene, stub).ok
         assert workspace.run(self.COMMAND).stdout.strip() == "<none>"
+
+
+def test_a_proposal_for_a_crlf_file_keeps_every_line_crlf(make_repo):
+    """The model answers in `\\n`; a Windows-style file must not end up mixed."""
+    root = make_repo({"conftest.py": ""})
+    (root / "app").mkdir()
+    (root / "app/sync.py").write_bytes(LOOP.replace("\n", "\r\n").encode())
+    workspace = Workspace.materialize(Repository.open(root))
+    try:
+        change = BreakingChange(
+            title="Pagination is now cursor-based",
+            kind=ChangeKind.PAGINATION_PAGE_TO_CURSOR,
+            pagination=PaginationContract(),
+        )
+        report = ImpactReport(
+            change=change,
+            findings=[
+                ImpactFinding(
+                    reference=CodeReference(path="app/sync.py", line=8),
+                    symbol="sync",
+                    matched_contract="while True: ... page=page",
+                    access=AccessKind.PAGE_LOOP,
+                    reason="page loop",
+                    confidence=Confidence.HIGH,
+                    patchable=False,
+                )
+            ],
+        )
+        plan = MigrationPlan(change=change, handler="pagination_page_to_cursor", blocked_reason="x")
+        stub = StubClient(
+            response(
+                functions=[{"path": "app/sync.py", "function": "sync", "new_source": MIGRATED}]
+            )
+        )
+
+        result = propose((change, report, workspace.index(), workspace, plan), stub)
+
+        assert result.ok, result.error
+        patched = (workspace.root / "app/sync.py").read_bytes()
+        assert b"cursor = None" in patched
+        assert patched.count(b"\n") == patched.count(b"\r\n")
+    finally:
+        workspace.cleanup()

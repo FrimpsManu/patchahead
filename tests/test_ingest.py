@@ -3,13 +3,16 @@
 from __future__ import annotations
 
 import json
+import os
+import subprocess
+import sys
 
 import pytest
 
 from patchahead.domain.change import ChangeKind, Confidence, Severity
 from patchahead.ingest import IngestError, parse_file
 from patchahead.ingest.base import ChangeDocument, parse_document
-from patchahead.ingest.markdown import classify
+from patchahead.ingest.markdown import _pagination_contract, classify
 from tests.conftest import EXAMPLE_CHANGES, dedent
 
 
@@ -283,3 +286,44 @@ class TestBundledExamples:
             ChangeKind.METHOD_RENAME,
             ChangeKind.KWARG_RENAME,
         ]
+
+
+class TestDeterminism:
+    NOTE = dedent(
+        """
+        ### Pagination is now cursor-based
+
+        Responses no longer include `total_pages` or `num_pages`. Pass `cursor`;
+        read `next_cursor` (or `next_page_cursor` on legacy endpoints) and stop
+        when `has_more` is false.
+        """
+    )
+
+    def test_the_first_named_candidate_wins(self):
+        contract = _pagination_contract(self.NOTE)
+
+        assert contract.total_pages_key == "total_pages"
+        assert contract.next_cursor_key == "next_cursor"
+        assert contract.has_more_key == "has_more"
+
+    def test_the_reading_does_not_depend_on_the_hash_seed(self, tmp_path):
+        """Several candidates per field used to be read out of a `set`."""
+        note = tmp_path / "note.md"
+        note.write_text(self.NOTE, encoding="utf-8")
+        script = (
+            "import sys; from patchahead.ingest.markdown import _pagination_contract as p; "
+            "c = p(open(sys.argv[1]).read()); "
+            "print(c.total_pages_key, c.next_cursor_key, c.has_more_key)"
+        )
+        readings = {
+            subprocess.run(
+                [sys.executable, "-c", script, str(note)],
+                capture_output=True,
+                text=True,
+                env={**os.environ, "PYTHONHASHSEED": str(seed)},
+                check=True,
+            ).stdout
+            for seed in range(6)
+        }
+
+        assert len(readings) == 1, readings

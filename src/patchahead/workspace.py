@@ -15,9 +15,11 @@ restore function to undo it (``docs/assessment.md`` §2.4).
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import os
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
@@ -87,7 +89,7 @@ class Repository:
         target = (self.root / relative).resolve()
         if not _is_within(target, self.root):
             raise RepositoryError(f"path escapes the repository root: {relative}")
-        return target.read_text(encoding="utf-8")
+        return edit_utils.read_source(target)
 
     def index(self) -> repo_index.RepoIndex:
         """Discover and parse every Python file. Cached by the caller, not here."""
@@ -168,7 +170,10 @@ class Workspace:
                 return set()
             ignored = set()
             for name in names:
-                relative = (relative_dir / name).as_posix().lstrip("./")
+                # `Path(".") / ".git"` is already `.git`. Stripping "./" as a
+                # character set used to strip the dot too, so `.git`, `.tox`
+                # and every other dot-directory escaped the exclusion list.
+                relative = (relative_dir / name).as_posix()
                 if repo_index.is_excluded(relative, exclude):
                     ignored.add(name)
             return ignored
@@ -220,18 +225,18 @@ class Workspace:
         return target
 
     def read(self, relative: str) -> str:
-        return self._resolve(relative).read_text(encoding="utf-8")
+        return edit_utils.read_source(self._resolve(relative))
 
     def write(self, relative: str, contents: str) -> None:
         """Write a file, recording its original contents the first time."""
         target = self._resolve(relative)
         if relative not in self._originals:
             try:
-                self._originals[relative] = target.read_text(encoding="utf-8")
+                self._originals[relative] = edit_utils.read_source(target)
             except OSError:
                 self._originals[relative] = ""
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(contents, encoding="utf-8")
+        edit_utils.write_source(target, contents)
         log.debug("wrote %s in workspace", relative)
 
     def apply_edits(self, relative: str, text_edits: list[TextEdit]) -> str:
@@ -282,7 +287,7 @@ class Workspace:
         for path in targets:
             if path not in self._originals:
                 continue
-            self._resolve(path).write_text(self._originals[path], encoding="utf-8")
+            edit_utils.write_source(self._resolve(path), self._originals[path])
             del self._originals[path]
         log.debug("restored %d file(s) in workspace", len(targets))
 
@@ -331,13 +336,47 @@ class Workspace:
         env.update(extra_env or {})
 
         log.debug("running in workspace: %s", command)
-        return subprocess.run(
+        with subprocess.Popen(
             command,
             shell=True,
             cwd=str(self.root),
-            capture_output=True,
-            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            # Test output is whatever the test command prints. A byte that is
+            # not UTF-8 must not end the run with a decoding traceback.
+            encoding="utf-8",
+            errors="replace",
             env=env,
-            timeout=timeout,
+            # Its own process group, so a timeout can stop the test runner and
+            # not just the shell that started it.
+            start_new_session=os.name == "posix",
+        ) as process:
+            try:
+                stdout, stderr = process.communicate(timeout=timeout)
+            except subprocess.TimeoutExpired:
+                _kill_process_tree(process)
+                raise
+        return subprocess.CompletedProcess(command, process.returncode, stdout, stderr)
+
+
+def _kill_process_tree(process: subprocess.Popen[str]) -> None:
+    """Stop a timed-out command and everything it started.
+
+    ``subprocess.run(shell=True, timeout=...)`` kills only the shell, leaving
+    the test runner it launched running on in a workspace about to be deleted.
+    On POSIX the command leads its own process group, so the group is killed.
+    """
+    if os.name == "posix":
+        with contextlib.suppress(ProcessLookupError, PermissionError):
+            os.killpg(process.pid, signal.SIGKILL)
+    else:  # pragma: no cover - exercised on Windows only
+        subprocess.run(
+            ["taskkill", "/F", "/T", "/PID", str(process.pid)],
+            capture_output=True,
             check=False,
         )
+    process.kill()
+    try:
+        process.communicate(timeout=5)
+    except subprocess.TimeoutExpired:  # pragma: no cover - a stuck pipe
+        log.warning("timed-out test command did not exit after being killed")
