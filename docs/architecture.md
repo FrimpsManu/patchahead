@@ -2,6 +2,25 @@
 
 ## The shape of a run
 
+```mermaid
+flowchart LR
+    note["Release note"] --> read
+    repo[("Your repository<br/>never written to")] --> find
+
+    subgraph engine["PatchAhead engine"]
+        read["1. Read<br/>what changed"] --> find["2. Find<br/>affected code"]
+        find --> plan["3. Plan<br/>the smallest fix"]
+        plan --> patch["4. Patch<br/>a temporary copy"]
+        patch --> prove["5. Prove<br/>five checks"]
+    end
+
+    repo -. copied .-> patch
+    ai["AI fallback<br/>off by default"] -. only if a plan is refused .-> patch
+    prove --> result["Diff, verdict,<br/>PR summary"]
+```
+
+In terms of the objects that cross each boundary:
+
 ```
 change document ─▶ ingest ─────▶ BreakingChange
                                       │
@@ -18,6 +37,30 @@ repository ──────▶ AST index ──▶ ImpactReport
 
 Every arrow is a typed object. No stage passes a loosely-structured dict to
 another stage, and every stage can decline.
+
+## How the packages depend on each other
+
+```mermaid
+flowchart TB
+    cli["Command line"] --> engine
+    web["Local web UI"] --> engine
+    bench["Tests and benchmark"] --> engine
+    engine["engine<br/>runs the five steps in order"]
+
+    engine --> ingest["ingest<br/>reads release notes"]
+    engine --> analysis["analysis<br/>parses Python, finds sites"]
+    engine --> handlers["handlers<br/>one plugin per kind of change"]
+    engine --> workspace["workspace<br/>the temporary copy tests run in"]
+    engine --> validation["validation<br/>the five checks"]
+    engine -. optional .-> llm["llm<br/>AI fallback"]
+
+    ingest --> domain
+    analysis --> domain
+    handlers --> domain
+    workspace --> domain
+    validation --> domain
+    domain["domain<br/>the typed objects passed between steps"]
+```
 
 ## Packages
 
@@ -202,5 +245,7 @@ that rather than hanging on it.
 
 ## Extending
 
-Adding a migration family touches two files: the new handler module and the
-registry import. See [contributing.md](contributing.md).
+Adding a migration family touches four places: the new `ChangeKind`, the
+classifier's signals for it, the handler module, and the registry import. The
+engine, the CLI, and the validation gates do not change. See
+[contributing.md](contributing.md).

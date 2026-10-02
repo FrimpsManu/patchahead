@@ -7,6 +7,25 @@ this project uses [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Documentation
+
+- **A shorter README in plain words**, leading with the problem and a real
+  run, with two architecture diagrams: how one run flows, and how the packages
+  depend on each other. The reference material it used to carry -- every
+  command, configuration, exit codes, AI mode, the web UI -- moved to
+  `docs/usage.md`.
+- **"Adding a migration family touches two files" was not true.** It touches
+  four places: the `ChangeKind`, the classifier's signals, the handler, and the
+  registry import. Corrected in `docs/architecture.md`, `docs/contributing.md`,
+  and `handlers/base.py`.
+
+### Added
+
+- **A release workflow** that publishes to PyPI through trusted publishing when
+  a GitHub release is published, after checking that the tag matches the
+  version and that the built wheel installs and runs. It does nothing until a
+  maintainer sets up the trusted publisher.
+
 ### Changed (reading release notes)
 
 - **One section can hold several changes.** Each bullet, table row, and
