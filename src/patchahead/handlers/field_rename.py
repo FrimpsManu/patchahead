@@ -51,12 +51,12 @@ from __future__ import annotations
 import logging
 
 from patchahead.analysis import receiver_matches_owner
-from patchahead.analysis.index import RepoIndex
+from patchahead.analysis.index import RepoIndex, is_test_path
 from patchahead.config import Config
 from patchahead.domain.change import BreakingChange, ChangeKind, Confidence
 from patchahead.domain.impact import AccessKind, CodeReference, ImpactFinding, ImpactReport
 from patchahead.domain.plan import MigrationPlan, Risk, TextEdit, Transformation
-from patchahead.handlers.base import MigrationHandler, register
+from patchahead.handlers.base import MigrationHandler, analyzed_paths, register
 
 log = logging.getLogger(__name__)
 
@@ -98,14 +98,18 @@ class FieldRenameHandler(MigrationHandler):
         hint = "" if change.target.owner_is_explicit else change.target.owner
         findings: list[ImpactFinding] = []
 
-        for path in index.non_test_paths():
+        for path in analyzed_paths(index, config):
             module = index.modules[path]
+            in_test = is_test_path(path)
 
             for access in module.subscripts:
                 if access.key != old:
                     continue
-                confidence, reason, patchable, blocked = self._grade_subscript(
-                    access.receiver, owner, hint
+                confidence, reason, patchable, blocked = _in_tests_only_on_the_owner(
+                    self._grade_subscript(access.receiver, owner, hint),
+                    in_test,
+                    access.receiver,
+                    owner or hint,
                 )
                 findings.append(
                     ImpactFinding(
@@ -132,8 +136,11 @@ class FieldRenameHandler(MigrationHandler):
             for access in module.get_calls:
                 if access.key != old:
                     continue
-                confidence, reason, patchable, blocked = self._grade_subscript(
-                    access.receiver, owner, hint
+                confidence, reason, patchable, blocked = _in_tests_only_on_the_owner(
+                    self._grade_subscript(access.receiver, owner, hint),
+                    in_test,
+                    access.receiver,
+                    owner or hint,
                 )
                 findings.append(
                     ImpactFinding(
@@ -160,8 +167,11 @@ class FieldRenameHandler(MigrationHandler):
             for access in module.attributes:
                 if access.attr != old:
                     continue
-                confidence, reason, patchable, blocked = self._grade_attribute(
-                    access.receiver, owner, hint
+                confidence, reason, patchable, blocked = _in_tests_only_on_the_owner(
+                    self._grade_attribute(access.receiver, owner, hint),
+                    in_test,
+                    access.receiver,
+                    owner or hint,
                 )
                 findings.append(
                     ImpactFinding(
@@ -391,3 +401,25 @@ register(FieldRenameHandler())
 def _other_object(receiver: str, owner: str) -> bool:
     """Whether an *asserted* owner rules this receiver out."""
     return bool(owner) and not receiver_matches_owner(receiver, owner)
+
+
+def _in_tests_only_on_the_owner(
+    graded: tuple[Confidence, str, bool, str], in_test: bool, receiver: str, owner: str
+) -> tuple[Confidence, str, bool, str]:
+    """In a test, a field is renamed only on the object the change names.
+
+    A test builds fake upstream responses -- which do change -- but it also
+    asserts on the application's own output, which does not: `report["total"]`
+    in a test is the report's field, whatever the API renamed. Without an owner
+    to tell the two apart, a test site is reported rather than rewritten.
+    """
+    confidence, reason, patchable, blocked = graded
+    if in_test and patchable and not receiver_matches_owner(receiver, owner):
+        return (
+            Confidence.LOW,
+            f"{reason}; in a test, a field is renamed only on the object the change "
+            f"document names, since tests also check the code's own output",
+            False,
+            "a test site whose receiver is not the named owner",
+        )
+    return graded

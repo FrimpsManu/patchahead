@@ -39,6 +39,7 @@ import time
 from dataclasses import dataclass, field
 
 from patchahead.analysis import edits as edit_utils
+from patchahead.analysis.index import is_test_path
 from patchahead.config import Config
 from patchahead.domain.patch import PatchProposal
 from patchahead.domain.validation import (
@@ -117,8 +118,11 @@ class ValidationEngine:
         result.gates.append(targeted)
         regression = self._regression_gate(workspace, command, options.full_baseline)
         result.gates.append(regression)
+        edited_tests = {path for path in proposal.changed_files if is_test_path(path)}
         result.gates.append(
-            self._assertion_gate(targeted, regression, options.baseline, options.full_baseline)
+            self._assertion_gate(
+                targeted, regression, options.baseline, options.full_baseline, edited_tests
+            )
         )
         return result
 
@@ -384,6 +388,7 @@ class ValidationEngine:
         regression: GateResult,
         baseline: TestRun | None,
         full_baseline: TestRun | None,
+        edited_tests: set[str] | None = None,
     ) -> GateResult:
         """Did the specific breakage actually get fixed?
 
@@ -423,7 +428,7 @@ class ValidationEngine:
             if before.errored:
                 reasons.append(f"the pre-patch {scope} run did not complete: {before.summary}")
                 continue
-            return self._compare_runs(scope, before, after)
+            return self._compare_runs(scope, before, after, edited_tests or set())
 
         detail = "; ".join(dict.fromkeys(reasons)) or "no before/after test evidence is available"
         return GateResult(
@@ -433,8 +438,15 @@ class ValidationEngine:
         )
 
     @staticmethod
-    def _compare_runs(scope: str, before: TestRun, after: TestRun) -> GateResult:
+    def _compare_runs(
+        scope: str, before: TestRun, after: TestRun, edited_tests: set[str] | None = None
+    ) -> GateResult:
         """Decide what one usable pair of runs evidences.
+
+        A test in a file this patch edited does not count. If the patch
+        rewrote a test, that test going green shows the rewrite is consistent
+        with itself, not that the migration works -- it cannot vouch for the
+        change it is part of. Only tests the patch left alone are evidence.
 
         Exactly one shape is a pass: something that was failing before the patch
         passes after it. Everything else is SKIPPED, never FAILED, because this
@@ -456,8 +468,27 @@ class ValidationEngine:
                 f"may still be correct; these tests do not cover the change.",
             )
 
+        edited = edited_tests or set()
         fixed = sorted(set(before.failing_tests) - set(after.failing_tests))
         broken = sorted(set(after.failing_tests) - set(before.failing_tests))
+        if edited:
+            vouching = [test for test in fixed if test.split("::", 1)[0] not in edited]
+            excluded = sorted(set(fixed) - set(vouching))
+            if not vouching:
+                shown = ", ".join(sorted(edited)[:3])
+                why = (
+                    f"the only {scope} tests that went from failing to passing are in "
+                    f"files this patch edited ({shown})"
+                    if excluded
+                    else f"this patch edited test files ({shown}), and the {scope} run "
+                    f"does not say which tests went from failing to passing"
+                )
+                return verdict(
+                    GateStatus.SKIPPED,
+                    f"{why}; a test the patch rewrote cannot vouch for the rewrite, "
+                    f"so this patch is unverified",
+                )
+            fixed = vouching
         named = ", ".join(fixed[:3]) + (" ..." if len(fixed) > 3 else "")
 
         if after.passed:

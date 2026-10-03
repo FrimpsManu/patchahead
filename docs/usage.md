@@ -187,6 +187,7 @@ max_changed_files = 10              # scope check limit
 max_diff_lines = 400                # scope check limit
 min_confidence = "medium"           # findings below this are reported, not patched
 allow_llm = true                    # false forbids --use-llm for this repository
+migrate_tests = true                # also migrate tests that use the old API
 output_dir = ".patchahead"          # where the diff, plan, and result are written
 test_timeout_seconds = 300          # a test run longer than this is stopped
 max_workspace_files = 20000         # refuse to copy a larger repository

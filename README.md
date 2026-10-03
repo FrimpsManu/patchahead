@@ -171,6 +171,8 @@ into the checkout for a later step to commit. All inputs are in
   `order["total"]` a note is about, it reports that site and leaves it alone.
 - **Tests decide.** A fix counts as done only when a test goes from failing to
   passing. Tests that pass before and after prove nothing, and it says so.
+  Tests that use the old API are migrated too, but a test PatchAhead edited
+  never counts as proof that its own edit worked.
 - **It shows what is left.** Every place the old name survives is listed, so a
   green test run cannot hide an unfinished migration.
 - **A human approves.** It never applies, commits, or merges anything.
@@ -257,9 +259,9 @@ special cases. More detail: [docs/architecture.md](docs/architecture.md).
 
 ## How it is measured
 
-- **535 automated tests**, covering unit, integration, and full end-to-end runs
+- **540 automated tests**, covering unit, integration, and full end-to-end runs
   with real test subprocesses.
-- **An evaluation benchmark of 135 cases**, run on every CI build: release notes
+- **An evaluation benchmark of 138 cases**, run on every CI build: release notes
   written the way vendors write them, before-and-after library versions
   (including what requests and pydantic actually did), repositories built to
   trick it (unrelated
@@ -271,10 +273,10 @@ special cases. More detail: [docs/architecture.md](docs/architecture.md).
   that produces a wrong edit fails the build.
 - **Replayed on real migrations.** Ten public projects that moved from
   pydantic 1 to 2 by hand, re-migrated from nothing but the two pydantic
-  versions: 67 edits, 35 identical to the maintainers', the other 32 checked
-  against each receiver's class, and **0 wrong**. It left alone the 33 test
-  files the maintainers also migrated (tests are its evidence) and 16 calls to
-  methods a project overrides. Method and results:
+  versions, tests included: 97 edits, 49 identical to the maintainers', the
+  other 48 checked against each receiver's class, and **0 wrong**. The only
+  calls it left were methods a project overrides itself. Method, results, and
+  the wrong edits an earlier run made and how they were fixed:
   [docs/real-world.md](docs/real-world.md).
 - **Known gaps are recorded, not hidden.** Four cases describe things it does
   not do yet, and all of them fail safely by doing nothing. They are listed in

@@ -30,7 +30,7 @@ from patchahead.config import Config
 from patchahead.domain.change import BreakingChange, ChangeKind, Confidence
 from patchahead.domain.impact import AccessKind, CodeReference, ImpactFinding, ImpactReport
 from patchahead.domain.plan import MigrationPlan, Risk, TextEdit, Transformation
-from patchahead.handlers.base import MigrationHandler, register
+from patchahead.handlers.base import MigrationHandler, analyzed_paths, register
 
 log = logging.getLogger(__name__)
 
@@ -60,7 +60,7 @@ class KwargRenameHandler(MigrationHandler):
         target_function = change.target.owner.rsplit(".", 1)[-1]
         findings: list[ImpactFinding] = []
 
-        for path in index.non_test_paths():
+        for path in analyzed_paths(index, config):
             module = index.modules[path]
             for call in module.calls:
                 keyword_range = call.keywords.get(old)

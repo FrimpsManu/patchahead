@@ -133,10 +133,11 @@
       },
       "expect_patched": [
         "app/a.py:2",
-        "app/b.py:2"
+        "app/b.py:2",
+        "tests/test_a.py:2"
       ],
       "expect_reported_only": [],
-      "note": "Test files are not analyzed; they are what verifies the migration."
+      "note": "Tests that read the renamed field are migrated too. A test this patch edits is never counted as evidence that the patch worked; the validation engine excludes it."
     }
   ]
 }

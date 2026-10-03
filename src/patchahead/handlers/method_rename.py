@@ -42,15 +42,16 @@ from __future__ import annotations
 import ast
 import builtins
 import logging
+import sys
 from dataclasses import dataclass
 
 from patchahead.analysis import MODULE_SCOPE, SourceRange, receiver_matches_owner
-from patchahead.analysis.index import RepoIndex
+from patchahead.analysis.index import RepoIndex, is_test_path
 from patchahead.config import Config
 from patchahead.domain.change import BreakingChange, ChangeKind, Confidence
 from patchahead.domain.impact import AccessKind, CodeReference, ImpactFinding, ImpactReport
 from patchahead.domain.plan import MigrationPlan, Risk, TextEdit, Transformation
-from patchahead.handlers.base import MigrationHandler, register
+from patchahead.handlers.base import MigrationHandler, analyzed_paths, register
 
 log = logging.getLogger(__name__)
 
@@ -100,12 +101,16 @@ class MethodRenameHandler(MigrationHandler):
         findings: list[ImpactFinding] = []
         definers = [path for path in index.non_test_paths() if _defines(index.modules[path], old)]
 
-        for path in index.non_test_paths():
+        for path in analyzed_paths(index, config):
             module = index.modules[path]
+            in_test = is_test_path(path)
 
             # A repository that *defines* this name owns it; renaming calls to
-            # its own function would break the code rather than migrate it.
-            defines_locally = path in definers
+            # its own function would break the code rather than migrate it. A
+            # test module's own fake with the old name counts for that module
+            # only -- a test double must not stop the application from migrating.
+            defines_locally = path in definers or (in_test and _defines(module, old))
+            stdlib = _stdlib_bindings(module)
             ambiguity = _ambiguity(old, module, [p for p in definers if p != path])
 
             for call in module.calls:
@@ -117,7 +122,13 @@ class MethodRenameHandler(MigrationHandler):
                     isinstance(call.node.func, ast.Attribute) if call.node else bool(call.receiver)
                 )
                 confidence, reason, patchable, blocked = self._grade(
-                    call.receiver, owner, defines_locally, hint, ambiguity, is_method
+                    call.receiver,
+                    owner,
+                    defines_locally,
+                    hint,
+                    ambiguity,
+                    is_method,
+                    stdlib.get(_root(call.receiver), ""),
                 )
                 findings.append(
                     ImpactFinding(
@@ -179,6 +190,41 @@ class MethodRenameHandler(MigrationHandler):
             for attribute in module.attributes:
                 if attribute.attr != old:
                     continue
+                if in_test and _configures_a_mock(module, attribute.receiver, old):
+                    # `client.fetch_orders.return_value = []` sets up the method
+                    # a test double stands in for; it moves with the calls.
+                    confidence, reason, patchable, blocked = self._grade(
+                        attribute.receiver,
+                        owner,
+                        defines_locally,
+                        hint,
+                        ambiguity,
+                        True,
+                        stdlib.get(_root(attribute.receiver), ""),
+                    )
+                    findings.append(
+                        ImpactFinding(
+                            reference=CodeReference(
+                                path=path,
+                                line=attribute.attr_range.line,
+                                col=attribute.attr_range.col,
+                                end_line=attribute.attr_range.end_line,
+                                end_col=attribute.attr_range.end_col,
+                                snippet=module.line_text(attribute.range.line),
+                            ),
+                            symbol=attribute.symbol,
+                            matched_contract=f"{attribute.receiver}.{old} (a mock's setup)",
+                            access=AccessKind.ATTRIBUTE,
+                            reason=f"configures a mock of the renamed method; {reason}",
+                            confidence=confidence,
+                            source_text=old,
+                            patchable=patchable,
+                            unpatchable_reason=blocked,
+                            other_object=bool(owner)
+                            and not receiver_matches_owner(attribute.receiver, owner),
+                        )
+                    )
+                    continue
                 findings.append(
                     ImpactFinding(
                         reference=CodeReference(
@@ -221,6 +267,7 @@ class MethodRenameHandler(MigrationHandler):
         hint: str = "",
         ambiguity: _Ambiguity | None = None,
         is_method: bool | None = None,
+        stdlib_source: str = "",
     ) -> tuple[Confidence, str, bool, str]:
         """Grade one call site.
 
@@ -251,6 +298,17 @@ class MethodRenameHandler(MigrationHandler):
                 f"change document names as the receiver",
                 False,
                 f"receiver is `{receiver or '<no receiver>'}`, not the declared receiver `{owner}`",
+            )
+        if stdlib_source:
+            # `patch.dict(...)` with `patch` from `unittest.mock`: a standard
+            # library object is not the upgraded library's, whatever its methods
+            # are called. Found replaying a real pydantic migration.
+            return (
+                Confidence.LOW,
+                f"call on `{receiver}`, which is `{stdlib_source}` from the Python "
+                f"standard library, not an object of the upgraded library",
+                False,
+                f"the receiver is `{stdlib_source}`, from the standard library",
             )
         if hint and receiver_matches_owner(receiver, hint):
             return (
@@ -349,7 +407,7 @@ class MethodRenameHandler(MigrationHandler):
                 )
                 continue
             reference = finding.reference
-            is_import = finding.access is AccessKind.IMPORT
+            is_import = finding.access in (AccessKind.IMPORT, AccessKind.ATTRIBUTE)
             plan.transformations.append(
                 Transformation(
                     reference=reference,
@@ -441,6 +499,67 @@ def _ambiguity(name: str, module, other_definers: list[str]) -> _Ambiguity:
     else:
         bare = elsewhere
     return _Ambiguity(method=method, bare=bare)
+
+
+#: What a test reads or sets on a mocked method: `client.fetch_orders.return_value`.
+_MOCK_ATTRIBUTES = frozenset(
+    {
+        "return_value",
+        "side_effect",
+        "call_count",
+        "called",
+        "call_args",
+        "call_args_list",
+        "mock_calls",
+        "await_count",
+        "reset_mock",
+        "assert_called",
+        "assert_called_once",
+        "assert_called_with",
+        "assert_called_once_with",
+        "assert_any_call",
+        "assert_has_calls",
+        "assert_not_called",
+        "assert_awaited",
+        "assert_awaited_once",
+        "assert_awaited_with",
+        "assert_awaited_once_with",
+        "assert_not_awaited",
+    }
+)
+
+
+def _root(receiver: str) -> str:
+    return receiver.split(".", 1)[0].removesuffix("()") if receiver else ""
+
+
+def _stdlib_bindings(module) -> dict[str, str]:
+    """Names a module binds to standard-library imports: ``patch`` -> ``unittest.mock.patch``."""
+    bound: dict[str, str] = {}
+    for node in ast.walk(module.tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.name.split(".", 1)[0] in sys.stdlib_module_names:
+                    bound[alias.asname or alias.name.split(".", 1)[0]] = alias.name
+        elif (
+            isinstance(node, ast.ImportFrom)
+            and not node.level
+            and node.module
+            and node.module.split(".", 1)[0] in sys.stdlib_module_names
+        ):
+            for alias in node.names:
+                bound[alias.asname or alias.name] = f"{node.module}.{alias.name}"
+    return bound
+
+
+def _configures_a_mock(module, receiver: str, name: str) -> bool:
+    """Whether ``receiver.name`` is used as a mock: ``.return_value``, ``.assert_called...``."""
+    if not receiver:
+        return False
+    mocked = f"{receiver}.{name}"
+    return any(
+        a.receiver == mocked and a.attr in _MOCK_ATTRIBUTES for a in module.attributes
+    ) or any(c.receiver == mocked and c.name in _MOCK_ATTRIBUTES for c in module.calls)
 
 
 def _alias_name_range(alias: ast.alias, columns) -> SourceRange:

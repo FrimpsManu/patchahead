@@ -39,6 +39,16 @@ from patchahead.workspace import Workspace
 log = logging.getLogger(__name__)
 
 
+def analyzed_paths(index: RepoIndex, config: Config) -> list[str]:
+    """The modules a handler reads: the code, and its tests when ``migrate_tests``.
+
+    Tests that call the old API break with it, so migrating them is part of
+    the job. What keeps that honest is in the validation engine: a test this
+    patch edited is never counted as evidence that the patch worked.
+    """
+    return index.paths() if config.migrate_tests else index.non_test_paths()
+
+
 class MigrationHandler(ABC):
     """Base class for a migration family."""
 

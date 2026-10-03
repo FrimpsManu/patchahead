@@ -7,6 +7,28 @@ this project uses [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added (tests)
+
+- **Tests that use the old API are migrated too** (`migrate_tests`, on by
+  default). Replaying real migrations showed that people migrate their tests,
+  and that 33 of the calls PatchAhead missed were in test files.
+- **A test the patch edited never vouches for it.** The migration-assertion
+  gate ignores tests in files the patch changed; if those are the only tests
+  that went from failing to passing, the run is `patched_unverified`.
+- In tests, a field is renamed only on the object the change names (tests also
+  check the application's own output), a mock's setup moves with the calls,
+  and a module that defines its own fake with the old name is left alone.
+
+### Fixed
+
+- **A receiver from the standard library is not the upgraded library's
+  object.** With tests in scope, replaying real migrations renamed
+  `patch.dict("os.environ", ...)` -- `unittest.mock` -- to `patch.model_dump`
+  11 times in one project. A call on a name bound to a standard-library import
+  is now reported, never renamed.
+- The real-world replay now covers tests: 97 edits, 49 identical to the
+  maintainers', 0 wrong.
+
 ### Added (real-world evidence)
 
 - **`docs/real-world.md`**: ten public commits in which maintainers migrated
