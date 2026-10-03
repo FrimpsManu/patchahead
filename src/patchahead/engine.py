@@ -250,6 +250,7 @@ def _run_migration(
 
     # ---- phase 2: validate the combined result once --------------------
     combined = _combine(patched, workspace)
+    run.diff = combined.diff
     targeted_baseline = full_baseline
     if options.run_tests and combined.plan.expected_tests:
         scoped = discovery.scoped_command(command, combined.plan.expected_tests)

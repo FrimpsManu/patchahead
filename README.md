@@ -130,6 +130,38 @@ installed or run. A method counts as renamed only when the old one is gone or
 deprecated **and** the new one accepts every call the old one did. A
 replacement that takes different arguments is reported, never applied.
 
+## Use it in CI
+
+PatchAhead ships as a GitHub Action. Put it on the pull requests Dependabot or
+Renovate open, and every dependency bump gets checked:
+
+```yaml
+on: pull_request
+permissions:
+  contents: read
+  pull-requests: write          # for the comment; Dependabot's token is read-only otherwise
+jobs:
+  patchahead:
+    if: github.actor == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: FrimpsManu/patchahead@main
+        with:
+          from-pull-request: true
+          install-command: pip install -r requirements-dev.txt
+          comment: true
+```
+
+It reads the release notes in the pull request **and** compares the two
+versions of each package it bumps. The two check each other: a release note
+that renames something to a name the new version does not have is dropped, with
+a note saying so. Then it migrates a temporary copy, runs your tests, and posts
+the verdict, the diff, and what is left of the old API as one comment, updated
+in place on re-runs. It never commits; `apply: true` writes a verified patch
+into the checkout for a later step to commit. All inputs are in
+[docs/usage.md](docs/usage.md#github-action).
+
 ## How it stays safe
 
 - **Your code is never written to.** All patching happens in a temporary copy.
@@ -168,8 +200,8 @@ flowchart LR
     prove --> result["Diff, verdict,<br/>PR summary"]
 ```
 
-**How the code is organized.** The command line, the local web UI, and the test
-suite all call the same engine, so there is no separate demo path that behaves
+**How the code is organized.** The command line, the GitHub Action, the local
+web UI, and the test suite all call the same engine, so there is no separate demo path that behaves
 differently from the real one. The engine runs each step through its own
 package, and the steps pass typed objects to each other through `domain`.
 
@@ -177,6 +209,7 @@ package, and the steps pass typed objects to each other through `domain`.
 flowchart TB
     cli["Command line"] --> engine
     web["Local web UI"] --> engine
+    action["GitHub Action"] --> engine
     bench["Tests and benchmark"] --> engine
     engine["engine<br/>runs the five steps in order"]
 
@@ -224,9 +257,9 @@ special cases. More detail: [docs/architecture.md](docs/architecture.md).
 
 ## How it is measured
 
-- **520 automated tests**, covering unit, integration, and full end-to-end runs
+- **534 automated tests**, covering unit, integration, and full end-to-end runs
   with real test subprocesses.
-- **An evaluation benchmark of 134 cases**, run on every CI build: release notes
+- **An evaluation benchmark of 135 cases**, run on every CI build: release notes
   written the way vendors write them, before-and-after library versions
   (including what requests and pydantic actually did), repositories built to
   trick it (unrelated
@@ -234,9 +267,9 @@ special cases. More detail: [docs/architecture.md](docs/architecture.md).
   `client.get`, Unicode, nested scopes), full migrations, and the checks
   themselves.
 - **Zero wrong edits** across all site cases, and **zero misread changes**
-  across all release notes and library comparisons. Both are enforced: a case that produces a wrong
-  edit fails the build.
-- **Known gaps are recorded, not hidden.** Six cases describe things it does
+  across all release notes and library comparisons. Both are enforced: a case
+  that produces a wrong edit fails the build.
+- **Known gaps are recorded, not hidden.** Four cases describe things it does
   not do yet, and all of them fail safely by doing nothing. They are listed in
   [docs/evaluation.md](docs/evaluation.md#the-gaps-that-remain).
 
@@ -253,8 +286,7 @@ Run it yourself with `python evals/run.py`.
 
 ## Roadmap
 
-- A GitHub Action that runs when a dependency is updated and opens the fix as a
-  pull request
+- Opening the verified fix as a pull request of its own, rather than a comment
 - Reading OpenAPI spec changes directly
 - More kinds of change, such as moved endpoints and changed response shapes
 - Tracking a renamed value through variables (`current = order`)
@@ -264,7 +296,7 @@ Run it yourself with `python evals/run.py`.
 
 | Read | For |
 |---|---|
-| [docs/usage.md](docs/usage.md) | Commands, configuration, exit codes, comparing versions, AI mode, web UI |
+| [docs/usage.md](docs/usage.md) | Commands, configuration, exit codes, comparing versions, the GitHub Action, AI mode, web UI |
 | [docs/architecture.md](docs/architecture.md) | How the engine is built, and why |
 | [docs/migrations.md](docs/migrations.md) | Each kind of change in detail, including what it refuses |
 | [docs/safety.md](docs/safety.md) | What it protects you from, and what it does not |

@@ -137,6 +137,10 @@ class MigrationRun:
     #: changes in one release note are frequently interdependent.
     validation: ValidationResult | None = None
     warnings: list[str] = field(default_factory=list)
+    #: One unified diff of every change the run patched, against the original
+    #: repository -- the patch a reviewer would apply. Empty when nothing was
+    #: patched.
+    diff: str = ""
 
     @property
     def actionable_results(self) -> list[MigrationResult]:
@@ -163,13 +167,44 @@ class MigrationRun:
         """No patched change left code, a dynamic access, or a test on its old name."""
         return all(r.completeness.complete for r in self.results if r.completeness)
 
+    @property
+    def outcome(self) -> Outcome | None:
+        """The run's verdict in one word, for a CI step or a badge.
+
+        `migrated` only when :attr:`succeeded`. Otherwise the result that most
+        needs a reader's attention: a failed check outranks a refusal, which
+        outranks an unverified patch, which outranks "nothing to do".
+        """
+        if self.succeeded:
+            return Outcome.MIGRATED
+        present = {result.outcome for result in self.results}
+        for outcome in _ATTENTION_ORDER:
+            if outcome in present:
+                return outcome
+        return None
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "repo": self.repo,
             "change_document": self.change_document,
             "succeeded": self.succeeded,
             "complete": self.complete,
+            "outcome": self.outcome.value if self.outcome else None,
             "validation": self.validation.to_dict() if self.validation else None,
             "results": [r.to_dict() for r in self.results],
             "warnings": self.warnings,
+            "diff": self.diff,
         }
+
+
+#: Most to least in need of attention; see :attr:`MigrationRun.outcome`.
+_ATTENTION_ORDER = (
+    Outcome.VALIDATION_FAILED,
+    Outcome.PATCH_FAILED,
+    Outcome.NOT_PLANNABLE,
+    Outcome.PATCHED_UNVERIFIED,
+    Outcome.MIGRATED,
+    Outcome.DRY_RUN,
+    Outcome.UNSUPPORTED_CHANGE,
+    Outcome.NO_IMPACT,
+)

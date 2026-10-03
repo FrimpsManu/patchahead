@@ -111,6 +111,50 @@ API) and checked against their published SHA-256. A release with only a source
 distribution is refused, because building one runs the package's code. A
 compiled library with no Python source has nothing to read.
 
+## GitHub Action
+
+```yaml
+on: pull_request
+permissions:
+  contents: read
+  pull-requests: write
+jobs:
+  patchahead:
+    if: github.actor == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - id: patchahead
+        uses: FrimpsManu/patchahead@main
+        with:
+          from-pull-request: true
+          install-command: pip install -r requirements-dev.txt
+          comment: true
+```
+
+| Input | Default | What it does |
+|---|---|---|
+| `from-pull-request` | `false` | Read the triggering pull request: its release notes, and the versions it bumps |
+| `compare-versions` | `true` | Compare the old and new version of each bumped package, and drop release-note readings the new version contradicts |
+| `change` | | A change document to migrate, instead of or as well as the pull request |
+| `repo` | `.` | The repository to migrate, relative to the checkout |
+| `install-command` | | How to install your project and its test dependencies |
+| `test-command` | | Overrides the configured test command |
+| `python-version` | `3.12` | Python for PatchAhead and your tests |
+| `require-complete` | `false` | Count it as not migrated while code or tests still use an old name |
+| `comment` | `false` | Post the summary on the pull request, updated in place on re-runs |
+| `apply` | `false` | Write a verified patch into the checked-out files for a later step; never commits |
+| `fail-on` | `error` | `never`, `error` (it could not run), or `not-migrated` |
+
+Outputs: `outcome`, `succeeded`, `complete`, `exit-code`, `diff` (a file),
+and `summary` (a file). A later step can open a pull request from an applied
+patch, or attach the diff.
+
+**Dependabot.** A workflow Dependabot triggers gets a read-only `GITHUB_TOKEN`,
+so `comment: true` needs `pull-requests: write` in `permissions`. It also sees
+Dependabot secrets rather than Actions secrets, so `--use-llm` is not part of
+the action.
+
 ## What is left after a migration
 
 Passing tests show that the code they run works, not that the migration is

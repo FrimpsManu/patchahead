@@ -650,6 +650,38 @@
       ]
     },
     {
+      "id": "an_attribute_aliases_the_owner_across_methods",
+      "change": {
+        "kind": "field_rename",
+        "symbol": "total",
+        "replacement": "amount",
+        "owner": "order"
+      },
+      "files": {
+        "app/reporter.py": "class Reporter:\n    def __init__(self, order):\n        self._order = order\n\n    def total(self):\n        return self._order[\"total\"]\n"
+      },
+      "expect_patched": [
+        "app/reporter.py:6"
+      ],
+      "note": "`self._order` is assigned in `__init__` and read in another method. The attribute's name says what it holds, which is enough: `_order` is an `order` once the leading underscore is set aside."
+    },
+    {
+      "id": "a_chained_call_returns_the_named_receiver",
+      "change": {
+        "kind": "method_rename",
+        "symbol": "fetch_orders",
+        "replacement": "list_orders",
+        "owner": "client"
+      },
+      "files": {
+        "app/chain.py": "def go(factory):\n    return factory.get_client().fetch_orders(limit=1)\n"
+      },
+      "expect_patched": [
+        "app/chain.py:2"
+      ],
+      "note": "`factory.get_client()` returns a client. A qualified name ending in the owner's name -- `get_client`, `api_client` -- names that owner."
+    },
+    {
       "id": "loop_variable_aliases_the_owner",
       "known_gap": "the loop variable `o` is an `order`, but showing that needs alias analysis over the iterable; PatchAhead reports the site and declines to patch it (roadmap PR #8)",
       "note": "The dominant known false negative, written down as an executable case rather than left out of the dataset. Under-migrating is survivable -- a missed site is fixed by hand -- but it is still a miss, and it stays visible in the benchmark until it is fixed.",
@@ -680,38 +712,6 @@
       },
       "expect_patched": [
         "app/alias2.py:3"
-      ]
-    },
-    {
-      "id": "an_attribute_aliases_the_owner_across_methods",
-      "known_gap": "`self._order` is assigned in `__init__` and read in another method; connecting them needs cross-method attribute tracking (roadmap PR #9)",
-      "change": {
-        "kind": "field_rename",
-        "symbol": "total",
-        "replacement": "amount",
-        "owner": "order"
-      },
-      "files": {
-        "app/reporter.py": "class Reporter:\n    def __init__(self, order):\n        self._order = order\n\n    def total(self):\n        return self._order[\"total\"]\n"
-      },
-      "expect_patched": [
-        "app/reporter.py:6"
-      ]
-    },
-    {
-      "id": "a_chained_call_returns_the_named_receiver",
-      "known_gap": "`factory.get_client()` returns a client, but knowing that needs return-type information PatchAhead does not have (roadmap PR #8)",
-      "change": {
-        "kind": "method_rename",
-        "symbol": "fetch_orders",
-        "replacement": "list_orders",
-        "owner": "client"
-      },
-      "files": {
-        "app/chain.py": "def go(factory):\n    return factory.get_client().fetch_orders(limit=1)\n"
-      },
-      "expect_patched": [
-        "app/chain.py:2"
       ]
     }
   ]
