@@ -216,6 +216,23 @@ The gate prefers the targeted run's evidence and falls back to the full suite,
 because a test command that cannot be narrowed to specific files still produces
 perfectly good red-to-green proof — it is just spread across the whole run.
 
+## Tests are migrated, but do not vouch
+
+Tests that call the old API break with it, so the handlers read test files too
+(`migrate_tests`, on by default). Two rules keep that from weakening the
+evidence:
+
+- **A test the patch edited is not evidence.** The migration-assertion gate
+  drops every test in a file the patch changed before looking for red-to-green.
+  If the only tests that went green are ones PatchAhead rewrote, the run is
+  `patched_unverified`: they show the rewrite agrees with itself, not that the
+  migration works.
+- **Tests are rewritten more narrowly than code.** A field is renamed in a test
+  only on the object the change names, because tests also assert on the
+  application's own output (`report["total"]`). A mock's setup
+  (`client.fetch_orders.return_value`) moves with the calls; a test file that
+  defines its own fake with the old name is left alone.
+
 ## After the gates: what is left
 
 A verified migration proves the tested code works. It does not prove nothing

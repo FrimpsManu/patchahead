@@ -682,6 +682,72 @@
       "note": "`factory.get_client()` returns a client. A qualified name ending in the owner's name -- `get_client`, `api_client` -- names that owner."
     },
     {
+      "id": "a_standard_library_object_shares_the_method_name",
+      "note": "Found replaying a real pydantic migration: `patch.dict(...)` is `unittest.mock.patch.dict`, not a pydantic model's `.dict()`. A receiver bound to a standard-library import is not the upgraded library's object.",
+      "change": {
+        "kind": "method_rename",
+        "symbol": "dict",
+        "replacement": "model_dump",
+        "owner": "BaseModel",
+        "owner_explicit": false
+      },
+      "files": {
+        "tests/test_settings.py": "from unittest.mock import patch\n\n\ndef test_env(user):\n    with patch.dict(\"os.environ\", {}):\n        assert user.dict()\n"
+      },
+      "expect_patched": [
+        "tests/test_settings.py:6"
+      ],
+      "expect_reported_only": [
+        "tests/test_settings.py:5"
+      ],
+      "expect_source_contains": [
+        "with patch.dict(\"os.environ\", {}):",
+        "assert user.model_dump()"
+      ]
+    },
+    {
+      "id": "a_test_asserting_on_the_apps_own_output_is_not_renamed",
+      "note": "In a test, `report[\"total\"]` checks the application's own output, which the upstream rename did not touch. With no owner named, a test site is reported, not rewritten.",
+      "change": {
+        "kind": "field_rename",
+        "symbol": "total",
+        "replacement": "amount"
+      },
+      "files": {
+        "tests/test_report.py": "def test_report(report):\n    assert report[\"total\"] == 5\n"
+      },
+      "expect_patched": [],
+      "expect_reported_only": [
+        "tests/test_report.py:2"
+      ],
+      "expect_source_contains": [
+        "report[\"total\"]"
+      ]
+    },
+    {
+      "id": "a_mocked_method_is_migrated_with_its_calls",
+      "note": "`client.fetch_orders.return_value` sets up the method a mock stands in for; it has to move with the calls or the test configures a method nothing calls.",
+      "change": {
+        "kind": "method_rename",
+        "symbol": "fetch_orders",
+        "replacement": "list_orders",
+        "owner": "client",
+        "owner_explicit": false
+      },
+      "files": {
+        "tests/test_orders.py": "from unittest import mock\n\n\ndef test_orders():\n    client = mock.Mock()\n    client.fetch_orders.return_value = []\n    assert client.fetch_orders() == []\n    client.fetch_orders.assert_called_once_with()\n"
+      },
+      "expect_patched": [
+        "tests/test_orders.py:6",
+        "tests/test_orders.py:7",
+        "tests/test_orders.py:8"
+      ],
+      "expect_source_contains": [
+        "client.list_orders.return_value = []",
+        "client.list_orders.assert_called_once_with()"
+      ]
+    },
+    {
       "id": "loop_variable_aliases_the_owner",
       "known_gap": "the loop variable `o` is an `order`, but showing that needs alias analysis over the iterable; PatchAhead reports the site and declines to patch it (roadmap PR #8)",
       "note": "The dominant known false negative, written down as an executable case rather than left out of the dataset. Under-migrating is survivable -- a missed site is fixed by hand -- but it is still a miss, and it stays visible in the benchmark until it is fixed.",

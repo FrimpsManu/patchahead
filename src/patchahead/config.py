@@ -79,6 +79,10 @@ class Config:
     #: Whether this repository permits sending source code to an LLM. The CLI's
     #: ``--use-llm`` cannot override a ``false`` here.
     allow_llm: bool = True
+    #: Whether test files are migrated too. Tests that call the old API break
+    #: with it, so migrating them is part of the job; a test the patch edited
+    #: is never counted as evidence that the patch worked.
+    migrate_tests: bool = True
     #: Where artifacts (diff, plan, report) are written, relative to cwd.
     output_dir: str = ".patchahead"
     #: Seconds before a test command is killed.
@@ -137,6 +141,7 @@ class Config:
             "max_diff_lines": self.max_diff_lines,
             "min_confidence": self.min_confidence.value,
             "allow_llm": self.allow_llm,
+            "migrate_tests": self.migrate_tests,
             "output_dir": self.output_dir,
             "test_timeout_seconds": self.test_timeout_seconds,
             "max_workspace_files": self.max_workspace_files,
@@ -181,6 +186,7 @@ def from_mapping(data: dict[str, Any], source_path: str = "") -> Config:
         "max_diff_lines",
         "min_confidence",
         "allow_llm",
+        "migrate_tests",
         "output_dir",
         "test_timeout_seconds",
         "max_workspace_files",
@@ -218,6 +224,8 @@ def from_mapping(data: dict[str, Any], source_path: str = "") -> Config:
             ) from None
     if "allow_llm" in data:
         config.allow_llm = _as_bool(data["allow_llm"], "allow_llm")
+    if "migrate_tests" in data:
+        config.migrate_tests = _as_bool(data["migrate_tests"], "migrate_tests")
     if "output_dir" in data:
         value = data["output_dir"]
         if not isinstance(value, str) or not value.strip():

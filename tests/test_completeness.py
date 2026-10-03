@@ -43,6 +43,11 @@ INCOMPLETE = {
             client = mock.Mock()
             client.fetch_orders.return_value = []
     """,
+    "tests/fakes.py": """
+        class FakeClient:
+            def fetch_orders(self, limit):
+                return []
+    """,
     "settings.yaml": "orders:\n  method: fetch_orders\n",
     "NOTES.md": "Call `fetch_orders` to sync.\n",
 }
@@ -65,7 +70,10 @@ class TestWhatIsLeft:
         assert found[("app/orders.py", 16)].kind is ResidualKind.CODE
         assert "bare method reference" in found[("app/orders.py", 16)].reason
         assert found[("app/orders.py", 9)].kind is ResidualKind.DYNAMIC
-        assert found[("tests/test_orders.py", 6)].kind is ResidualKind.TEST
+        # The mock's setup was migrated with the calls; the test's own fake,
+        # which defines the old name, was left -- and is reported.
+        assert ("tests/test_orders.py", 6) not in found
+        assert found[("tests/fakes.py", 2)].kind is ResidualKind.TEST
         assert found[("app/orders.py", 12)].kind is ResidualKind.STRING
         assert found[("settings.yaml", 2)].kind is ResidualKind.CONFIG
         assert found[("NOTES.md", 1)].kind is ResidualKind.DOCS

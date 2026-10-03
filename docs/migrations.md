@@ -143,6 +143,14 @@ change document's example:
   module-level import when the change names a receiver (`Client.fetch_orders`
   says nothing about a function `sdk.fetch_orders`). These are reported.
 
+**Receivers from the standard library.** A call whose receiver is bound to a
+standard-library import -- `patch.dict(...)` with `from unittest.mock import
+patch` -- is reported, never renamed: it is not the upgraded library's object.
+
+**In tests.** Mock setups move with the calls: `client.fetch_orders.return_value`,
+`client.fetch_orders.assert_called_once_with(...)`. A test module that defines
+its own fake with the old name is left alone.
+
 **Imports.** `from sdk import fetch_orders` is renamed together with the calls
 it serves; otherwise the renamed calls would sit under an import of a name that
 no longer exists. An alias is kept: `from sdk import fetch_orders as fo` becomes

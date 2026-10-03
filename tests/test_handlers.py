@@ -213,10 +213,30 @@ class TestFieldRename:
 
         assert 'order.get("amount", 0)' in patched(source, plan, "a.py")
 
-    def test_test_files_are_not_analyzed(self, make_index):
+    def test_a_test_reading_the_named_owner_is_migrated(self, make_index):
         index = make_index({"tests/test_a.py": 'def test_x(order):\n    assert order["total"]\n'})
 
         report, _ = run(change(ChangeKind.FIELD_RENAME, "total", "amount", "order"), index)
+
+        assert [f.patchable for f in report.findings] == [True]
+
+    def test_in_a_test_an_unowned_field_is_reported_not_renamed(self, make_index):
+        """`report["total"]` in a test checks the app's own output, which did not change."""
+        index = make_index({"tests/test_a.py": 'def test_x(report):\n    assert report["total"]\n'})
+
+        report, _ = run(change(ChangeKind.FIELD_RENAME, "total", "amount"), index)
+
+        assert [f.patchable for f in report.findings] == [False]
+        assert "tests also check the code's own output" in report.findings[0].reason
+
+    def test_migrate_tests_false_does_not_read_tests(self, make_index):
+        index = make_index({"tests/test_a.py": 'def test_x(order):\n    assert order["total"]\n'})
+
+        report, _ = run(
+            change(ChangeKind.FIELD_RENAME, "total", "amount", "order"),
+            index,
+            Config(migrate_tests=False),
+        )
 
         assert report.findings == []
 
@@ -361,7 +381,9 @@ class TestMethodRename:
         assert graded["client.get()"] == (Confidence.HIGH, True)
         assert graded["os.environ.get()"] == (Confidence.LOW, False)
         assert graded["SETTINGS.get()"] == (Confidence.LOW, False)
-        assert "built-in" in report.findings[1].reason
+        reasons = {f.matched_contract: f.reason for f in report.findings}
+        assert "standard library" in reasons["os.environ.get()"]
+        assert "built-in" in reasons["SETTINGS.get()"]
         assert patched(source, plan, "a.py").endswith(
             "client.retrieve(1), os.environ.get('A'), SETTINGS.get('b')\n"
         )
