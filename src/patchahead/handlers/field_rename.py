@@ -125,6 +125,7 @@ class FieldRenameHandler(MigrationHandler):
                         source_text=_span(module.source, access.key_range),
                         patchable=patchable,
                         unpatchable_reason=blocked,
+                        other_object=_other_object(access.receiver, owner),
                     )
                 )
 
@@ -152,6 +153,7 @@ class FieldRenameHandler(MigrationHandler):
                         source_text=_span(module.source, access.key_range),
                         patchable=patchable,
                         unpatchable_reason=blocked,
+                        other_object=_other_object(access.receiver, owner),
                     )
                 )
 
@@ -179,6 +181,7 @@ class FieldRenameHandler(MigrationHandler):
                         source_text=_span(module.source, access.attr_range),
                         patchable=patchable,
                         unpatchable_reason=blocked,
+                        other_object=_other_object(access.receiver, owner),
                     )
                 )
 
@@ -383,3 +386,8 @@ def _related_tests(index: RepoIndex, findings: list[ImpactFinding]) -> list[str]
 
 
 register(FieldRenameHandler())
+
+
+def _other_object(receiver: str, owner: str) -> bool:
+    """Whether an *asserted* owner rules this receiver out."""
+    return bool(owner) and not receiver_matches_owner(receiver, owner)

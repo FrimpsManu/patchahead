@@ -10,6 +10,7 @@ import os
 from pathlib import Path
 
 from patchahead.domain.change import BreakingChange, Confidence
+from patchahead.domain.completeness import CompletenessReport, ResidualKind
 from patchahead.domain.impact import ImpactReport
 from patchahead.domain.result import AnalysisResult, MigrationResult, MigrationRun, Outcome
 from patchahead.domain.validation import GateStatus, ValidationResult
@@ -219,6 +220,11 @@ def render_migration(
         lines.extend(render_validation(result.validation, style))
         lines.append("")
 
+    if result.completeness:
+        lines.append(style("completeness", "bold"))
+        lines.extend(render_completeness(result.completeness, style, verbose))
+        lines.append("")
+
     lines.append(style(f"{result.outcome.value}: {result.message}", color))
     if result.artifacts:
         for key, path in sorted(result.artifacts.items()):
@@ -233,6 +239,53 @@ def render_migration(
             )
         )
     return "\n".join(lines)
+
+
+#: How many unfinished residuals the terminal lists before summarizing the rest.
+_RESIDUALS_SHOWN = 10
+_MENTION_KINDS = (
+    ResidualKind.STRING,
+    ResidualKind.COMMENT,
+    ResidualKind.CONFIG,
+    ResidualKind.DOCS,
+)
+
+
+def render_completeness(
+    report: CompletenessReport, style: Style, verbose: bool = False
+) -> list[str]:
+    """Where the old name survives: unfinished work first, mentions summarized."""
+    names = f"`{report.old}` -> `{report.new}`"
+    unfinished = report.unfinished
+    lines = [
+        style(f"  {names}: no code, dynamic access, or test still uses `{report.old}`", "green")
+        if not unfinished
+        else style(f"  {names}: {len(unfinished)} place(s) still use `{report.old}`", "yellow")
+    ]
+    for residual in unfinished[:_RESIDUALS_SHOWN]:
+        lines.append(
+            f"  [{residual.kind.value:<7}] {residual.path}:{residual.line}  {residual.snippet}"
+        )
+        lines.append(style(f"            {residual.reason}", "dim"))
+    if len(unfinished) > _RESIDUALS_SHOWN:
+        lines.append(style(f"  ... and {len(unfinished) - _RESIDUALS_SHOWN} more (--json)", "dim"))
+
+    other = report.count(ResidualKind.OTHER_OBJECT)
+    if other:
+        lines.append(
+            style(f"  {other} site(s) on a different object, left alone on purpose", "dim")
+        )
+    mentions = [(kind, report.count(kind)) for kind in _MENTION_KINDS if report.count(kind)]
+    if mentions:
+        counted = ", ".join(f"{n} {kind.value}" for kind, n in mentions)
+        lines.append(style(f"  mentions to review: {counted}", "dim"))
+        if verbose:
+            for residual in report.residuals:
+                if residual.kind in _MENTION_KINDS:
+                    lines.append(
+                        style(f"    {residual.path}:{residual.line}  {residual.snippet}", "dim")
+                    )
+    return lines
 
 
 def render_run(
@@ -351,9 +404,13 @@ def render_pr_markdown(result: MigrationResult) -> str:
     if result.diff:
         lines += ["", "## 5. Diff", "", "```diff", result.diff.rstrip(), "```"]
 
+    if result.completeness:
+        lines += ["", "## 6. What is left of the old API", ""]
+        lines += _completeness_markdown(result.completeness)
+
     lines += [
         "",
-        "## 6. Human review",
+        "## 7. Human review",
         "",
         f"- **Outcome:** `{result.outcome.value}` -- {result.message}",
         "- **Auto-merge:** disabled. PatchAhead proposes; a human approves.",
@@ -364,6 +421,31 @@ def render_pr_markdown(result: MigrationResult) -> str:
         "- [ ] The diff is minimal and changes no unrelated code",
         "- [ ] The tests genuinely exercise the migrated behavior",
         "- [ ] Findings reported but not patched have been looked at",
+        "- [ ] Every place the old name survives (section 6) has been looked at",
         "",
     ]
     return "\n".join(lines)
+
+
+def _completeness_markdown(report: CompletenessReport) -> list[str]:
+    unfinished = report.unfinished
+    if unfinished:
+        lines = [
+            f"**{len(unfinished)} place(s) still use `{report.old}`.** Passing tests do "
+            f"not cover these.",
+            "",
+            "| Location | Kind | Code | Why |",
+            "|---|---|---|---|",
+        ]
+        lines += [
+            f"| `{r.path}:{r.line}` | {r.kind.value} | `{r.snippet}` | {r.reason} |"
+            for r in unfinished
+        ]
+    else:
+        lines = [f"No code, dynamic access, or test still uses `{report.old}`."]
+    rest = [r for r in report.residuals if not r.kind.unfinished]
+    if rest:
+        lines += ["", "<details><summary>Left on purpose, and mentions to review</summary>", ""]
+        lines += [f"- `{r.path}:{r.line}` ({r.kind.value}) -- {r.reason}" for r in rest]
+        lines += ["", "</details>"]
+    return lines

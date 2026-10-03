@@ -124,6 +124,8 @@ class MethodRenameHandler(MigrationHandler):
                         source_text=old,
                         patchable=patchable,
                         unpatchable_reason=blocked,
+                        other_object=bool(owner)
+                        and not receiver_matches_owner(call.receiver, owner),
                     )
                 )
 

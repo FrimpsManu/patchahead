@@ -6,6 +6,7 @@ import enum
 from dataclasses import dataclass, field
 from typing import Any
 
+from patchahead.domain.completeness import CompletenessReport
 from patchahead.domain.impact import ImpactReport
 from patchahead.domain.patch import PatchProposal
 from patchahead.domain.plan import MigrationPlan
@@ -92,6 +93,9 @@ class MigrationResult:
     #: Human-readable explanation of the outcome. Always populated.
     message: str = ""
     timings: dict[str, int] = field(default_factory=dict)
+    #: What is left of the old API in the patched copy. Set only when a patch
+    #: was produced and validated.
+    completeness: CompletenessReport | None = None
 
     @property
     def succeeded(self) -> bool:
@@ -114,6 +118,7 @@ class MigrationResult:
             "proposal": self.proposal.to_dict() if self.proposal else None,
             "validation": self.validation.to_dict() if self.validation else None,
             "baseline_tests": self.baseline_tests.to_dict() if self.baseline_tests else None,
+            "completeness": self.completeness.to_dict() if self.completeness else None,
             "workspace_path": self.workspace_path,
             "artifacts": self.artifacts,
             "timings": self.timings,
@@ -153,11 +158,17 @@ class MigrationRun:
         actionable = self.actionable_results
         return bool(actionable) and all(result.succeeded for result in actionable)
 
+    @property
+    def complete(self) -> bool:
+        """No patched change left code, a dynamic access, or a test on its old name."""
+        return all(r.completeness.complete for r in self.results if r.completeness)
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "repo": self.repo,
             "change_document": self.change_document,
             "succeeded": self.succeeded,
+            "complete": self.complete,
             "validation": self.validation.to_dict() if self.validation else None,
             "results": [r.to_dict() for r in self.results],
             "warnings": self.warnings,

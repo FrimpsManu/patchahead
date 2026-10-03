@@ -215,6 +215,25 @@ The gate prefers the targeted run's evidence and falls back to the full suite,
 because a test command that cannot be narrowed to specific files still produces
 perfectly good red-to-green proof — it is just spread across the whole run.
 
+## After the gates: what is left
+
+A verified migration proves the tested code works. It does not prove nothing
+else still uses the old API: a wrapper no test calls, an import the call-site
+rewrite left behind, a `getattr(obj, "old_name")`, a test that still mocks the
+old method. An upgrade that goes wrong this way still has a green test suite,
+which is what makes it easy to miss.
+
+So `engine._check_completeness` runs once more over the patched workspace,
+after validation. It re-runs the handler's analysis (whatever it still finds was
+not rewritten), scans every Python file's tokens for the old name in strings,
+comments, `getattr` calls, tests, and -- for a method -- imports and
+references, and reads configuration and documentation files. Each hit becomes a
+`Residual` with a `ResidualKind`; `code`, `dynamic` and `test` are unfinished.
+
+It is a report, not a sixth gate. A residual can be correct -- a different
+object, a log message -- and only a reader can tell. `--require-complete` is
+there for a CI job that wants to treat unfinished residuals as a failure.
+
 ## Where the LLM sits
 
 Nowhere on the default path. `--use-llm` is consulted in exactly one place:

@@ -73,11 +73,23 @@ validation
   [pass] regression_tests     no new failures
   [pass] migration_assertion  the targeted tests failed before the patch and pass after it
 
+completeness
+  `page` -> `cursor`: no code, dynamic access, or test still uses `page`
+
 migrated: migrated 1 file(s); 5/5 gates passed
 ```
 
 Your repository was not touched. The diff was made in a temporary copy, and the
 tests ran there. You review it and apply it.
+
+The last section matters as much as the tests. Passing tests show that the code
+they run works; they do not show the migration is *finished*. So after
+patching, PatchAhead searches the patched copy for every place the old name
+still appears and sorts them: code it did not rewrite (an import, a
+`getattr(obj, "old_name")`), tests that still use the old name, sites on a
+different object left alone on purpose, and mere mentions in strings, comments,
+config, and docs. `--require-complete` makes CI fail while any code or test
+still uses the old name.
 
 ## What it can fix
 
@@ -102,6 +114,8 @@ reported as unsupported, not forced into one that almost fits.
   `order["total"]` a note is about, it reports that site and leaves it alone.
 - **Tests decide.** A fix counts as done only when a test goes from failing to
   passing. Tests that pass before and after prove nothing, and it says so.
+- **It shows what is left.** Every place the old name survives is listed, so a
+  green test run cannot hide an unfinished migration.
 - **A human approves.** It never applies, commits, or merges anything.
 
 It does run your test command, as you, so only point it at code you would run
@@ -176,7 +190,8 @@ The five checks run cheapest first:
 5. **Migration assertion**: a test that failed before the patch passes after it.
 
 Only the fifth check can make a run `migrated`. Anything less is reported as
-`patched_unverified` or `validation_failed`.
+`patched_unverified` or `validation_failed`. After the checks, a completeness
+scan lists every place the old name still appears in the patched copy.
 
 Each kind of change is a plugin: a handler class with four methods (`supports`,
 `analyze`, `plan`, `generate`) registered in one place, so the engine has no
@@ -184,7 +199,7 @@ special cases. More detail: [docs/architecture.md](docs/architecture.md).
 
 ## How it is measured
 
-- **488 automated tests**, covering unit, integration, and full end-to-end runs
+- **497 automated tests**, covering unit, integration, and full end-to-end runs
   with real test subprocesses.
 - **An evaluation benchmark of 112 cases**, run on every CI build: release notes
   written the way vendors write them, repositories built to trick it (unrelated
