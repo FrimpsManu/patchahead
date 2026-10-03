@@ -7,6 +7,29 @@ this project uses [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added (comparing library versions)
+
+- **`patchahead api-diff`** reads the breaking changes out of two versions of a
+  library, for when there is no usable release note, and writes the ones
+  PatchAhead can migrate as a change document for `migrate --change`. Versions
+  come from PyPI as wheels, checked against their published SHA-256, or from
+  local directories and `.whl` files; nothing is installed or run.
+- It reads method and function renames (an old member gone with one
+  compatible new sibling, or newly deprecated in favor of a sibling it names),
+  class renames, and keyword-argument renames (same slot, related names), and
+  reports moves, removals, new required parameters, and replacements that take
+  different arguments. A rename is applied only when the new member accepts
+  every call the old one did.
+- On real releases: pydantic 1.10.13 -> 2.0 yields `dict` -> `model_dump`,
+  `parse_obj` and `from_orm` -> `model_validate`, `construct` ->
+  `model_construct`, and `schema` -> `model_json_schema`, and reports `json`,
+  `copy` and `validate`, whose replacements take other arguments; requests
+  2.31.0 -> 2.32.3 reports `get_connection` and renames nothing.
+- An `api_diff` benchmark suite of 20 before-and-after libraries, including the
+  readings that went wrong on those real releases before they were fixed.
+- Structured change documents accept `"owner_explicit": false`, for an owner
+  that is a hint rather than an assertion.
+
 ### Fixed (imports)
 
 - **A method rename now renames `from sdk import old_name` with its calls.** The

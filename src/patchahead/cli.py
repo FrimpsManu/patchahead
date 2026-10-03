@@ -19,6 +19,9 @@ Commands
     The same UI as ``demo``, pointed at a repository of your own.
 ``handlers``
     What this version can and cannot migrate.
+``api-diff``
+    Read two versions of a library and write the breaking changes between them
+    as a change document, for when there is no release note to read.
 
 Exit codes are meaningful, because this is meant to run in CI:
 
@@ -71,6 +74,7 @@ examples:
   patchahead migrate  --repo ./my-service --change ./notes.md --dry-run
   patchahead migrate  --repo ./my-service --change ./notes.md --use-llm
   patchahead handlers
+  patchahead api-diff storekit 4.9.0 5.0.0 --out changes.json
 
 PatchAhead never writes to your repository. `migrate` patches a temporary copy,
 runs the tests there, and prints the diff for you to review.
@@ -282,6 +286,28 @@ def build_parser() -> argparse.ArgumentParser:
     web.add_argument("--changes", metavar="PATH", help="directory of change documents")
     web.add_argument("--port", type=int, default=demo_serve.DEFAULT_PORT)
 
+    api_diff = subparsers.add_parser(
+        "api-diff",
+        parents=[verbosity_parent],
+        help="find breaking changes by comparing two versions of a library",
+        description=(
+            "Read two versions of a library -- from PyPI, or local directories or "
+            "wheels -- and report the breaking changes in its public API. Nothing "
+            "is installed or run: PyPI versions are downloaded as wheels and parsed. "
+            "With --out, the supported changes are written as a change document "
+            "for `patchahead migrate --change`."
+        ),
+    )
+    api_diff.add_argument("package", nargs="?", help="the package name on PyPI")
+    api_diff.add_argument("old_version", nargs="?", metavar="OLD", help="the version you use")
+    api_diff.add_argument("new_version", nargs="?", metavar="NEW", help="the version to upgrade to")
+    api_diff.add_argument("--old", metavar="PATH", help="the old version as a directory or .whl")
+    api_diff.add_argument("--new", metavar="PATH", help="the new version as a directory or .whl")
+    api_diff.add_argument(
+        "--out", metavar="FILE", help="write the changes as a JSON change document"
+    )
+    api_diff.add_argument("--json", dest="as_json", action="store_true", help="print JSON")
+
     subparsers.add_parser(
         "handlers",
         parents=[verbosity_parent],
@@ -330,6 +356,68 @@ def _cmd_handlers(args: argparse.Namespace) -> int:
         print()
     print("Anything else is reported as unsupported rather than guessed at.")
     print("To add a family, see docs/migrations.md.")
+    return EXIT_OK
+
+
+def _cmd_api_diff(args: argparse.Namespace) -> int:
+    import tempfile
+
+    from patchahead import apidiff
+    from patchahead.ingest.structured import change_to_mapping
+
+    local = bool(args.old or args.new)
+    if local and not (args.old and args.new):
+        log.error("--old and --new go together")
+        return EXIT_USAGE
+    if not local and not (args.package and args.old_version and args.new_version):
+        log.error("give a PACKAGE, OLD, and NEW version, or --old PATH and --new PATH")
+        return EXIT_USAGE
+
+    with tempfile.TemporaryDirectory(prefix="patchahead-api-") as scratch:
+        try:
+            if local:
+                old_root = apidiff.unpack(Path(args.old), Path(scratch) / "old")
+                new_root = apidiff.unpack(Path(args.new), Path(scratch) / "new")
+            else:
+                old_root = apidiff.fetch(args.package, args.old_version, Path(scratch) / "old")
+                new_root = apidiff.fetch(args.package, args.new_version, Path(scratch) / "new")
+        except apidiff.ApiDiffError as exc:
+            log.error("%s", exc)
+            return EXIT_USAGE
+        old, new = apidiff.read(old_root), apidiff.read(new_root)
+
+    tops = sorted({path.split(".", 1)[0] for path in new.public})
+    label = args.package or ", ".join(tops) or Path(args.new).name
+    diff = apidiff.compare(old, new, label, (args.old_version or "", args.new_version or ""))
+    supported = [c for c in diff.changes if c.is_actionable]
+
+    if args.as_json:
+        print(json.dumps({"changes": [change_to_mapping(c) for c in diff.changes]}, indent=2))
+    else:
+        versions = f" {diff.old_version} -> {diff.new_version}" if diff.old_version else ""
+        print(f"{label}{versions}: compared {diff.members_compared} public member(s)")
+        if not old.public:
+            print("  no Python source was found in the old version (a compiled library?)")
+        for change in diff.changes:
+            kind = change.kind.value if change.is_actionable else "reported"
+            print(f"  {kind:<15} {change.title}")
+            print(f"  {'':<15} {change.classification_reason}")
+        if not diff.changes:
+            print("  no breaking changes in the public API")
+        for module, reason in sorted({**old.skipped, **new.skipped}.items()):
+            print(f"  skipped {module}: {reason}")
+
+    if args.out:
+        if not supported:
+            print("nothing PatchAhead can migrate; no change document written", file=sys.stderr)
+        else:
+            document = {"changes": [change_to_mapping(c) for c in supported]}
+            Path(args.out).write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
+            print(
+                f"wrote {len(supported)} change(s) to {args.out}; review it, then run "
+                f"`patchahead migrate --change {args.out}`",
+                file=sys.stderr,
+            )
     return EXIT_OK
 
 
@@ -513,6 +601,7 @@ def main(argv: list[str] | None = None) -> int:
         "migrate": _cmd_migrate,
         "web": _cmd_web,
         "handlers": _cmd_handlers,
+        "api-diff": _cmd_api_diff,
     }
 
     try:

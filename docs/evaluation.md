@@ -25,6 +25,7 @@ including the numbers quoted in the README and in pull request descriptions.
 |---|---|---|
 | `classification` | Does it read a change document correctly, and refuse the ones it should? | `evals/datasets/classification/` |
 | `release_notes` | Does it find *every* change in a release note written the way vendors write them? | `evals/datasets/release_notes/` |
+| `api_diff` | Does it read the right changes out of two versions of a library? | `evals/datasets/api_diff/` |
 | `impact` | Which sites does it find, and which does it rewrite? | `evals/datasets/impact/` |
 | `adversarial` | The same, on cases written to fool it | `evals/datasets/adversarial/` |
 | `migrations` | Does a whole engine run take a real repository from red to green? | `evals/datasets/migrations/` |
@@ -75,6 +76,20 @@ Documents that should not be acted on are in the dataset on purpose: a
 namespace move (`openai.Completion.create` -> `client.completions.create`), a
 type change ("is now `float`"), a dotted rename that could be a method or an
 attribute, a deprecation with no replacement, additions only.
+
+### `api_diff`
+
+Small libraries written twice -- before and after an upgrade -- and every change
+a correct reading finds, scored like `release_notes`: a rename read where the
+library made none is a misread, `misread_changes` is asserted at zero, and an
+unexpected *report* fails the case too, since a library diff has a definite
+answer for every member. Several cases reproduce what real packages did and
+what went wrong when PatchAhead first read them: requests 2.31 -> 2.32
+(`get_connection` deprecated in favor of a method with other arguments; a
+deprecated function that calls a helper without naming a replacement), and
+pydantic 1 -> 2 (a re-export dropped from a secondary module, an argument
+warning mistaken for a deprecated method, `use_proxy` and `slots` sharing a
+parameter slot, `dict` -> `model_dump` as a compatible superset).
 
 ### `impact` and `adversarial`
 

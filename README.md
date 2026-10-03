@@ -105,6 +105,31 @@ tables, reStructuredText, and phrasings like "renamed to", "is now", or
 "deprecated in favor of". Anything outside these four kinds of change is
 reported as unsupported, not forced into one that almost fits.
 
+## No release note? Compare the versions
+
+Many libraries describe breaking changes badly, or not at all. PatchAhead can
+read them out of the library itself, by comparing the version you use with the
+one you are upgrading to:
+
+```console
+$ patchahead api-diff pydantic 1.10.13 2.0 --out changes.json
+pydantic 1.10.13 -> 2.0: compared 459 public member(s)
+  ...
+  method_rename   `pydantic.main.BaseModel.dict` renamed to `model_dump`
+  method_rename   `pydantic.main.BaseModel.parse_obj` renamed to `model_validate`
+  reported        `pydantic.main.BaseModel.json` is deprecated in favor of `model_dump_json`
+                  `BaseModel.json` is newly deprecated in favor of `BaseModel.model_dump_json`,
+                  which does not accept every call it does -- not a rename PatchAhead can apply
+  ...
+
+$ patchahead migrate --repo ./my-service --change changes.json
+```
+
+It downloads both versions from PyPI as wheels and parses them. Nothing is
+installed or run. A method counts as renamed only when the old one is gone or
+deprecated **and** the new one accepts every call the old one did. A
+replacement that takes different arguments is reported, never applied.
+
 ## How it stays safe
 
 - **Your code is never written to.** All patching happens in a temporary copy.
@@ -128,7 +153,7 @@ verdict comes out. Your repository is only read; the patch is made in a copy.
 
 ```mermaid
 flowchart LR
-    note["Release note"] --> read
+    note["Release note, or two<br/>versions of the library"] --> read
     repo[("Your repository<br/>never written to")] --> find
 
     subgraph engine["PatchAhead engine"]
@@ -199,15 +224,17 @@ special cases. More detail: [docs/architecture.md](docs/architecture.md).
 
 ## How it is measured
 
-- **500 automated tests**, covering unit, integration, and full end-to-end runs
+- **520 automated tests**, covering unit, integration, and full end-to-end runs
   with real test subprocesses.
-- **An evaluation benchmark of 114 cases**, run on every CI build: release notes
-  written the way vendors write them, repositories built to trick it (unrelated
+- **An evaluation benchmark of 134 cases**, run on every CI build: release notes
+  written the way vendors write them, before-and-after library versions
+  (including what requests and pydantic actually did), repositories built to
+  trick it (unrelated
   objects with the same field name, `os.environ.get` next to a renamed
   `client.get`, Unicode, nested scopes), full migrations, and the checks
   themselves.
 - **Zero wrong edits** across all site cases, and **zero misread changes**
-  across all release notes. Both are enforced: a case that produces a wrong
+  across all release notes and library comparisons. Both are enforced: a case that produces a wrong
   edit fails the build.
 - **Known gaps are recorded, not hidden.** Six cases describe things it does
   not do yet, and all of them fail safely by doing nothing. They are listed in
@@ -237,7 +264,7 @@ Run it yourself with `python evals/run.py`.
 
 | Read | For |
 |---|---|
-| [docs/usage.md](docs/usage.md) | Commands, configuration, exit codes, AI mode, web UI |
+| [docs/usage.md](docs/usage.md) | Commands, configuration, exit codes, comparing versions, AI mode, web UI |
 | [docs/architecture.md](docs/architecture.md) | How the engine is built, and why |
 | [docs/migrations.md](docs/migrations.md) | Each kind of change in detail, including what it refuses |
 | [docs/safety.md](docs/safety.md) | What it protects you from, and what it does not |

@@ -225,6 +225,24 @@ it is still `python -m pytest` executing as you, in a copy of that repository,
 on the loopback interface. Nothing about the demo widens the trust boundary
 described above, and nothing about it makes the boundary a sandbox.
 
+### 7. Comparing library versions downloads from the internet
+
+`patchahead api-diff PACKAGE OLD NEW` fetches two releases from PyPI (or the
+index in `PATCHAHEAD_PYPI_URL`). What it does with them is deliberately narrow:
+
+- **Wheels only.** A source distribution is refused, because building one
+  runs the package's setup code. A wheel is a zip of files.
+- **Parsed, never imported.** The library's source is read with `ast`; none of
+  it runs.
+- **Checked.** The download must match the SHA-256 the index publishes for it,
+  and an archive entry that would land outside the unpack directory is refused.
+- **Temporary.** Both versions are unpacked into a temporary directory that is
+  deleted afterwards.
+
+The network request itself reveals which package and versions you asked about
+to the index, as `pip` would. Use `--old`/`--new` with local files to stay
+offline.
+
 ---
 
 ## Reviewing a proposed migration

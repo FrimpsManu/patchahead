@@ -4,7 +4,7 @@
 
 ```mermaid
 flowchart LR
-    note["Release note"] --> read
+    note["Release note, or two<br/>versions of the library"] --> read
     repo[("Your repository<br/>never written to")] --> find
 
     subgraph engine["PatchAhead engine"]
@@ -233,6 +233,32 @@ references, and reads configuration and documentation files. Each hit becomes a
 It is a report, not a sixth gate. A residual can be correct -- a different
 object, a log message -- and only a reader can tell. `--require-complete` is
 there for a CI job that wants to treat unfinished residuals as a failure.
+
+## Reading changes from the library itself
+
+`patchahead.apidiff` is a second way into step 1. Instead of reading a release
+note, it reads two versions of a library and writes the breaking changes
+between them as an ordinary structured change document; everything after that
+is the same pipeline.
+
+- **`download`** fetches a version from PyPI's JSON API as a wheel, checks its
+  SHA-256 against the digest the index publishes, and unpacks it, refusing any
+  entry that would land outside the destination. Source distributions are
+  refused: building one runs the package's code.
+- **`surface`** parses the library with `ast` -- never importing it -- into its
+  public API: public modules, `__all__`, re-exports from private modules, and
+  every parameter's name, kind, position and default. It records whether a
+  member is deprecated (a `@deprecated` decorator, or a deprecation warning the
+  body always raises) and the sibling it *names* as its replacement.
+- **`compare`** turns two surfaces into changes. A rename needs the old member
+  gone with exactly one compatible new sibling, or newly deprecated in favor of
+  a named one -- and in both cases the replacement must accept every call the
+  old member did. A keyword rename needs the same slot *and* related names.
+  Everything else -- moves, removals, new required parameters, replacements
+  with other arguments -- is reported, never applied.
+
+Method owners are written with `"owner_explicit": false`: the diff knows the
+class, not what a caller names its instance, so the owner is a hint.
 
 ## Where the LLM sits
 
