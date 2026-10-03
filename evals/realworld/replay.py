@@ -19,7 +19,7 @@ It measures editing, not verification: the repositories' tests are not run,
 because installing each project's dependencies is out of scope. Needs network
 access and ``git``; it is not part of the CI benchmark.
 
-    python evals/realworld/replay.py --changes changes.json [--json]
+    python evals/realworld/replay.py --changes changes.json [--cases cases.json] [--json]
 """
 
 from __future__ import annotations
@@ -208,6 +208,9 @@ def main() -> int:
     parser.add_argument(
         "--changes", required=True, help="change document from `patchahead api-diff`"
     )
+    parser.add_argument(
+        "--cases", default=str(CASES), help="the commits to replay (default: the pydantic study)"
+    )
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args()
 
@@ -218,7 +221,7 @@ def main() -> int:
         if c.kind.value == "method_rename"
     }
     replays = []
-    for case in json.loads(CASES.read_text())["cases"]:
+    for case in json.loads(Path(args.cases).read_text())["cases"]:
         with tempfile.TemporaryDirectory(prefix="patchahead-replay-") as scratch:
             replays.append(replay(case["repo"], case["commit"], changes, renames, Path(scratch)))
 

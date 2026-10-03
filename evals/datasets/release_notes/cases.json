@@ -358,6 +358,46 @@
       ]
     },
     {
+      "id": "sphinx_simple_table_with_cross_references",
+      "note": "The shape of CPython's 'What's New': a reStructuredText simple table whose cells are Sphinx cross-references (:meth:`.name`, :class:`~pkg.Name`). The method role marks the new name as a call.",
+      "suffix": ".rst",
+      "text": "unittest\n--------\n\n* A number of :class:`~unittest.TestCase` method aliases were removed:\n\n  ============================ =============================== ===============\n     Deprecated alias           Method Name                     Deprecated in\n  ============================ =============================== ===============\n   ``failUnlessEqual``          :meth:`.assertEqual`            3.1\n   ``assertEquals``             :meth:`.assertEqual`            3.2\n   ``assertRegexpMatches``      :meth:`.assertRegex`            3.2\n  ============================ =============================== ===============\n",
+      "expected_changes": [
+        {
+          "kind": "method_rename",
+          "symbol": "failUnlessEqual",
+          "replacement": "assertEqual"
+        },
+        {
+          "kind": "method_rename",
+          "symbol": "assertEquals",
+          "replacement": "assertEqual"
+        },
+        {
+          "kind": "method_rename",
+          "symbol": "assertRegexpMatches",
+          "replacement": "assertRegex"
+        }
+      ]
+    },
+    {
+      "id": "moved_to_another_module_and_renamed",
+      "note": "Modeled on CPython 3.12 removing `imp`: each function moved to `importlib` under a new name, or became a constant. Renaming in place would write `imp.find_spec()`, which does not exist.",
+      "suffix": ".rst",
+      "text": "imp\n---\n\n================================= =======================================\nimp                               importlib\n================================= =======================================\n``imp.find_module()``             :func:`importlib.util.find_spec`\n``imp.get_magic()``               :const:`importlib.util.MAGIC_NUMBER`\n``imp.load_module()``             :func:`importlib.import_module`\n================================= =======================================\n",
+      "expected_changes": [
+        {
+          "kind": "unsupported"
+        },
+        {
+          "kind": "unsupported"
+        },
+        {
+          "kind": "unsupported"
+        }
+      ]
+    },
+    {
       "id": "bundled_style_headed_sections",
       "note": "The shape PatchAhead already reads: one heading per change, with Before/After bullets.",
       "text": "# Orders SDK v2\n\n## Breaking changes\n\n### Client method renamed: `fetch_orders` \u2192 `list_orders`\n\n- **Before:** `client.fetch_orders(limit=10)`\n- **After:** `client.list_orders(limit=10)`\n\n### Keyword argument renamed: `timeout_seconds` \u2192 `timeout`\n\n- **Before:** `client.list_orders(timeout_seconds=30)`\n- **After:** `client.list_orders(timeout=30)`\n",
