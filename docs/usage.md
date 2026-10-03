@@ -46,6 +46,7 @@ $ patchahead handlers
 | `demo` | Serves the local UI against a bundled example service with six scenarios. |
 | `web` | The same UI pointed at your own repository. |
 | `handlers` | Lists the migration families and what each one refuses to do. |
+| `api-diff` | Compares two versions of a library and writes the breaking changes as a change document. |
 
 Useful `migrate` options:
 
@@ -79,6 +80,36 @@ is read as its own change.
 
 When the prose is too vague, write the change as JSON (or YAML with the `yaml`
 extra). See [migrations.md](migrations.md#structured-change-documents).
+
+## Comparing two versions of a library
+
+When there is no usable release note, read the breaking changes out of the
+library itself:
+
+```bash
+patchahead api-diff storekit 4.9.0 5.0.0 --out changes.json      # from PyPI
+patchahead api-diff --old ./storekit-4.9 --new ./storekit-5.0 --out changes.json
+patchahead migrate --repo ./my-service --change changes.json
+```
+
+`--old`/`--new` take a directory or a `.whl` file. `--json` prints every
+change, including the ones only reported. `--out` writes only the changes
+PatchAhead can migrate; review it before passing it to `migrate`.
+
+| What changed | Read as |
+|---|---|
+| Old method gone; exactly one new sibling accepts the same calls | a rename |
+| Old method newly deprecated in favor of a sibling it names, which accepts every call it did | a rename |
+| A keyword parameter replaced in the same slot by one with a related name | a keyword rename |
+| Same name in another module | reported: a move |
+| Deprecated in favor of something with different arguments | reported |
+| Removed, several look-alikes, a new required parameter | reported |
+
+Nothing is installed or run. PyPI versions are downloaded as wheels from the
+index's JSON API (set `PATCHAHEAD_PYPI_URL` for a mirror that serves the same
+API) and checked against their published SHA-256. A release with only a source
+distribution is refused, because building one runs the package's code. A
+compiled library with no Python source has nothing to read.
 
 ## What is left after a migration
 

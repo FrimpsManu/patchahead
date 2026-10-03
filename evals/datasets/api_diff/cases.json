@@ -1,0 +1,327 @@
+{
+  "description": "Can PatchAhead read breaking changes out of two versions of a library, with no release note? Each case is a small library before and after an upgrade, read without being imported, and every change a correct reading finds. Several reproduce what real packages did -- requests 2.31 -> 2.32, pydantic 1 -> 2 -- including the readings that went wrong on them at first. A rename read where there is none fails the case even when it is marked as a known gap.",
+  "cases": [
+    {
+      "id": "deprecated_alias_names_its_replacement",
+      "note": "The old method survives as a deprecated wrapper whose warning names the new one.",
+      "old_files": {
+        "sdk/__init__.py": "class Client:\n    def fetch_all(self, limit=10):\n        return []\n"
+      },
+      "new_files": {
+        "sdk/__init__.py": "import warnings\n\n\nclass Client:\n    def list_all(self, limit=10):\n        return []\n\n    def fetch_all(self, limit=10):\n        warnings.warn(\"fetch_all is deprecated; use list_all\", DeprecationWarning)\n        return self.list_all(limit)\n"
+      },
+      "expected_changes": [
+        {
+          "kind": "method_rename",
+          "symbol": "fetch_all",
+          "replacement": "list_all",
+          "owner": "Client",
+          "owner_explicit": false
+        }
+      ]
+    },
+    {
+      "id": "renamed_outright_with_an_identical_signature",
+      "note": "The old name is gone and exactly one new method looks exactly like it.",
+      "old_files": {
+        "sdk/__init__.py": "class Client:\n    def fetch_all(self, limit=10, *, timeout=None):\n        return []\n"
+      },
+      "new_files": {
+        "sdk/__init__.py": "class Client:\n    def list_all(self, limit=10, *, timeout=None):\n        return []\n"
+      },
+      "expected_changes": [
+        {
+          "kind": "method_rename",
+          "symbol": "fetch_all",
+          "replacement": "list_all",
+          "owner": "Client"
+        }
+      ]
+    },
+    {
+      "id": "keyword_renamed_in_place",
+      "note": "Same position, same kind, same default, and the names share a word.",
+      "old_files": {
+        "sdk/__init__.py": "def get(url, verify_ssl=True):\n    return url\n"
+      },
+      "new_files": {
+        "sdk/__init__.py": "def get(url, verify=True):\n    return url\n"
+      },
+      "expected_changes": [
+        {
+          "kind": "kwarg_rename",
+          "symbol": "verify_ssl",
+          "replacement": "verify",
+          "owner": "get",
+          "owner_explicit": true
+        }
+      ]
+    },
+    {
+      "id": "constructor_keyword_renamed",
+      "note": "A renamed `__init__` parameter is a keyword rename on calls to the class.",
+      "old_files": {
+        "sdk/__init__.py": "class Client:\n    def __init__(self, url, timeout_seconds=30):\n        self.url = url\n"
+      },
+      "new_files": {
+        "sdk/__init__.py": "class Client:\n    def __init__(self, url, timeout=30):\n        self.url = url\n"
+      },
+      "expected_changes": [
+        {
+          "kind": "kwarg_rename",
+          "symbol": "timeout_seconds",
+          "replacement": "timeout",
+          "owner": "Client"
+        }
+      ]
+    },
+    {
+      "id": "class_renamed_with_the_same_methods",
+      "note": "`Client` is gone and `StoreClient` has exactly its public methods.",
+      "old_files": {
+        "sdk/__init__.py": "class Client:\n    def list_all(self):\n        return []\n\n    def get(self, key):\n        return key\n"
+      },
+      "new_files": {
+        "sdk/__init__.py": "class StoreClient:\n    def list_all(self):\n        return []\n\n    def get(self, key):\n        return key\n"
+      },
+      "expected_changes": [
+        {
+          "kind": "method_rename",
+          "symbol": "Client",
+          "replacement": "StoreClient"
+        }
+      ]
+    },
+    {
+      "id": "implementation_in_a_private_module_reexported",
+      "note": "Most libraries define in `_impl` and re-export from `__init__`; the public path is what matters.",
+      "old_files": {
+        "sdk/__init__.py": "from sdk._client import Client\n",
+        "sdk/_client.py": "class Client:\n    def fetch_all(self):\n        return []\n"
+      },
+      "new_files": {
+        "sdk/__init__.py": "from sdk._client import Client\n",
+        "sdk/_client.py": "class Client:\n    def list_all(self):\n        return []\n"
+      },
+      "expected_changes": [
+        {
+          "kind": "method_rename",
+          "symbol": "fetch_all",
+          "replacement": "list_all",
+          "owner": "Client"
+        }
+      ]
+    },
+    {
+      "id": "a_reexport_dropped_by_one_module_is_not_a_removal",
+      "note": "Found on pydantic 1 -> 2: a class re-exported from a secondary module disappeared from there but not from where it is defined. Picking the secondary path made the whole class look removed.",
+      "old_files": {
+        "sdk/__init__.py": "",
+        "sdk/main.py": "class Model:\n    def dict(self):\n        return {}\n",
+        "sdk/aaa_helpers.py": "from sdk.main import Model\n"
+      },
+      "new_files": {
+        "sdk/__init__.py": "",
+        "sdk/main.py": "class Model:\n    def model_dump(self):\n        return {}\n",
+        "sdk/aaa_helpers.py": ""
+      },
+      "expected_changes": [
+        {
+          "kind": "method_rename",
+          "symbol": "dict",
+          "replacement": "model_dump",
+          "owner": "Model"
+        }
+      ]
+    },
+    {
+      "id": "deprecated_in_favor_of_a_compatible_superset",
+      "note": "Found on pydantic 1 -> 2: `dict` deprecated in favor of `model_dump`, which accepts every argument `dict` did and adds more with defaults. A drop-in, so a rename.",
+      "old_files": {
+        "sdk/__init__.py": "class Model:\n    def dict(self, *, include=None, exclude=None):\n        return {}\n"
+      },
+      "new_files": {
+        "sdk/__init__.py": "import warnings\n\n\nclass Model:\n    def model_dump(self, *, mode=\"python\", include=None, exclude=None, round_trip=False):\n        return {}\n\n    def dict(self, *, include=None, exclude=None):\n        warnings.warn(\"The `dict` method is deprecated; use `model_dump` instead.\", DeprecationWarning)\n        return self.model_dump(include=include, exclude=exclude)\n"
+      },
+      "expected_changes": [
+        {
+          "kind": "method_rename",
+          "symbol": "dict",
+          "replacement": "model_dump",
+          "owner": "Model"
+        }
+      ]
+    },
+    {
+      "id": "deprecated_in_favor_of_a_method_with_other_arguments",
+      "note": "Found on requests 2.31 -> 2.32: `get_connection` deprecated in favor of `get_connection_with_tls_context`, which takes different arguments. Renaming the call would break it.",
+      "old_files": {
+        "sdk/__init__.py": "class Adapter:\n    def get_connection(self, url, proxies=None):\n        return url\n"
+      },
+      "new_files": {
+        "sdk/__init__.py": "import warnings\n\n\nclass Adapter:\n    def get_connection_with_tls_context(self, request, verify, proxies=None, cert=None):\n        return request\n\n    def get_connection(self, url, proxies=None):\n        warnings.warn(\n            \"`get_connection` has been deprecated in favor of `get_connection_with_tls_context`.\",\n            DeprecationWarning,\n        )\n        return self.proxy_manager_for(url)\n\n    def proxy_manager_for(self, proxy):\n        return proxy\n"
+      },
+      "expected_changes": [
+        {
+          "kind": "unsupported"
+        }
+      ]
+    },
+    {
+      "id": "calling_a_helper_is_not_naming_a_replacement",
+      "note": "Found on requests: a deprecated function that calls a helper, without naming any replacement. The helper is not its successor.",
+      "old_files": {
+        "sdk/__init__.py": "def get_text(r):\n    return encoding(r)\n\n\ndef encoding(r):\n    return 'utf-8'\n"
+      },
+      "new_files": {
+        "sdk/__init__.py": "import warnings\n\n\ndef get_text(r):\n    warnings.warn(\"get_text will be removed in 3.0.\", DeprecationWarning)\n    return encoding(r)\n\n\ndef encoding(r):\n    return \"utf-8\"\n"
+      },
+      "expected_changes": [
+        {
+          "kind": "unsupported"
+        }
+      ]
+    },
+    {
+      "id": "already_deprecated_before_is_not_a_change",
+      "note": "Deprecated in both versions: nothing changed in this upgrade.",
+      "old_files": {
+        "sdk/__init__.py": "import warnings\n\n\ndef old_api():\n    warnings.warn('old_api is deprecated', DeprecationWarning)\n"
+      },
+      "new_files": {
+        "sdk/__init__.py": "import warnings\n\n\ndef old_api():\n    warnings.warn('old_api is deprecated', DeprecationWarning)\n"
+      },
+      "expected_changes": []
+    },
+    {
+      "id": "a_deprecated_argument_does_not_deprecate_the_function",
+      "note": "Found on pydantic 1: `dict()` warned only when `skip_defaults` was passed. That deprecates an argument, not the method.",
+      "old_files": {
+        "sdk/__init__.py": "import warnings\n\n\nclass Model:\n    def dict(self, *, include=None, skip_defaults=None):\n        if skip_defaults is not None:\n            warnings.warn(\"skip_defaults is deprecated\", DeprecationWarning)\n        return {}\n"
+      },
+      "new_files": {
+        "sdk/__init__.py": "import warnings\n\n\nclass Model:\n    def model_dump(self, *, include=None):\n        return {}\n\n    def dict(self, *, include=None):\n        warnings.warn(\"`dict` is deprecated; use `model_dump`\", DeprecationWarning)\n        return self.model_dump(include=include)\n"
+      },
+      "expected_changes": [
+        {
+          "kind": "method_rename",
+          "symbol": "dict",
+          "replacement": "model_dump",
+          "owner": "Model"
+        },
+        {
+          "kind": "unsupported"
+        }
+      ]
+    },
+    {
+      "id": "a_warning_about_something_else",
+      "note": "A method that warns about an insecure option and calls a helper has not been renamed.",
+      "old_files": {
+        "sdk/__init__.py": "class Client:\n    def get(self, url, verify=True):\n        return self.send(url)\n\n    def send(self, url):\n        return url\n"
+      },
+      "new_files": {
+        "sdk/__init__.py": "import warnings\n\n\nclass Client:\n    def get(self, url, verify=True):\n        if not verify:\n            warnings.warn(\"TLS verification is off\")\n        return self.send(url)\n\n    def send(self, url):\n        return url\n"
+      },
+      "expected_changes": []
+    },
+    {
+      "id": "unrelated_parameters_in_the_same_slot",
+      "note": "Found on pydantic 1 -> 2: `use_proxy` dropped and `slots` added at the same position. Same kind and default, unrelated names: not a rename.",
+      "old_files": {
+        "sdk/__init__.py": "def dataclass(cls=None, *, frozen=False, use_proxy=None):\n    return cls\n"
+      },
+      "new_files": {
+        "sdk/__init__.py": "def dataclass(cls=None, *, frozen=False, slots=None):\n    return cls\n"
+      },
+      "expected_changes": [
+        {
+          "kind": "unsupported"
+        }
+      ]
+    },
+    {
+      "id": "a_parameter_folded_into_kwargs_still_works",
+      "note": "Every old keyword is still accepted by **kwargs; nothing breaks.",
+      "old_files": {
+        "sdk/__init__.py": "def send(url, timeout=None):\n    return url\n"
+      },
+      "new_files": {
+        "sdk/__init__.py": "def send(url, **options):\n    return url\n"
+      },
+      "expected_changes": []
+    },
+    {
+      "id": "several_lookalikes_are_not_guessed_between",
+      "note": "Two new methods share the removed one's signature; picking either would be a guess.",
+      "old_files": {
+        "sdk/__init__.py": "class Client:\n    def fetch(self, key):\n        return key\n"
+      },
+      "new_files": {
+        "sdk/__init__.py": "class Client:\n    def get(self, key):\n        return key\n\n    def retrieve(self, key):\n        return key\n"
+      },
+      "expected_changes": [
+        {
+          "kind": "unsupported"
+        }
+      ]
+    },
+    {
+      "id": "moved_to_another_module",
+      "note": "Same name, new module: a move, which v1 cannot migrate.",
+      "old_files": {
+        "sdk/__init__.py": "",
+        "sdk/tools.py": "def parse_obj_as(type_, obj):\n    return obj\n"
+      },
+      "new_files": {
+        "sdk/__init__.py": "",
+        "sdk/tools.py": "",
+        "sdk/legacy.py": "def parse_obj_as(type_, obj):\n    return obj\n"
+      },
+      "expected_changes": [
+        {
+          "kind": "unsupported"
+        }
+      ]
+    },
+    {
+      "id": "private_changes_are_invisible",
+      "note": "Underscored names and private modules are not part of the API a caller depends on.",
+      "old_files": {
+        "sdk/__init__.py": "def _helper():\n    pass\n",
+        "sdk/_impl.py": "def build():\n    pass\n"
+      },
+      "new_files": {
+        "sdk/__init__.py": "def _assist():\n    pass\n",
+        "sdk/_impl.py": "def make():\n    pass\n"
+      },
+      "expected_changes": []
+    },
+    {
+      "id": "a_new_required_parameter",
+      "note": "Callers must now pass a value PatchAhead cannot invent.",
+      "old_files": {
+        "sdk/__init__.py": "def connect(url):\n    return url\n"
+      },
+      "new_files": {
+        "sdk/__init__.py": "def connect(url, *, region):\n    return url\n"
+      },
+      "expected_changes": [
+        {
+          "kind": "unsupported"
+        }
+      ]
+    },
+    {
+      "id": "unchanged",
+      "note": "The control.",
+      "old_files": {
+        "sdk/__init__.py": "class Client:\n    def get(self, key, default=None):\n        return key\n"
+      },
+      "new_files": {
+        "sdk/__init__.py": "class Client:\n    def get(self, key, default=None):\n        return key\n"
+      },
+      "expected_changes": []
+    }
+  ]
+}

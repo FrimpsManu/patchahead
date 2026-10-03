@@ -16,7 +16,8 @@ Schema, as a single change or a list of them under ``changes``::
       "migration_hint": "...",
       "severity":       "high" | "medium" | "low",
       "confidence":     "high" | "medium" | "low",
-      "target":     {"symbol": "total", "replacement": "amount", "owner": "order"},
+      "target":     {"symbol": "total", "replacement": "amount", "owner": "order",
+                     "owner_explicit": true},
       "pagination": {"page_param": "page", "total_pages_key": "total_pages", ...},
       "evidence":   ["quoted line", {"quote": "...", "line": 12, "note": "..."}]
     }
@@ -97,13 +98,18 @@ def change_from_mapping(data: dict[str, Any], path: str, source: str) -> Breakin
     if not isinstance(raw_target, dict):
         raise IngestError(f"{path}: change {title!r} has a non-mapping `target`")
     owner = str(raw_target.get("owner", "") or "")
+    explicit = raw_target.get("owner_explicit", True)
+    if not isinstance(explicit, bool):
+        raise IngestError(f"{path}: change {title!r} has a non-boolean `owner_explicit`")
     target = SymbolTarget(
         symbol=str(raw_target.get("symbol", "") or ""),
         replacement=str(raw_target.get("replacement", "") or ""),
         owner=owner,
-        # Someone typed this into a field named `owner`. That is an assertion by
-        # construction, so a receiver mismatch refuses rather than guessing.
-        owner_is_explicit=bool(owner),
+        # Someone typed this into a field named `owner`, which is an assertion
+        # by construction -- a receiver mismatch refuses rather than guessing.
+        # A generator that knows the class but not what callers name its
+        # instance (`api-diff`) writes `"owner_explicit": false` instead.
+        owner_is_explicit=bool(owner) and explicit,
     )
 
     raw_pagination = data.get("pagination")
@@ -129,6 +135,34 @@ def change_from_mapping(data: dict[str, Any], path: str, source: str) -> Breakin
             or f"declared explicitly as `{kind.value}` in a structured change document"
         ),
     )
+
+
+def change_to_mapping(change: BreakingChange) -> dict[str, Any]:
+    """The inverse of :func:`change_from_mapping`: a change as a structured document entry."""
+    entry: dict[str, Any] = {
+        "title": change.title,
+        "kind": change.kind.value,
+        "severity": change.severity.value,
+        "confidence": change.confidence.value,
+        "classification_reason": change.classification_reason,
+    }
+    if change.target.symbol or change.target.owner:
+        entry["target"] = {
+            "symbol": change.target.symbol,
+            "replacement": change.target.replacement,
+            "owner": change.target.owner,
+            "owner_explicit": change.target.owner_is_explicit,
+        }
+    if change.kind is ChangeKind.PAGINATION_PAGE_TO_CURSOR:
+        entry["pagination"] = change.pagination.to_dict()
+    if change.evidence:
+        entry["evidence"] = [
+            {"quote": e.quote, "line": e.line, "note": e.note}
+            if e.line
+            else {"quote": e.quote, "note": e.note}
+            for e in change.evidence
+        ]
+    return entry
 
 
 class StructuredChangeParser(ChangeParser):

@@ -126,6 +126,20 @@ class ReleaseNoteCase(CaseSpec):
 
 
 @dataclass(frozen=True)
+class ApiDiffCase(ReleaseNoteCase):
+    """A library before and after an upgrade, and every change a correct reading finds.
+
+    ``old_files`` and ``new_files`` map paths to source, the way a wheel lays a
+    library out. ``expected_changes`` follows :class:`ReleaseNoteCase`.
+    """
+
+    old_files: dict[str, str] = field(default_factory=dict)
+    new_files: dict[str, str] = field(default_factory=dict)
+
+    REQUIRED = ("id", "old_files", "new_files", "expected_changes")
+
+
+@dataclass(frozen=True)
 class SiteCase(CaseSpec):
     """A change plus a repository, and the sites a correct tool patches.
 
