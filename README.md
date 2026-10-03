@@ -85,7 +85,7 @@ tests ran there. You review it and apply it.
 The last section matters as much as the tests. Passing tests show that the code
 they run works; they do not show the migration is *finished*. So after
 patching, PatchAhead searches the patched copy for every place the old name
-still appears and sorts them: code it did not rewrite (an import, a
+still appears and sorts them: code it did not rewrite (a bare reference, a
 `getattr(obj, "old_name")`), tests that still use the old name, sites on a
 different object left alone on purpose, and mere mentions in strings, comments,
 config, and docs. `--require-complete` makes CI fail while any code or test
@@ -199,9 +199,9 @@ special cases. More detail: [docs/architecture.md](docs/architecture.md).
 
 ## How it is measured
 
-- **497 automated tests**, covering unit, integration, and full end-to-end runs
+- **500 automated tests**, covering unit, integration, and full end-to-end runs
   with real test subprocesses.
-- **An evaluation benchmark of 112 cases**, run on every CI build: release notes
+- **An evaluation benchmark of 114 cases**, run on every CI build: release notes
   written the way vendors write them, repositories built to trick it (unrelated
   objects with the same field name, `os.environ.get` next to a renamed
   `client.get`, Unicode, nested scopes), full migrations, and the checks

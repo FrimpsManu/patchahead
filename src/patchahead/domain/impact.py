@@ -39,6 +39,8 @@ class AccessKind(str, enum.Enum):
     KEYWORD_ARG = "keyword_arg"
     #: A ``while``-loop paginating over an integer page counter.
     PAGE_LOOP = "page_loop"
+    #: ``from sdk import name``
+    IMPORT = "import"
 
     def __str__(self) -> str:  # pragma: no cover - trivial
         return self.value

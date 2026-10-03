@@ -139,6 +139,14 @@ change document's example:
 - Rename the *definition*. This family is for calls into an upstream SDK.
 - Touch calls in a module that defines a function with the same name locally —
   renaming those would break the repository rather than migrate it.
+- Rename an import of the repository's own definition, a relative import, or a
+  module-level import when the change names a receiver (`Client.fetch_orders`
+  says nothing about a function `sdk.fetch_orders`). These are reported.
+
+**Imports.** `from sdk import fetch_orders` is renamed together with the calls
+it serves; otherwise the renamed calls would sit under an import of a name that
+no longer exists. An alias is kept: `from sdk import fetch_orders as fo` becomes
+`from sdk import list_orders as fo`, and `fo()` needs no edit.
 
 ---
 

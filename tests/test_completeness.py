@@ -30,6 +30,10 @@ INCOMPLETE = {
 
 
         LABEL = "fetch_orders is gone"  # fetch_orders was renamed
+
+
+        def later(client):
+            return client.fetch_orders
     """,
     "tests/test_orders.py": """
         from unittest import mock
@@ -58,14 +62,15 @@ class TestWhatIsLeft:
     def test_every_kind_of_survivor_is_found_and_sorted_by_kind(self, make_repo, write_change):
         run, found = residuals(make_repo(INCOMPLETE), write_change(METHOD_DOC))
 
-        assert found[("app/orders.py", 1)].kind is ResidualKind.CODE
-        assert "import" in found[("app/orders.py", 1)].reason
+        assert found[("app/orders.py", 16)].kind is ResidualKind.CODE
+        assert "bare method reference" in found[("app/orders.py", 16)].reason
         assert found[("app/orders.py", 9)].kind is ResidualKind.DYNAMIC
         assert found[("tests/test_orders.py", 6)].kind is ResidualKind.TEST
         assert found[("app/orders.py", 12)].kind is ResidualKind.STRING
         assert found[("settings.yaml", 2)].kind is ResidualKind.CONFIG
         assert found[("NOTES.md", 1)].kind is ResidualKind.DOCS
-        # The call site itself was rewritten, so it is not a residual.
+        # The call site and its import were rewritten, so neither is a residual.
+        assert ("app/orders.py", 1) not in found
         assert ("app/orders.py", 5) not in found
         assert run.complete is False
 
