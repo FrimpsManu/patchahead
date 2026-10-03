@@ -377,6 +377,22 @@ class TestMethodRename:
         bare = next(f for f in report.findings if f.matched_contract == "dict()")
         assert bare.patchable is False
 
+    def test_a_method_on_an_unnamed_receiver_is_not_a_bare_builtin_call(self, make_index):
+        """`requests[0].dict()` is a method call; only `dict(x)` is the built-in.
+
+        Found replaying a real repository: the subscript has no name, and the
+        call was reported as the built-in `dict()`.
+        """
+        source = "def f(requests, x):\n    return requests[0].dict(), dict(x)\n"
+        index = make_index({"a.py": source})
+
+        report, plan = run(change(ChangeKind.METHOD_RENAME, "dict", "model_dump"), index)
+
+        method, bare = sorted(report.findings, key=lambda f: f.reference.col)
+        assert method.patchable and "built-in" not in method.reason
+        assert not bare.patchable and "built-in" in bare.reason
+        assert patched(source, plan, "a.py").endswith("requests[0].model_dump(), dict(x)\n")
+
     def test_a_builtin_name_imported_from_the_sdk_is_patched(self, make_index):
         """An explicit import is the evidence a bare built-in name otherwise lacks."""
         source = "from sdk import dict\n\ndef f(data):\n    return dict(data)\n"

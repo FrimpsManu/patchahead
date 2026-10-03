@@ -1,0 +1,45 @@
+{
+  "description": "Public commits in which maintainers moved from pydantic 1 to 2 by hand. Commits that only added new code already written against pydantic 2 were left out: they migrate nothing.",
+  "cases": [
+    {
+      "repo": "conda/menuinst",
+      "commit": "bac0f48b1d883e4faea6beee13f45ab511c2a01b"
+    },
+    {
+      "repo": "gtalarico/pyairtable",
+      "commit": "54849c686d3a5f49eca7b006d11ab6455eb91fd2"
+    },
+    {
+      "repo": "OpenFreeEnergy/alchemiscale",
+      "commit": "92389ac2bf59d99903ca2db1205ddd40ca9b2c1c"
+    },
+    {
+      "repo": "SeldonIO/MLServer",
+      "commit": "58cf8dc7f00091137c8b55470ad42b7d3f977419"
+    },
+    {
+      "repo": "epflgraph/graphchatbot",
+      "commit": "15aec5f43fa90d8d92941489b4ae3725cde5dae2"
+    },
+    {
+      "repo": "TisoneK/InjectX",
+      "commit": "547f8fea9b2f971c7be4f6ccfbc1620f9ea97351"
+    },
+    {
+      "repo": "TolulopeBabajide/awade",
+      "commit": "a680f7b0f156a6c9cdce4e4979b58e82807c5b9a"
+    },
+    {
+      "repo": "hywooga/FastApi-Todos",
+      "commit": "115a53092085987fd5b918ea9eed4d20d1970e46"
+    },
+    {
+      "repo": "nepovtor/block_finance_MVP",
+      "commit": "a95feeca406aaf973b8becd721024dd94eed03cf"
+    },
+    {
+      "repo": "Njoselson/tenant-legal-tools",
+      "commit": "e200ea9e006ee5800a44d67a95f554a4a489a91f"
+    }
+  ]
+}

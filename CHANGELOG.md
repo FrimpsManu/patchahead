@@ -7,6 +7,23 @@ this project uses [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added (real-world evidence)
+
+- **`docs/real-world.md`**: ten public commits in which maintainers migrated
+  from pydantic 1 to 2 by hand, replayed with PatchAhead from nothing but
+  `api-diff pydantic 1.10.13 2.0`. Of 67 edits, 35 match the maintainers' and
+  the other 32 are valid renames on pydantic models the maintainers had not
+  migrated yet; 0 are wrong. The calls it left alone are in test files (33),
+  calls to methods the project overrides (16), and a comment.
+- `evals/realworld/replay.py` reproduces it (network and `git` required; not
+  part of CI).
+
+### Fixed
+
+- **A method call on an unnamed receiver is not a bare call.**
+  `requests[0].dict()` was graded as a call to the built-in `dict()`, with the
+  wrong explanation. Found replaying MLServer.
+
 ### Added (CI)
 
 - **A GitHub Action** (`action.yml`) for Dependabot and Renovate pull requests.

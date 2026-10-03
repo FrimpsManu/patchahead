@@ -111,8 +111,13 @@ class MethodRenameHandler(MigrationHandler):
             for call in module.calls:
                 if call.name != old:
                     continue
+                # `requests[0].dict()` is a method call whose receiver has no
+                # name; it is not a bare `dict()` call.
+                is_method = (
+                    isinstance(call.node.func, ast.Attribute) if call.node else bool(call.receiver)
+                )
                 confidence, reason, patchable, blocked = self._grade(
-                    call.receiver, owner, defines_locally, hint, ambiguity
+                    call.receiver, owner, defines_locally, hint, ambiguity, is_method
                 )
                 findings.append(
                     ImpactFinding(
@@ -215,12 +220,14 @@ class MethodRenameHandler(MigrationHandler):
         defines_locally: bool,
         hint: str = "",
         ambiguity: _Ambiguity | None = None,
+        is_method: bool | None = None,
     ) -> tuple[Confidence, str, bool, str]:
         """Grade one call site.
 
         Returns ``(confidence, reason, patchable, blocked_reason)``.
         """
         ambiguity = ambiguity or _Ambiguity()
+        is_method = bool(receiver) if is_method is None else is_method
         if defines_locally:
             return (
                 Confidence.LOW,
@@ -253,19 +260,20 @@ class MethodRenameHandler(MigrationHandler):
                 True,
                 "",
             )
-        blocked = ambiguity.method if receiver else ambiguity.bare
+        blocked = ambiguity.method if is_method else ambiguity.bare
         if blocked:
+            shown = f"{receiver or '<expression>'}." if is_method else ""
             return (
                 Confidence.LOW,
-                f"call to `{receiver + '.' if receiver else ''}{blocked.name}()`, but "
+                f"call to `{shown}{blocked.name}()`, but "
                 f"{blocked.why}; name the receiver in the change document to migrate it",
                 False,
                 blocked.short,
             )
-        if receiver:
+        if is_method:
             return (
                 Confidence.MEDIUM,
-                f"method call with the renamed name on `{receiver}`; the change "
+                f"method call with the renamed name on `{receiver or '<expression>'}`; the change "
                 f"document asserts no receiver, so this could not be narrowed",
                 True,
                 "",
