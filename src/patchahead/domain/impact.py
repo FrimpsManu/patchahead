@@ -106,6 +106,10 @@ class ImpactFinding:
     patchable: bool = True
     #: Set when ``patchable`` is False: why not.
     unpatchable_reason: str = ""
+    #: True when the change document *asserted* what owns the renamed name and
+    #: this site belongs to something else -- `customer["total"]` for a rename
+    #: on `order`. Left alone on purpose, so not unfinished work.
+    other_object: bool = False
 
     @property
     def path(self) -> str:
@@ -122,6 +126,7 @@ class ImpactFinding:
             "source_text": self.source_text,
             "patchable": self.patchable,
             "unpatchable_reason": self.unpatchable_reason,
+            "other_object": self.other_object,
         }
 
 

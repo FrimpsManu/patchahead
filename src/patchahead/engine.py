@@ -41,7 +41,7 @@ from patchahead.domain.validation import GateName, TestRun
 from patchahead.ingest import parse_file
 from patchahead.observability import Timer
 from patchahead.testing import discovery, runner
-from patchahead.validation import ValidationEngine, ValidationOptions
+from patchahead.validation import ValidationEngine, ValidationOptions, completeness
 from patchahead.workspace import Repository, Workspace
 
 log = logging.getLogger(__name__)
@@ -273,6 +273,8 @@ def _run_migration(
         )
 
     run.validation = validation
+    with timer.stage("completeness"):
+        _check_completeness(patched, workspace, repository.config)
     for result in patched:
         result.validation = validation
         result.baseline_tests = targeted_baseline
@@ -413,6 +415,20 @@ def _plan_only(
         ),
         timings=timer.as_dict(),
     )
+
+
+def _check_completeness(
+    results: list[MigrationResult], workspace: Workspace, config: Config
+) -> None:
+    """Record, per patched change, where its old name survives in the patched copy."""
+    index = workspace.index()
+    for result in results:
+        change = result.impact.change
+        handler = handlers.find_handler(change)
+        if handler is None:  # pragma: no cover - a patched change always has one
+            continue
+        remaining = handler.analyze(change, index, config)
+        result.completeness = completeness.scan(change, remaining, index, workspace.root, config)
 
 
 def _flag_red_baseline(run: MigrationRun, baseline: TestRun | None) -> None:

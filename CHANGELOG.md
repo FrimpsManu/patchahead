@@ -7,6 +7,23 @@ this project uses [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added (completeness)
+
+- **A completeness report after every patched migration.** Passing tests show
+  the code they run works, not that the migration is finished. PatchAhead now
+  re-analyzes the patched copy and scans its Python tokens, configuration, and
+  documentation for every place the old name survives, sorted into code it did
+  not rewrite (an import, a dictionary built with the old key), dynamic access
+  (`getattr(obj, "old_name")`, which fails only at runtime), tests still using
+  the old name, sites on another object left alone on purpose, and mentions in
+  strings, comments, config, and docs. It is in the terminal output, `--json`,
+  and the pull-request summary.
+- **`--require-complete`** exits 1 while any code, dynamic access, or test still
+  uses an old name.
+- `ImpactFinding.other_object` records a site whose owner the change document
+  asserted is something else, so "left on purpose" is structured rather than
+  read from a message.
+
 ### Documentation
 
 - **A shorter README in plain words**, leading with the problem and a real

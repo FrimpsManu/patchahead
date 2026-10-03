@@ -179,6 +179,15 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     migrate.add_argument(
+        "--require-complete",
+        action="store_true",
+        help=(
+            "exit 1 when the patched code still uses an old name anywhere: code "
+            "PatchAhead did not rewrite, a getattr() with the old name, or a test. "
+            "Mentions in strings, comments, and docs do not count."
+        ),
+    )
+    migrate.add_argument(
         "--no-tests",
         action="store_true",
         dest="no_tests",
@@ -447,10 +456,14 @@ def _cmd_migrate(args: argparse.Namespace) -> int:
         except OSError as exc:
             log.error("could not write the PR summary to %s: %s", path, exc)
 
-    return _migration_exit_code(run, tests_requested=options.run_tests)
+    return _migration_exit_code(
+        run, tests_requested=options.run_tests, require_complete=args.require_complete
+    )
 
 
-def _migration_exit_code(run, *, tests_requested: bool = True) -> int:
+def _migration_exit_code(
+    run, *, tests_requested: bool = True, require_complete: bool = False
+) -> int:
     if not run.results:
         return EXIT_USAGE
     outcomes = {result.outcome for result in run.results}
@@ -458,6 +471,8 @@ def _migration_exit_code(run, *, tests_requested: bool = True) -> int:
         return EXIT_UNSUPPORTED
     # Exit 0 is a claim a CI job will act on, so every result has to earn it.
     acceptable = all(_exits_cleanly(result, tests_requested) for result in run.results)
+    if require_complete and not run.complete:
+        acceptable = False
     return EXIT_OK if acceptable else EXIT_NOT_MIGRATED
 
 

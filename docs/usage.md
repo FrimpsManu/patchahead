@@ -59,6 +59,7 @@ Useful `migrate` options:
 | `--output-dir DIR` / `--no-artifacts` | Where to write the diff, plan and result, or don't |
 | `--keep-workspace` | Leave the temporary copy on disk to inspect |
 | `--use-llm` | Allow the AI fallback (see below) |
+| `--require-complete` | Exit 1 while any code or test still uses an old name (see below) |
 
 The bundled example service ships inside the package. `patchahead demo
 --print-paths` prints where it is, so you can run the CLI against it:
@@ -78,6 +79,24 @@ is read as its own change.
 
 When the prose is too vague, write the change as JSON (or YAML with the `yaml`
 extra). See [migrations.md](migrations.md#structured-change-documents).
+
+## What is left after a migration
+
+Passing tests show that the code they run works, not that the migration is
+finished. After patching, PatchAhead searches the patched copy for every place
+the old name still appears, and sorts what it finds:
+
+| Kind | Example | Counts as unfinished |
+|---|---|---|
+| `code` | `from sdk import fetch_orders`; `{"total": 5}` sent to an API that renamed the field | yes |
+| `dynamic` | `getattr(client, "fetch_orders")`, which fails only at runtime | yes |
+| `test` | `client.fetch_orders.return_value = []` | yes |
+| `other_object` | `customer["total"]` when the note was about `order` | no, left on purpose |
+| `string`, `comment`, `config`, `docs` | a label, a comment, `settings.yaml`, a README | no, worth a look |
+
+The terminal lists the unfinished ones and counts the rest (`-v` lists them
+too); `--json` and the pull-request summary carry all of them. With
+`--require-complete`, the run exits 1 while anything unfinished remains.
 
 ## Configuration
 
@@ -107,7 +126,7 @@ Meant for CI: exit 0 is a claim a pipeline can act on.
 | Code | Meaning |
 |---|---|
 | 0 | Analysis ran; or the migration was verified by a test going from failing to passing; or a dry run completed; or there was nothing to migrate and the tests pass; or `--no-tests` was passed, so the patch is unverified by request |
-| 1 | Not migrated: a check failed, no plan was possible, the tests ran (or could not start) without proving the patch, or nothing was found while the tests were already failing |
+| 1 | Not migrated: a check failed, no plan was possible, the tests ran (or could not start) without proving the patch, nothing was found while the tests were already failing, or `--require-complete` was passed and code or tests still use an old name |
 | 2 | Usage error: bad arguments, missing file, unreadable configuration |
 | 3 | The change is real but this version cannot migrate it |
 | 4 | Interrupted |

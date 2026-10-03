@@ -87,6 +87,7 @@ class KwargRenameHandler(MigrationHandler):
                         source_text=old,
                         patchable=patchable,
                         unpatchable_reason=blocked,
+                        other_object=bool(target_function) and call.name != target_function,
                     )
                 )
 
