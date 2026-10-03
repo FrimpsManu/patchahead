@@ -154,7 +154,9 @@ def receiver_matches_owner(receiver: str, owner: str) -> bool:
     Matches on the leftmost or the rightmost segment, so both ``order`` and
     ``self.order`` match an owner of ``order`` while ``customer`` and
     ``self.cache`` do not. Case and naming style are ignored, so an owner of
-    ``Charge`` or ``PaymentIntent`` matches ``charge`` and ``payment_intent``.
+    ``Charge`` or ``PaymentIntent`` matches ``charge`` and ``payment_intent``,
+    and a qualifying prefix is allowed: ``api_client`` and ``self._client`` are
+    instances of ``Client``, while ``client_config`` is not.
     Deliberately narrow otherwise: this is the predicate that decides whether a
     rename is applied automatically, and a loose match here is exactly how
     unrelated code gets corrupted.
@@ -166,9 +168,15 @@ def receiver_matches_owner(receiver: str, owner: str) -> bool:
         return False
     segments = [segment.removesuffix("()") for segment in receiver.split(".")]
     # An API reference names the class (`Charge`, `PaymentIntent`); code names
-    # the instance (`charge`, `payment_intent`). Same object, two spellings.
+    # the instance (`charge`, `payment_intent`) -- often with a qualifier in
+    # front (`api_client`, `self._client` for a `Client`). Same object.
     wanted = _snake(owner)
-    return wanted in (_snake(segments[0]), _snake(segments[-1]))
+
+    def names_owner(segment: str) -> bool:
+        name = _snake(segment).lstrip("_")
+        return name == wanted or name.endswith(f"_{wanted}")
+
+    return names_owner(segments[0]) or names_owner(segments[-1])
 
 
 def _snake(name: str) -> str:

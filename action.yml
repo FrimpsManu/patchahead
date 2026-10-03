@@ -1,0 +1,169 @@
+name: PatchAhead
+description: >-
+  Migrate Python code for a breaking change in a dependency, prove the fix with
+  your tests, and report what is left. Reads Dependabot and Renovate pull
+  requests: their release notes, and the two versions of each bumped package.
+author: Augustine Manu-Frimpong
+branding:
+  icon: git-pull-request
+  color: blue
+
+inputs:
+  change:
+    description: A change document to migrate (Markdown, reStructuredText, JSON or YAML).
+    required: false
+    default: ""
+  from-pull-request:
+    description: >-
+      Read the triggering pull request: the release notes in its body, and the
+      package versions it bumps.
+    required: false
+    default: "false"
+  compare-versions:
+    description: >-
+      Compare the old and new version of each package the pull request bumps
+      (downloaded from PyPI as wheels, never installed or run).
+    required: false
+    default: "true"
+  repo:
+    description: The repository to migrate, relative to the workspace.
+    required: false
+    default: "."
+  python-version:
+    description: Python to run PatchAhead and your tests with.
+    required: false
+    default: "3.12"
+  install-command:
+    description: >-
+      How to install your project and its test dependencies, so the tests can
+      run, e.g. `pip install -r requirements-dev.txt`. Runs in `repo`.
+    required: false
+    default: ""
+  test-command:
+    description: Overrides the test command in the repository's PatchAhead configuration.
+    required: false
+    default: ""
+  require-complete:
+    description: Count the run as not migrated while code or tests still use an old name.
+    required: false
+    default: "false"
+  comment:
+    description: >-
+      Post the summary as a pull-request comment, updated in place on re-runs.
+      Needs `pull-requests: write`.
+    required: false
+    default: "false"
+  apply:
+    description: >-
+      Apply a verified patch to the checked-out files, for a later step to
+      commit or open a pull request with. Never commits or pushes by itself.
+    required: false
+    default: "false"
+  fail-on:
+    description: >-
+      When to fail the step: `never`, `error` (PatchAhead could not run), or
+      `not-migrated` (anything short of a verified migration, or nothing to do).
+    required: false
+    default: "error"
+  github-token:
+    description: Token for posting the comment.
+    required: false
+    default: ${{ github.token }}
+
+outputs:
+  outcome:
+    description: >-
+      migrated, patched_unverified, validation_failed, not_plannable,
+      patch_failed, unsupported_change, no_impact, nothing_to_migrate, or error.
+    value: ${{ steps.run.outputs.outcome }}
+  succeeded:
+    description: '"true" when a test that failed before the patch passes after it.'
+    value: ${{ steps.run.outputs.succeeded }}
+  complete:
+    description: '"true" when no code or test still uses an old name.'
+    value: ${{ steps.run.outputs.complete }}
+  exit-code:
+    description: What `patchahead migrate` would have exited with.
+    value: ${{ steps.run.outputs.exit-code }}
+  diff:
+    description: Path of the combined diff, when a patch was produced.
+    value: ${{ steps.run.outputs.diff }}
+  summary:
+    description: Path of the Markdown summary.
+    value: ${{ steps.run.outputs.summary }}
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    - name: Install PatchAhead
+      shell: bash
+      env:
+        ACTION_PATH: ${{ github.action_path }}
+      run: python -m pip install --quiet --disable-pip-version-check "$ACTION_PATH"
+
+    - name: Install the project
+      if: inputs.install-command != ''
+      shell: bash
+      working-directory: ${{ inputs.repo }}
+      env:
+        INSTALL_COMMAND: ${{ inputs.install-command }}
+      run: eval "$INSTALL_COMMAND"
+
+    - name: Migrate
+      id: run
+      shell: bash
+      env:
+        PATCHAHEAD_REPO: ${{ inputs.repo }}
+        PATCHAHEAD_CHANGE: ${{ inputs.change }}
+        PATCHAHEAD_FROM_PULL_REQUEST: ${{ inputs.from-pull-request }}
+        PATCHAHEAD_COMPARE_VERSIONS: ${{ inputs.compare-versions }}
+        PATCHAHEAD_TEST_COMMAND: ${{ inputs.test-command }}
+        PATCHAHEAD_REQUIRE_COMPLETE: ${{ inputs.require-complete }}
+      run: python -m patchahead.ci
+
+    - name: Comment on the pull request
+      if: inputs.comment == 'true' && github.event.pull_request.number
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        PR_NUMBER: ${{ github.event.pull_request.number }}
+        SUMMARY: ${{ steps.run.outputs.summary }}
+        REPOSITORY: ${{ github.repository }}
+      run: |
+        # Update PatchAhead's earlier comment if there is one, so a re-run does
+        # not add another.
+        existing=$(gh api "repos/$REPOSITORY/issues/$PR_NUMBER/comments" --paginate \
+          --jq '[.[] | select(.body | startswith("<!-- patchahead -->"))][-1].id // empty')
+        body=$(jq -Rs '{body: .}' < "$SUMMARY")
+        if [ -n "$existing" ]; then
+          echo "$body" | gh api --method PATCH "repos/$REPOSITORY/issues/comments/$existing" --input - > /dev/null
+        else
+          echo "$body" | gh api --method POST "repos/$REPOSITORY/issues/$PR_NUMBER/comments" --input - > /dev/null
+        fi
+
+    - name: Apply the verified patch
+      if: inputs.apply == 'true' && steps.run.outputs.succeeded == 'true' && steps.run.outputs.diff != ''
+      shell: bash
+      working-directory: ${{ inputs.repo }}
+      env:
+        DIFF: ${{ steps.run.outputs.diff }}
+      run: git apply "$DIFF"
+
+    - name: Decide the step's result
+      shell: bash
+      env:
+        FAIL_ON: ${{ inputs.fail-on }}
+        OUTCOME: ${{ steps.run.outputs.outcome }}
+        EXIT_CODE: ${{ steps.run.outputs.exit-code }}
+      run: |
+        echo "PatchAhead: $OUTCOME (exit code $EXIT_CODE)"
+        case "$FAIL_ON" in
+          never) exit 0 ;;
+          error) [ "$OUTCOME" != "error" ] ;;
+          not-migrated) [ "$EXIT_CODE" = "0" ] && [ "$OUTCOME" = "migrated" ] ;;
+          *) echo "unknown fail-on: $FAIL_ON (never, error, not-migrated)"; exit 1 ;;
+        esac

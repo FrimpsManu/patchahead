@@ -121,6 +121,38 @@ jobs:
             exit 1
           fi
 
+  action:
+    name: github action
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run the action against the bundled example
+        id: migrate
+        uses: ./
+        with:
+          change: src/patchahead/demo/fixtures/changes/pagination-cursor.md
+          repo: src/patchahead/demo/fixtures/orders-service
+          install-command: pip install pytest
+          apply: "true"
+          fail-on: not-migrated
+      - name: It reported a verified, complete migration
+        env:
+          OUTCOME: ${{ steps.migrate.outputs.outcome }}
+          SUCCEEDED: ${{ steps.migrate.outputs.succeeded }}
+          COMPLETE: ${{ steps.migrate.outputs.complete }}
+          SUMMARY: ${{ steps.migrate.outputs.summary }}
+        run: |
+          echo "outcome=$OUTCOME succeeded=$SUCCEEDED complete=$COMPLETE"
+          test "$OUTCOME" = migrated
+          test "$SUCCEEDED" = true
+          test "$COMPLETE" = true
+          grep -q "verified migration" "$SUMMARY"
+      - name: The verified patch was applied to the checkout, and only there
+        run: |
+          git diff --stat
+          ! git diff --quiet -- src/patchahead/demo/fixtures/orders-service/app/order_sync.py
+          grep -q "cursor = None" src/patchahead/demo/fixtures/orders-service/app/order_sync.py
+
   package:
     name: packaging
     runs-on: ubuntu-latest

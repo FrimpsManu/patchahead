@@ -293,12 +293,12 @@ class TestMethodRename:
         assert "analytics.fetch_orders()" in result, "an unrelated receiver must survive"
 
     def test_an_inferred_receiver_still_migrates_a_differently_named_variable(self, make_index):
-        """`api_client.fetch_orders()` is the same SDK call as `client.fetch_orders()`.
+        """`orders_api.fetch_orders()` is the same SDK call as `client.fetch_orders()`.
 
         When the receiver came from a Before/After example rather than an
         assertion, a different local name must not veto the migration.
         """
-        source = "def f(api_client):\n    return api_client.fetch_orders()\n"
+        source = "def f(orders_api):\n    return orders_api.fetch_orders()\n"
         index = make_index({"a.py": source})
 
         report, plan = run(
@@ -313,7 +313,7 @@ class TestMethodRename:
         )
 
         assert report.findings[0].confidence is Confidence.MEDIUM
-        assert "api_client.list_orders()" in patched(source, plan, "a.py")
+        assert "orders_api.list_orders()" in patched(source, plan, "a.py")
 
     def test_a_bare_reference_is_reported_but_not_rewritten(self, make_index):
         index = make_index({"a.py": "def f(client):\n    return client.fetch_orders\n"})

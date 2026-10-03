@@ -321,6 +321,25 @@
       "expected_changes": []
     },
     {
+      "id": "dependabot_pull_request_body",
+      "note": "What Dependabot puts in a pull request: HTML release notes, the same change again under 'Changelog', a 'Bug fixes' heading, and a commit list. Two changes, read once each; the commits are not release notes.",
+      "text": "Bumps [orders-sdk](https://example.invalid/orders-sdk) from 1.9.0 to 2.0.0.\n<details>\n<summary>Release notes</summary>\n<blockquote>\n<h2>v2.0.0</h2>\n<h3>Breaking changes</h3>\n<ul>\n<li><code>Client.fetch_orders()</code> was renamed to <code>Client.list_orders()</code>.</li>\n<li>The <code>timeout_seconds</code> keyword argument was renamed to <code>timeout</code>.</li>\n</ul>\n<h3>Bug fixes</h3>\n<ul>\n<li>Retry on 503 &amp; 504.</li>\n</ul>\n</blockquote>\n</details>\n<details>\n<summary>Changelog</summary>\n<blockquote>\n<h2>2.0.0</h2>\n<ul>\n<li><code>Client.fetch_orders()</code> was renamed to <code>Client.list_orders()</code>.</li>\n</ul>\n</blockquote>\n</details>\n<details>\n<summary>Commits</summary>\n<ul>\n<li><a href=\"https://example.invalid/c/abc1234\"><code>abc1234</code></a> rename <code>fetch</code> to <code>get</code> in tests</li>\n</ul>\n</details>\n",
+      "expected_changes": [
+        {
+          "kind": "method_rename",
+          "symbol": "fetch_orders",
+          "replacement": "list_orders",
+          "owner": "Client",
+          "owner_explicit": true
+        },
+        {
+          "kind": "kwarg_rename",
+          "symbol": "timeout_seconds",
+          "replacement": "timeout"
+        }
+      ]
+    },
+    {
       "id": "rst_changelog",
       "note": "A Python library's CHANGES.rst: underlined headings and double-backtick literals.",
       "suffix": ".rst",

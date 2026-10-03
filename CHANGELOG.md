@@ -7,6 +7,32 @@ this project uses [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added (CI)
+
+- **A GitHub Action** (`action.yml`) for Dependabot and Renovate pull requests.
+  It reads the release notes in the pull request and compares the two versions
+  of each package it bumps, migrates a temporary copy, runs the tests, and
+  reports through step outputs, the job summary, and an optional pull-request
+  comment that re-runs update in place. `apply` writes a verified patch into
+  the checkout for a later step; it never commits. `fail-on` decides when the
+  step fails. A CI job runs the action against the bundled example on every
+  build.
+- **Release notes checked against the library.** A release-note rename whose
+  new name the upgraded version does not define is dropped, with a note.
+- **Dependabot's HTML release notes are read**: headings, lists and `<code>`
+  become Markdown, the commit list is ignored, and a change the release notes
+  and the changelog both state is read once.
+- `MigrationRun.diff` (one diff of the whole run) and `MigrationRun.outcome`
+  (the run's verdict in one word), both in `--json`.
+
+### Changed
+
+- **An owner matches a qualified receiver.** `api_client` and `self._client`
+  are instances of `Client`, and `get_client()` returns one; a name ending in
+  `_<owner>` now names that owner. Two adversarial cases recorded as gaps --
+  `self._order` read in another method, `factory.get_client().fetch_orders()`
+  -- now pass. `client_config` still does not match.
+
 ### Added (comparing library versions)
 
 - **`patchahead api-diff`** reads the breaking changes out of two versions of a

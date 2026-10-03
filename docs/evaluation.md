@@ -209,27 +209,25 @@ than guesses at:
 | `before_after_code_fences_only` | The rename is visible only by comparing a Before and an After code sample |
 | `aws_style_token_pagination` | Renamed request parameters (`PageNumber` -> `NextToken`) in the pagination contract; today the change is reported as unsupported |
 
-Four are in `adversarial`, all four are the same gap wearing different
-clothes, and all four are *under*-patching: PatchAhead finds the site, explains
-it, and declines to rewrite it. None can be a false positive -- the harness
-counts a wrong edit as fatal and no marker excuses it -- so what each costs is a
-hand-edit, not a broken call site.
+Two are in `adversarial`, both the same gap, and both *under*-patching:
+PatchAhead finds the site, explains it, and declines to rewrite it. Neither can
+be a false positive -- the harness counts a wrong edit as fatal and no marker
+excuses it -- so what each costs is a hand-edit, not a broken call site.
 
 | Case | What it needs | Why it stays |
 |---|---|---|
 | `loop_variable_aliases_the_owner` | `for o in orders:` -- knowing `o` is an `order` | Alias analysis over the iterable |
 | `a_local_variable_aliases_the_owner` | `current = order` | Local dataflow |
-| `an_attribute_aliases_the_owner_across_methods` | `self._order` set in `__init__`, read elsewhere | Cross-method attribute tracking |
-| `a_chained_call_returns_the_named_receiver` | `factory.get_client().fetch_orders()` | Return-type information |
 
-Each needs PatchAhead to track *what a name refers to* rather than what it is
-called, which is a different kind of analysis from the syntactic matching
-everything here is built on -- a dataflow layer, not a patch to an existing
-handler. That is a deliberate boundary, not an oversight: the alternative
+Both need PatchAhead to track *what a name refers to* rather than what it is
+called -- a dataflow layer, not a patch to an existing handler. The alternative
 available today is to rewrite on the name alone, which is exactly the
-false-positive behaviour the adversarial suite exists to prevent. Until the
-analysis exists, refusing is the correct answer, and these four cases keep the
-cost of refusing visible in every run.
+false-positive behaviour the adversarial suite exists to prevent.
+
+Two former gaps closed without that layer, because the name already says what
+it holds: `self._order` is an `order`, and `factory.get_client()` returns a
+client. A receiver whose name ends in `_<owner>` now matches the owner; one
+that merely starts with it (`client_config`) does not.
 
 ## Adding a case
 

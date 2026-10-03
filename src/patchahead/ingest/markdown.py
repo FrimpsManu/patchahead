@@ -26,6 +26,7 @@ Before/After example under it supply an owner.
 
 from __future__ import annotations
 
+import html
 import logging
 import re
 from dataclasses import dataclass
@@ -240,6 +241,32 @@ class _Section:
     start_line: int
 
 
+_HTML_BLOCK = re.compile(r"<(?:h[1-6]|li|ul|ol|p|code|blockquote|details)\b", re.IGNORECASE)
+_HTML_HEADING = re.compile(r"<h([1-6])[^>]*>(.*?)</h\1\s*>", re.IGNORECASE | re.DOTALL)
+_COMMITS_BLOCK = re.compile(
+    r"<details>\s*<summary>\s*Commits\s*</summary>.*?</details>", re.IGNORECASE | re.DOTALL
+)
+
+
+def _from_html(text: str) -> str:
+    """Rewrite HTML release notes -- what Dependabot puts in a pull request -- as Markdown.
+
+    Headings become ``##``/``###``, list items become bullets, ``<code>``
+    becomes backticks, and every other tag is dropped. A Dependabot "Commits"
+    list is removed first: it is commit subjects, not release notes.
+    """
+    text = _COMMITS_BLOCK.sub("", text)
+    text = _HTML_HEADING.sub(
+        lambda m: f"\n{'#' * min(max(int(m.group(1)), 2), 4)} {m.group(2).strip()}\n", text
+    )
+    text = re.sub(r"<code>(.*?)</code>", r"`\1`", text, flags=re.IGNORECASE | re.DOTALL)
+    text = re.sub(r"<li[^>]*>", "\n- ", text, flags=re.IGNORECASE)
+    text = re.sub(r"<br\s*/?>|</p\s*>|</li\s*>|</?[uo]l[^>]*>", "\n", text, flags=re.IGNORECASE)
+    text = re.sub(r"<[^>]+>", "", text)
+    text = html.unescape(text)
+    return re.sub(r"\n{3,}", "\n\n", text)
+
+
 _UNDERLINE = re.compile(r"^([=\-~^\"'*+#])\1{2,}\s*$")
 
 
@@ -252,6 +279,8 @@ def _normalize(text: str) -> str:
     with a blank line rather than removed, so line numbers in evidence still
     point at the original document.
     """
+    if _HTML_BLOCK.search(text):
+        text = _from_html(text)
     text = re.sub(r"``([^`\n]+)``", r"`\1`", text)
     lines = text.splitlines()
     levels: dict[str, int] = {}
@@ -725,7 +754,7 @@ def _collect_evidence(section: _Section, kind: ChangeKind, symbol: str) -> list[
 
     evidence: list[Evidence] = []
     for offset, line in enumerate(section.text.splitlines()):
-        stripped = line.strip().lstrip("#-*> ").strip()
+        stripped = _plain(line.strip().lstrip("#-*> ")).strip()
         if not stripped:
             continue
         low = stripped.lower()
@@ -976,6 +1005,25 @@ def _plain(text: str) -> str:
     return re.sub(r"\*\*|__", "", text).strip()
 
 
+def _distinct(changes: list[BreakingChange]) -> list[BreakingChange]:
+    """Drop a rename the document states twice, keeping the first statement.
+
+    Release notes repeat themselves: a GitHub release and the project's
+    changelog, both quoted in one Dependabot pull request, describe the same
+    change. Patching it twice would report the second as "no impact".
+    """
+    seen: set[tuple[str, str, str, str]] = set()
+    kept: list[BreakingChange] = []
+    for change in changes:
+        target = change.target
+        key = (change.kind.value, target.symbol, target.replacement, target.owner)
+        if target.is_rename and key in seen:
+            continue
+        seen.add(key)
+        kept.append(change)
+    return kept
+
+
 class MarkdownChangeParser(ChangeParser):
     """Parses Markdown, reStructuredText, and plain-text release notes."""
 
@@ -995,7 +1043,7 @@ class MarkdownChangeParser(ChangeParser):
         # UNKNOWN. Drop those *only if* at least one real change was found, so a
         # document with nothing in it still reports honestly rather than
         # returning an empty list that reads like "no breaking changes".
-        actionable = [c for c in changes if c.kind is not ChangeKind.UNKNOWN]
+        actionable = _distinct([c for c in changes if c.kind is not ChangeKind.UNKNOWN])
         result = actionable or changes[:1]
         log.debug(
             "parsed %s: %d section(s) -> %d change(s) [%s]",

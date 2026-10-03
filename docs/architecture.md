@@ -44,6 +44,7 @@ another stage, and every stage can decline.
 flowchart TB
     cli["Command line"] --> engine
     web["Local web UI"] --> engine
+    action["GitHub Action"] --> engine
     bench["Tests and benchmark"] --> engine
     engine["engine<br/>runs the five steps in order"]
 
@@ -259,6 +260,18 @@ is the same pipeline.
 
 Method owners are written with `"owner_explicit": false`: the diff knows the
 class, not what a caller names its instance, so the owner is a hint.
+
+## In CI: both sources at once
+
+`patchahead.ci` (run by `action.yml`) reads a Dependabot or Renovate pull
+request for its release notes and for the packages it bumps, and runs both
+readers. The library comparison checks the notes: a release-note rename whose
+new name no version being upgraded to defines is dropped, with a note. The two
+lists are merged -- one change per kind, names, and owner, since the same
+keyword renamed on two functions is two changes -- written as one structured
+document, and handed to `engine.migrate`. The module only reports: step
+outputs, the combined diff (`MigrationRun.diff`), and a summary. Whether the
+step fails is `action.yml`'s decision, from the `fail-on` input.
 
 ## Where the LLM sits
 
