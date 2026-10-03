@@ -100,18 +100,22 @@ class MethodRenameHandler(MigrationHandler):
         hint = "" if change.target.owner_is_explicit else change.target.owner
         findings: list[ImpactFinding] = []
         definers = [path for path in index.non_test_paths() if _defines(index.modules[path], old)]
+        # Definitions in test code -- a fake, a shared base class's shim for
+        # `assert_` -- govern test code. They must not stop the application from
+        # migrating, but a test calling a method its own base class overrides
+        # is calling the project's code, exactly as in the application.
+        test_definers = [path for path in index.test_paths() if _defines(index.modules[path], old)]
 
         for path in analyzed_paths(index, config):
             module = index.modules[path]
             in_test = is_test_path(path)
+            relevant = definers + test_definers if in_test else definers
 
             # A repository that *defines* this name owns it; renaming calls to
-            # its own function would break the code rather than migrate it. A
-            # test module's own fake with the old name counts for that module
-            # only -- a test double must not stop the application from migrating.
-            defines_locally = path in definers or (in_test and _defines(module, old))
+            # its own function would break the code rather than migrate it.
+            defines_locally = path in relevant
             stdlib = _stdlib_bindings(module)
-            ambiguity = _ambiguity(old, module, [p for p in definers if p != path])
+            ambiguity = _ambiguity(old, module, [p for p in relevant if p != path])
 
             for call in module.calls:
                 if call.name != old:

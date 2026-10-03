@@ -228,6 +228,55 @@ class TestWhatIsNotARename:
         assert "never names a `cursor`" in change.classification_reason
 
 
+class TestSphinx:
+    """CPython's "What's New" and most Python projects' docs are Sphinx."""
+
+    def test_a_simple_table_of_cross_references(self):
+        changes = parse_text(
+            """
+            * Removed :class:`~unittest.TestCase` aliases:
+
+              ==================== ===================== =============
+               Deprecated alias     Method Name           Deprecated in
+              ==================== ===================== =============
+               ``assertEquals``     :meth:`.assertEqual`  3.2
+               ``failIf``           :meth:`.assertFalse`  3.1
+              ==================== ===================== =============
+            """,
+            suffix=".rst",
+        )
+
+        assert [(c.kind, c.target.symbol, c.target.replacement) for c in changes] == [
+            (ChangeKind.METHOD_RENAME, "assertEquals", "assertEqual"),
+            (ChangeKind.METHOD_RENAME, "failIf", "assertFalse"),
+        ]
+
+    def test_a_titled_cross_reference_uses_its_target(self):
+        changes = parse_text(
+            "### Loader\n\n- :meth:`old <pkg.Loader.load_tests>` -> :meth:`pkg.Loader.load`\n"
+        )
+
+        target = changes[0].target
+        assert (changes[0].kind, target.symbol, target.replacement, target.owner) == (
+            ChangeKind.METHOD_RENAME,
+            "load_tests",
+            "load",
+            "pkg.Loader",
+        )
+
+    def test_a_new_name_under_another_owner_is_a_move(self):
+        """`imp.find_module()` -> `importlib.util.find_spec()` would become `imp.find_spec()`."""
+        change = parse_text("### imp\n\n- `imp.find_module()` -> `importlib.util.find_spec()`\n")[0]
+
+        assert change.kind is ChangeKind.UNSUPPORTED
+        assert "moves to a different module" in change.classification_reason
+
+    def test_the_same_owner_is_still_a_rename(self):
+        change = parse_text("### Client\n\n- `Client.fetch_all()` -> `Client.list_all()`\n")[0]
+
+        assert (change.kind, change.target.replacement) == (ChangeKind.METHOD_RENAME, "list_all")
+
+
 class TestRestructuredText:
     def test_underlined_headings_and_double_backticks(self):
         changes = parse_text(

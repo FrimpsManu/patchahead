@@ -270,17 +270,79 @@ def _from_html(text: str) -> str:
 _UNDERLINE = re.compile(r"^([=\-~^\"'*+#])\1{2,}\s*$")
 
 
-def _normalize(text: str) -> str:
-    """Rewrite reStructuredText (and Markdown setext) notation as ATX Markdown.
+#: Sphinx cross-references to code: :meth:`.assertTrue`, :class:`~unittest.TestCase`,
+#: :func:`Title <pkg.func>`. Other roles (:gh:`123`, :ref:`...`) are left as text.
+_ROLE = re.compile(
+    r":(?:py:)?(?P<role>meth|func|attr|class|mod|data|exc|obj|const):"
+    r"`(?P<title>[^`<]*?)(?:\s*<(?P<target>[^>`]+)>)?`"
+)
+#: A reStructuredText simple-table border: columns of ``=`` separated by spaces.
+_RST_BORDER = re.compile(r"^(?P<indent>\s*)=+(?: +=+)+\s*$")
 
-    A double-backtick literal becomes a single-backtick one, and a title underlined with
-    ``====`` or ``----`` becomes a ``##`` heading -- levels assigned in order
-    of first appearance, as reStructuredText does. The underline is replaced
-    with a blank line rather than removed, so line numbers in evidence still
-    point at the original document.
+
+def _sphinx_role(match: re.Match[str]) -> str:
+    """:meth:`.assertTrue` -> `assertTrue()`; :class:`~unittest.TestCase` -> `TestCase`."""
+    name = (match.group("target") or match.group("title")).strip().lstrip("!")
+    if name.startswith("~"):
+        name = name[1:].rsplit(".", 1)[-1]
+    name = name.lstrip(".").removesuffix("()")
+    return f"`{name}()`" if match.group("role") in ("meth", "func") else f"`{name}`"
+
+
+def _rst_tables(lines: list[str]) -> list[str]:
+    """Rewrite reStructuredText simple tables as Markdown pipe tables, in place.
+
+    Columns are where the border's runs of ``=`` are, so cells are cut by
+    position before any markup inside them changes width. Borders become blank
+    lines, keeping line numbers.
+    """
+    index = 0
+    while index < len(lines):
+        top = _RST_BORDER.match(lines[index])
+        if not top:
+            index += 1
+            continue
+        borders = [i for i in range(index, len(lines)) if _RST_BORDER.match(lines[i])][:3]
+        if len(borders) < 3:
+            break
+        spans = [m.start() for m in re.finditer(r"=+", lines[index])]
+
+        def cells(line: str, spans: list[int] = spans) -> str:
+            ends = spans[1:] + [len(line)]
+            return (
+                "| "
+                + " | ".join(line[a:b].strip() for a, b in zip(spans, ends, strict=True))
+                + " |"
+            )
+
+        indent = top.group("indent")
+        first, rule, last = borders
+        for row in range(first + 1, last):
+            if row == rule:
+                lines[row] = indent + "|" + "|".join("---" for _ in spans) + "|"
+            elif lines[row].strip():
+                lines[row] = indent + cells(lines[row])
+        lines[first] = lines[last] = ""
+        index = last + 1
+    return lines
+
+
+def _normalize(text: str) -> str:
+    """Rewrite HTML, reStructuredText, and Sphinx markup as plain Markdown.
+
+    Simple tables become pipe tables, Sphinx cross-references to code become
+    backticked names (with ``()`` for a method or function, which is how the
+    parser tells a call from a field), a double-backtick literal becomes a
+    single-backtick one, and a title underlined with ``====`` or ``----``
+    becomes a ``##`` heading -- levels assigned in order of first appearance,
+    as reStructuredText does. Underlines and table borders become blank lines,
+    so line numbers in evidence still point at the original document.
     """
     if _HTML_BLOCK.search(text):
         text = _from_html(text)
+    lines = _rst_tables(text.splitlines())
+    text = "\n".join(lines) + ("\n" if text.endswith("\n") else "")
+    text = _ROLE.sub(_sphinx_role, text)
     text = re.sub(r"``([^`\n]+)``", r"`\1`", text)
     lines = text.splitlines()
     levels: dict[str, int] = {}
@@ -430,9 +492,23 @@ class _Rename:
         return self.old.rsplit(".", 1)[0].lstrip(".") if "." in self.old.lstrip(".") else ""
 
     @property
+    def new_qualifier(self) -> str:
+        return self.new.rsplit(".", 1)[0].lstrip(".") if "." in self.new.lstrip(".") else ""
+
+    @property
     def is_move(self) -> bool:
-        """``a.X.create`` -> ``b.y.create``: the name is unchanged, its home is not."""
-        return self.symbol == self.replacement
+        """Whether the thing changes where it lives, not just what it is called.
+
+        ``a.X.create`` -> ``b.y.create`` keeps the name. ``imp.find_module()``
+        -> ``importlib.util.find_spec()`` changes both: renaming the call in
+        place would write ``imp.find_spec()``, which does not exist. A new name
+        under a different owner is a move; ``Client.fetch_all`` ->
+        ``Client.list_all``, or ``Client.fetch_all`` -> ``list_all``, is not.
+        """
+        if self.symbol == self.replacement:
+            return True
+        new_home = self.new_qualifier.lower()
+        return bool(new_home) and new_home != self.qualifier.lower()
 
 
 def _find_renames(text: str) -> list[_Rename]:
@@ -894,6 +970,10 @@ def _rename_change(
                 f"`{rename.old}` -> `{rename.new}` keeps the name `{rename.symbol}` and "
                 f"changes where it lives -- a move to a different module or object, "
                 f"which PatchAhead v1 cannot migrate"
+                if rename.symbol == rename.replacement
+                else f"`{rename.old}` -> `{rename.new}` moves to a different module or "
+                f"object as well as changing its name; renaming it in place would "
+                f"write a name the old owner does not have"
             ),
         )
 

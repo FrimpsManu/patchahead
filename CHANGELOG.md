@@ -7,6 +7,29 @@ this project uses [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added (a second real-world study)
+
+- **Python 3.12's `unittest` removals, replayed on 12 projects** from the
+  unedited `unittest` section of CPython's `Doc/whatsnew/3.12.rst`: 412 edits,
+  288 identical to the maintainers', none of theirs missed, 0 wrong.
+  `evals/realworld/replay.py --cases` runs any case list.
+- **Sphinx and reStructuredText simple tables are read.** Cross-references
+  (`` :meth:`.assertEqual` ``, `` :class:`~unittest.TestCase` ``, titled targets)
+  become names -- a method or function role marks a call -- and `====`-bordered
+  tables become pipe tables. The real note read 0 of its 15 renames before.
+
+### Fixed
+
+- **A new name under a different owner is a move, not a rename.** Read on the
+  whole 3.12 "What's New", `imp.find_module()` -> `importlib.util.find_spec()`
+  and four more were taken as renames that would have written `imp.find_spec()`.
+  They are now reported, never applied.
+- **A method a shared test base class defines governs test calls.** Essentia's
+  `TestCase` defines its own `assert_`; calls to it in other test modules were
+  renamed to `assertTrue`, bypassing the project's code. Definitions in test
+  modules now count for test call sites, as application definitions do for
+  application code; they still never block the application from migrating.
+
 ### Added (tests)
 
 - **Tests that use the old API are migrated too** (`migrate_tests`, on by
