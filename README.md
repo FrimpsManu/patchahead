@@ -257,7 +257,7 @@ special cases. More detail: [docs/architecture.md](docs/architecture.md).
 
 ## How it is measured
 
-- **534 automated tests**, covering unit, integration, and full end-to-end runs
+- **535 automated tests**, covering unit, integration, and full end-to-end runs
   with real test subprocesses.
 - **An evaluation benchmark of 135 cases**, run on every CI build: release notes
   written the way vendors write them, before-and-after library versions
@@ -269,6 +269,13 @@ special cases. More detail: [docs/architecture.md](docs/architecture.md).
 - **Zero wrong edits** across all site cases, and **zero misread changes**
   across all release notes and library comparisons. Both are enforced: a case
   that produces a wrong edit fails the build.
+- **Replayed on real migrations.** Ten public projects that moved from
+  pydantic 1 to 2 by hand, re-migrated from nothing but the two pydantic
+  versions: 67 edits, 35 identical to the maintainers', the other 32 checked
+  against each receiver's class, and **0 wrong**. It left alone the 33 test
+  files the maintainers also migrated (tests are its evidence) and 16 calls to
+  methods a project overrides. Method and results:
+  [docs/real-world.md](docs/real-world.md).
 - **Known gaps are recorded, not hidden.** Four cases describe things it does
   not do yet, and all of them fail safely by doing nothing. They are listed in
   [docs/evaluation.md](docs/evaluation.md#the-gaps-that-remain).
@@ -301,6 +308,7 @@ Run it yourself with `python evals/run.py`.
 | [docs/migrations.md](docs/migrations.md) | Each kind of change in detail, including what it refuses |
 | [docs/safety.md](docs/safety.md) | What it protects you from, and what it does not |
 | [docs/evaluation.md](docs/evaluation.md) | The benchmark, and how to add a case |
+| [docs/real-world.md](docs/real-world.md) | Replaying ten real pydantic 1 -> 2 migrations |
 | [docs/contributing.md](docs/contributing.md) | Setting up, and adding a new kind of change |
 
 ## License
