@@ -7,6 +7,16 @@ this project uses [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed (imports)
+
+- **A method rename now renames `from sdk import old_name` with its calls.** The
+  call sites were rewritten and the import was not, so the patched module
+  failed at import time -- caught by the tests, and named by the new
+  completeness report, but still a migration PatchAhead should have finished.
+  An `as` alias is kept, so its uses need no edit. Imports of the repository's
+  own code, relative imports, and module-level imports in a change that names a
+  receiver are reported instead.
+
 ### Added (completeness)
 
 - **A completeness report after every patched migration.** Passing tests show

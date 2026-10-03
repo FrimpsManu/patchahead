@@ -427,6 +427,39 @@ class TestMethodRename:
         assert calls == {"uses_local.py": False, "uses_sdk.py": True}
 
 
+class TestImportRename:
+    """`from sdk import fetch_orders` has to change with the calls it serves."""
+
+    def test_an_sdk_import_is_renamed_with_its_calls(self, make_index):
+        source = "from sdk import fetch_orders, other\n\ndef go():\n    return fetch_orders()\n"
+        index = make_index({"a.py": source})
+
+        _, plan = run(change(ChangeKind.METHOD_RENAME, "fetch_orders", "list_orders"), index)
+
+        assert patched(source, plan, "a.py") == (
+            "from sdk import list_orders, other\n\ndef go():\n    return list_orders()\n"
+        )
+
+    def test_a_relative_import_is_the_repositorys_own_code(self, make_index):
+        index = make_index({"pkg/a.py": "from .client import fetch_orders\n"})
+
+        report, plan = run(change(ChangeKind.METHOD_RENAME, "fetch_orders", "list_orders"), index)
+
+        assert [f.patchable for f in report.findings] == [False]
+        assert plan.transformations == []
+
+    def test_an_asserted_receiver_leaves_module_level_imports_alone(self, make_index):
+        """`Client.fetch_orders` was renamed; `sdk.fetch_orders`, a function, may not have been."""
+        index = make_index({"a.py": "from sdk import fetch_orders\n"})
+
+        report, _ = run(
+            change(ChangeKind.METHOD_RENAME, "fetch_orders", "list_orders", "Client"), index
+        )
+
+        assert report.findings[0].patchable is False
+        assert "receiver" in report.findings[0].unpatchable_reason
+
+
 class TestKwargRename:
     def test_renames_only_the_argument_name(self, make_index):
         source = "def f(c):\n    return c.fetch_orders(limit=1, timeout_seconds=5.0)\n"

@@ -14,6 +14,12 @@ Site (change document names ``client``)   Confidence  Patched by default?
 ``fetch_orders()`` (bare, no receiver)    LOW         no -- reported
 ========================================  ==========  ====================
 
+A ``from sdk import fetch_orders`` is renamed with the calls it serves --
+otherwise the renamed calls would meet an import of a name that no longer
+exists. An ``as`` alias is kept, so ``fo()`` in ``from sdk import fetch_orders
+as fo`` needs no edit. An import of the repository's own definition, a relative
+import, or one in a change that asserts a receiver is reported, not rewritten.
+
 With no declared owner, a call is graded MEDIUM and patched only when the
 name itself is evidence. Three things take that evidence away, and each turns
 the site into a LOW finding that is reported rather than rewritten:
@@ -38,7 +44,7 @@ import builtins
 import logging
 from dataclasses import dataclass
 
-from patchahead.analysis import receiver_matches_owner
+from patchahead.analysis import MODULE_SCOPE, SourceRange, receiver_matches_owner
 from patchahead.analysis.index import RepoIndex
 from patchahead.config import Config
 from patchahead.domain.change import BreakingChange, ChangeKind, Confidence
@@ -76,6 +82,8 @@ class MethodRenameHandler(MigrationHandler):
         "`client.fetch_orders` rename.",
         "A module that defines a function with the same name locally is left "
         "alone entirely -- those calls are to its own code.",
+        "Only `from x import name` imports are renamed, and only when `x` is not "
+        "the repository's own code and no receiver is asserted.",
         "With no receiver named, a name shared with a built-in type's method "
         "(`get`, `update`, `items`), a bare built-in call (`dict()`), or a name "
         "the repository defines elsewhere is reported but not rewritten.",
@@ -128,6 +136,39 @@ class MethodRenameHandler(MigrationHandler):
                         and not receiver_matches_owner(call.receiver, owner),
                     )
                 )
+
+            # `from sdk import fetch_orders`: renamed with the calls it serves.
+            for node in ast.walk(module.tree):
+                if not isinstance(node, ast.ImportFrom):
+                    continue
+                for alias in node.names:
+                    if alias.name != old:
+                        continue
+                    confidence, reason, patchable, blocked = self._grade_import(
+                        node, owner, definers
+                    )
+                    name = _alias_name_range(alias, module.columns)
+                    findings.append(
+                        ImpactFinding(
+                            reference=CodeReference(
+                                path=path,
+                                line=name.line,
+                                col=name.col,
+                                end_line=name.end_line,
+                                end_col=name.end_col,
+                                snippet=module.line_text(name.line),
+                            ),
+                            symbol=MODULE_SCOPE,
+                            matched_contract=f"from {'.' * node.level}{node.module or ''} "
+                            f"import {old}",
+                            access=AccessKind.IMPORT,
+                            reason=reason,
+                            confidence=confidence,
+                            source_text=old,
+                            patchable=patchable,
+                            unpatchable_reason=blocked,
+                        )
+                    )
 
             # Bare references: `cb = client.fetch_orders` (no call parentheses).
             for attribute in module.attributes:
@@ -236,6 +277,35 @@ class MethodRenameHandler(MigrationHandler):
             "",
         )
 
+    def _grade_import(
+        self, node: ast.ImportFrom, owner: str, definers: list[str]
+    ) -> tuple[Confidence, str, bool, str]:
+        """Grade one ``from x import name``. Returns the same tuple as :meth:`_grade`."""
+        source = f"{'.' * node.level}{node.module or ''}"
+        if node.level or (node.module and _is_repo_module(node.module, definers)):
+            return (
+                Confidence.LOW,
+                f"imports `{source}`'s own definition of the name, which is the "
+                f"repository's code rather than the upstream SDK",
+                False,
+                "imports the repository's own definition",
+            )
+        if owner:
+            return (
+                Confidence.LOW,
+                f"imports a function with the renamed name, but the change document "
+                f"names `{owner}` as the receiver; an importable function may be a "
+                f"different thing",
+                False,
+                f"the change asserts the receiver `{owner}`; a module-level import may differ",
+            )
+        return (
+            Confidence.MEDIUM,
+            f"imports the renamed name from `{source}`; renamed together with its calls",
+            True,
+            "",
+        )
+
     def plan(
         self,
         change: BreakingChange,
@@ -271,11 +341,12 @@ class MethodRenameHandler(MigrationHandler):
                 )
                 continue
             reference = finding.reference
+            is_import = finding.access is AccessKind.IMPORT
             plan.transformations.append(
                 Transformation(
                     reference=reference,
-                    old=f"{old}(",
-                    new=f"{new}(",
+                    old=old if is_import else f"{old}(",
+                    new=new if is_import else f"{new}(",
                     symbol=finding.symbol,
                     confidence=finding.confidence,
                     edit=TextEdit(
@@ -284,7 +355,8 @@ class MethodRenameHandler(MigrationHandler):
                         end_line=reference.end_line or reference.line,
                         end_col=reference.end_col or reference.col,
                         new_text=new,
-                        description=f"rename call `{old}` to `{new}`",
+                        description=f"rename {'import' if is_import else 'call'} "
+                        f"`{old}` to `{new}`",
                     ),
                 )
             )
@@ -361,6 +433,14 @@ def _ambiguity(name: str, module, other_definers: list[str]) -> _Ambiguity:
     else:
         bare = elsewhere
     return _Ambiguity(method=method, bare=bare)
+
+
+def _alias_name_range(alias: ast.alias, columns) -> SourceRange:
+    """The range of the imported name alone -- ``fetch_orders`` in ``fetch_orders as fo``."""
+    start = SourceRange.of(alias, columns)
+    return SourceRange(
+        line=start.line, col=start.col, end_line=start.line, end_col=start.col + len(alias.name)
+    )
 
 
 def _import_sources(module, name: str) -> list[str | None]:

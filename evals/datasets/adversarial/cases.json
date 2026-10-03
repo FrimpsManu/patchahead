@@ -450,7 +450,7 @@
     },
     {
       "id": "imported_symbol_is_patched_but_a_locally_defined_one_is_not",
-      "note": "The same call spelling in two modules. One imports it from the SDK; the other defines it. Renaming calls to the repository's own function would break it rather than migrate it, so ownership of the name decides, not the spelling of the call.",
+      "note": "The same call spelling in two modules. One imports it from the SDK; the other defines it. Renaming calls to the repository's own function would break it rather than migrate it, so ownership of the name decides, not the spelling of the call. The SDK import is renamed with its call, so the module still imports.",
       "change": {
         "kind": "method_rename",
         "symbol": "fetch_orders",
@@ -461,6 +461,7 @@
         "app/local.py": "def fetch_orders(limit):\n    return []\n\n\ndef go():\n    return fetch_orders(limit=1)\n"
       },
       "expect_patched": [
+        "app/uses_sdk.py:1",
         "app/uses_sdk.py:5"
       ],
       "expect_reported_only": [
@@ -468,7 +469,8 @@
       ],
       "expect_source_contains": [
         "def fetch_orders(limit):",
-        "return fetch_orders(limit=1)"
+        "return fetch_orders(limit=1)",
+        "from sdk import list_orders"
       ]
     },
     {
@@ -605,6 +607,46 @@
       ],
       "expect_source_contains": [
         "customer[\"amount_cents\"]"
+      ]
+    },
+    {
+      "id": "an_aliased_import_keeps_its_alias",
+      "note": "`from sdk import fetch_orders as fo`: renaming the imported name and keeping the alias means `fo()` needs no edit at all.",
+      "change": {
+        "kind": "method_rename",
+        "symbol": "fetch_orders",
+        "replacement": "list_orders"
+      },
+      "files": {
+        "app/a.py": "from sdk import fetch_orders as fo\n\n\ndef go():\n    return fo(limit=1)\n"
+      },
+      "expect_patched": [
+        "app/a.py:1"
+      ],
+      "expect_source_contains": [
+        "from sdk import list_orders as fo",
+        "return fo(limit=1)"
+      ]
+    },
+    {
+      "id": "an_import_of_the_repositorys_own_function_is_not_renamed",
+      "note": "`from app.local import fetch_orders` imports the repository's own definition; renaming it would break the repository.",
+      "change": {
+        "kind": "method_rename",
+        "symbol": "fetch_orders",
+        "replacement": "list_orders"
+      },
+      "files": {
+        "app/local.py": "def fetch_orders(limit):\n    return []\n",
+        "app/uses.py": "from app.local import fetch_orders\n\n\ndef go():\n    return fetch_orders(limit=1)\n"
+      },
+      "expect_patched": [],
+      "expect_reported_only": [
+        "app/uses.py:1",
+        "app/uses.py:5"
+      ],
+      "expect_source_contains": [
+        "from app.local import fetch_orders"
       ]
     },
     {
