@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "patchahead"
-version = "0.3.0"
-description = "Find downstream code broken by upstream API changes, propose a minimal migration, and verify it with your tests."
+version = "0.3.1"
+description = "Updates your Python code when an API you depend on changes, and proves the fix with your tests."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }

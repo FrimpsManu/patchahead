@@ -1,5 +1,21 @@
 # Recording the demo
 
+`docs/media/demo.gif` is recorded automatically:
+
+```bash
+pip install playwright pillow && python -m playwright install chromium
+python scripts/record_demo.py docs/media/demo.gif "$(which patchahead)"
+```
+
+It starts the real demo server, warms it once, and follows the browser part of
+the sequence below with a headless Chromium, keeping every frame as the page
+showed it. Frames start just below the header bar, which shows where the demo
+is installed -- a path from the recording machine -- and the script stops if
+that bar is ever in frame. The rest of this page is for recording by hand,
+with a terminal and narration.
+
+## Recording by hand
+
 A 45-second screen capture that a stranger can follow without reading anything
 first. The still images in the README were captured from this same UI and can
 stay; this is for the moving version.
@@ -7,7 +23,7 @@ stay; this is for the moving version.
 Nothing here is staged. The commands below run the real engine against the
 bundled repository, and what appears on screen is what the engine returned.
 
-## Before you start
+### Before you start
 
 ```bash
 pip install 'patchahead[demo]'
@@ -26,7 +42,7 @@ Then:
 - Record at 1280×900 or 1440×900. Anything wider makes the text unreadable once
   GitHub scales the GIF down.
 
-## The sequence (45 seconds)
+### The sequence (45 seconds)
 
 | Time | On screen | Why it is there |
 |---|---|---|
@@ -41,7 +57,7 @@ Then:
 | 0:36–0:41 | Scroll back up and click **Same field name, different object** → **Run this scenario**. | The pivot. |
 | 0:41–0:45 | The amber **REFUSED** banner, then the impact table: both sites found, graded `low`, decision **leave alone**, reason *"receiver is order, not the declared owner invoice"*. End here. | The differentiator: it found the code and chose not to touch it. |
 
-## What to say, if there is narration
+### What to say, if there is narration
 
 Four sentences, one per beat:
 
@@ -53,7 +69,7 @@ Four sentences, one per beat:
 4. "And when the change is about a different object that happens to share a
    field name, it finds the code, explains it, and refuses."
 
-## Things that ruin the take
+### Things that ruin the take
 
 - **Scrolling fast.** The page is dense; a viewer needs about a second per
   section. Slow, steady, no overshoot.
@@ -66,7 +82,7 @@ Four sentences, one per beat:
 - **Editing the outcome.** If a scenario reports something other than what the
   card promised, that is a bug to file, not a take to cut around.
 
-## Saving it
+### Saving it
 
 ```bash
 # Suggested: ≤ 10 MB, ~12 fps, 1280px wide. GitHub will not render a huge GIF.
