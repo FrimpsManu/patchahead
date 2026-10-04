@@ -7,6 +7,18 @@ this project uses [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **The GitHub Action can open the fix as a pull request.** With
+  `open-pull-request: true`, a verified, complete migration is committed to
+  `patchahead/<target>` and opened as a pull request. On a Dependabot or
+  Renovate pull request the target is that pull request's branch, so merging the
+  fix adds it to the bump. Re-runs update the same pull request. It opens
+  nothing for anything short of a verified migration, for a pull request from a
+  fork, for a patch that does not apply, or when someone else has pushed to the
+  branch. New output: `pull-request-url`. The logic is in
+  `patchahead.fixpr` and is tested against a real git remote.
+
 ### Changed
 
 - **A quieter web UI.** `patchahead demo` and `patchahead web` now use one

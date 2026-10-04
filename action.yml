@@ -59,6 +59,13 @@ inputs:
       commit or open a pull request with. Never commits or pushes by itself.
     required: false
     default: "false"
+  open-pull-request:
+    description: >-
+      Open the verified patch as a pull request: against the triggering pull
+      request's branch, or the branch the run is on. Re-runs update it. Needs
+      `contents: write` and `pull-requests: write`.
+    required: false
+    default: "false"
   fail-on:
     description: >-
       When to fail the step: `never`, `error` (PatchAhead could not run), or
@@ -66,7 +73,10 @@ inputs:
     required: false
     default: "error"
   github-token:
-    description: Token for posting the comment.
+    description: >-
+      Token for the comment and the pull request. Pull requests opened with the
+      default token do not start other workflows; pass a personal access token
+      or an app token if they should.
     required: false
     default: ${{ github.token }}
 
@@ -91,6 +101,9 @@ outputs:
   summary:
     description: Path of the Markdown summary.
     value: ${{ steps.run.outputs.summary }}
+  pull-request-url:
+    description: The fix's pull request, when `open-pull-request` opened or updated one.
+    value: ${{ steps.pr.outputs.pull-request-url }}
 
 runs:
   using: composite
@@ -152,6 +165,19 @@ runs:
       env:
         DIFF: ${{ steps.run.outputs.diff }}
       run: git apply "$DIFF"
+
+    - name: Open the verified patch as a pull request
+      id: pr
+      if: inputs.open-pull-request == 'true'
+      shell: bash
+      env:
+        PATCHAHEAD_REPO: ${{ inputs.repo }}
+        PATCHAHEAD_OUTCOME: ${{ steps.run.outputs.outcome }}
+        PATCHAHEAD_EXIT_CODE: ${{ steps.run.outputs.exit-code }}
+        PATCHAHEAD_DIFF: ${{ steps.run.outputs.diff }}
+        PATCHAHEAD_SUMMARY: ${{ steps.run.outputs.summary }}
+        PATCHAHEAD_GITHUB_TOKEN: ${{ inputs.github-token }}
+      run: python -m patchahead.fixpr
 
     - name: Decide the step's result
       shell: bash

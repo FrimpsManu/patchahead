@@ -158,8 +158,11 @@ versions of each package it bumps. The two check each other: a release note
 that renames something to a name the new version does not have is dropped, with
 a note saying so. Then it migrates a temporary copy, runs your tests, and posts
 the verdict, the diff, and what is left of the old API as one comment, updated
-in place on re-runs. It never commits; `apply: true` writes a verified patch
-into the checkout for a later step to commit. All inputs are in
+in place on re-runs.
+
+It never commits to your branches. With `open-pull-request: true` (from 0.4.0),
+a verified fix is opened as its own pull request against the bump's branch, so
+merging it adds the fix to the bump. All inputs are in
 [docs/usage.md](docs/usage.md#github-action).
 
 ## How it stays safe
@@ -290,11 +293,10 @@ Run it yourself with `python evals/run.py`.
 - **No type inference.** It matches names. In `for o in orders: o["total"]` it
   cannot prove `o` is an order, so it reports the site and does not patch it.
 - **One pagination loop shape.** Other shapes are refused.
-- **Local and single-repository.** No GitHub integration yet.
+- **One repository at a time.**
 
 ## Roadmap
 
-- Opening the verified fix as a pull request of its own, rather than a comment
 - Reading OpenAPI spec changes directly
 - More kinds of change, such as moved endpoints and changed response shapes
 - Tracking a renamed value through variables (`current = order`)

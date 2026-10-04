@@ -143,14 +143,56 @@ jobs:
 | `require-complete` | `false` | Count it as not migrated while code or tests still use an old name |
 | `comment` | `false` | Post the summary on the pull request, updated in place on re-runs |
 | `apply` | `false` | Write a verified patch into the checked-out files for a later step; never commits |
+| `open-pull-request` | `false` | Open a verified patch as a pull request; see below. From 0.4.0 |
+| `github-token` | `github.token` | Token for the comment and the pull request |
 | `fail-on` | `error` | `never`, `error` (it could not run), or `not-migrated` |
 
 Outputs: `outcome`, `succeeded`, `complete`, `exit-code`, `diff` (a file),
-and `summary` (a file). A later step can open a pull request from an applied
-patch, or attach the diff.
+`summary` (a file), and `pull-request-url`.
+
+### Opening the fix as a pull request
+
+```yaml
+permissions:
+  contents: write
+  pull-requests: write
+...
+      - uses: FrimpsManu/patchahead@v0.4.0
+        with:
+          from-pull-request: true
+          install-command: pip install -r requirements-dev.txt
+          open-pull-request: true
+```
+
+When the run ends in a verified, complete migration (outcome `migrated`, exit
+code 0), PatchAhead commits the patch to the branch `patchahead/<target>` and
+opens a pull request into `<target>`:
+
+- **On a pull request**, the target is that pull request's branch. Merging the
+  fix's pull request adds the fix to the bump. The bump's own branch is never
+  pushed to; Dependabot would rebase the commit away.
+- **On a push or a manual run**, the target is the branch the run was on.
+
+A re-run updates the same branch and pull request. Anything short of a verified
+migration opens nothing. It also opens nothing, with the reason in the log, when:
+
+- the pull request comes from a fork, since the fix cannot be pushed there;
+- the patch does not apply to the target branch;
+- someone else has pushed to `patchahead/<target>`. PatchAhead does not
+  overwrite commits that are not its own.
+
+The commit is made in a separate git worktree, so the checkout is left as it
+was for later steps. Two settings are needed: the permissions above, and
+**Allow GitHub Actions to create and approve pull requests** in Settings ->
+Actions -> General. Without them the step fails and says which is missing.
+
+Pull requests opened with the default `GITHUB_TOKEN` do not start other
+workflows, so your CI will not run on the fix by itself. Pass a personal access
+token or a GitHub App token as `github-token` if it should.
 
 **Dependabot.** A workflow Dependabot triggers gets a read-only `GITHUB_TOKEN`,
-so `comment: true` needs `pull-requests: write` in `permissions`. It also sees
+so `comment: true` needs `pull-requests: write` in `permissions`, and
+`open-pull-request: true` needs `contents: write` as well. It also sees
 Dependabot secrets rather than Actions secrets, so `--use-llm` is not part of
 the action.
 

@@ -21,6 +21,12 @@ the output directory (`.patchahead/` by default, disabled with
 `--no-artifacts`). It never writes into your repository. `analyze` writes
 nothing at all.
 
+The GitHub Action has one exception, and only when asked: with
+`open-pull-request: true`, a verified fix is committed to one branch,
+`patchahead/<target>`, and nowhere else. It is committed in a separate worktree,
+so the checkout is untouched, and it never overwrites commits on that branch
+that are not its own.
+
 This is enforced structurally: `Repository` — the object representing the
 directory you pointed at — has **no write method**. Guaranteed.
 
