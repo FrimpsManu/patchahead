@@ -25,6 +25,11 @@ _COLORS = {
 }
 
 
+#: Heads each change's summary. A comment's patch is neither merged nor applied;
+#: ``patchahead.fixpr`` swaps this line for one true of a pull request.
+PROPOSED_NOTE = "> Proposed by **PatchAhead**. Not merged, not applied. Review before approving."
+
+
 def _use_color(stream) -> bool:
     if os.environ.get("NO_COLOR"):
         return False
@@ -333,7 +338,7 @@ def render_pr_markdown(result: MigrationResult) -> str:
     lines += [
         f"# {title}",
         "",
-        "> Proposed by **PatchAhead**. Not merged, not applied. Review before approving.",
+        PROPOSED_NOTE,
         "",
         "## 1. Upstream change",
         "",
