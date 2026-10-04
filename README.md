@@ -31,9 +31,7 @@ refuse, and nothing is called a success without evidence from your tests.
 ## See it in 30 seconds
 
 ```bash
-git clone https://github.com/FrimpsManu/patchahead
-cd patchahead
-pip install -e '.[demo]'
+pip install 'patchahead[demo]'
 patchahead demo
 ```
 
@@ -43,7 +41,9 @@ being rejected by the tests, and reporting a patch it could not prove.
 
 ![A verified migration in the PatchAhead demo](https://raw.githubusercontent.com/FrimpsManu/patchahead/main/docs/media/demo-verified.png)
 
-PatchAhead is not on PyPI yet, so for now it installs from a clone.
+Python 3.10 or newer. `pip install patchahead` alone is the core tool, with no
+third-party dependencies on 3.11+; [docs/usage.md](docs/usage.md#install) lists
+the extras.
 
 ## What it looks like
 
@@ -146,7 +146,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: FrimpsManu/patchahead@main
+      - uses: FrimpsManu/patchahead@v0.3.0
         with:
           from-pull-request: true
           install-command: pip install -r requirements-dev.txt
