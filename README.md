@@ -101,7 +101,7 @@ still uses the old name.
 | Page numbers to cursors | a `page` / `total_pages` loop becomes `cursor` / `has_more` |
 
 It reads release notes the way vendors write them: headings, bullet lists,
-tables, reStructuredText, and phrasings like "renamed to", "is now", or
+tables, reStructuredText and Sphinx (CPython's own "What's New"), and phrasings like "renamed to", "is now", or
 "deprecated in favor of". Anything outside these four kinds of change is
 reported as unsupported, not forced into one that almost fits.
 
@@ -259,9 +259,9 @@ special cases. More detail: [docs/architecture.md](docs/architecture.md).
 
 ## How it is measured
 
-- **540 automated tests**, covering unit, integration, and full end-to-end runs
+- **545 automated tests**, covering unit, integration, and full end-to-end runs
   with real test subprocesses.
-- **An evaluation benchmark of 138 cases**, run on every CI build: release notes
+- **An evaluation benchmark of 140 cases**, run on every CI build: release notes
   written the way vendors write them, before-and-after library versions
   (including what requests and pydantic actually did), repositories built to
   trick it (unrelated
@@ -271,13 +271,12 @@ special cases. More detail: [docs/architecture.md](docs/architecture.md).
 - **Zero wrong edits** across all site cases, and **zero misread changes**
   across all release notes and library comparisons. Both are enforced: a case
   that produces a wrong edit fails the build.
-- **Replayed on real migrations.** Ten public projects that moved from
-  pydantic 1 to 2 by hand, re-migrated from nothing but the two pydantic
-  versions, tests included: 97 edits, 49 identical to the maintainers', the
-  other 48 checked against each receiver's class, and **0 wrong**. The only
-  calls it left were methods a project overrides itself. Method, results, and
-  the wrong edits an earlier run made and how they were fixed:
-  [docs/real-world.md](docs/real-world.md).
+- **Replayed on real migrations.** 22 public projects that migrated by hand,
+  re-migrated by PatchAhead: pydantic 1 -> 2 from nothing but the two library
+  versions, and Python 3.12's `unittest` removals from CPython's own release
+  note. **509 edits, 337 identical to the maintainers', 0 wrong**; the rest were
+  checked against each receiver's class. Method, results, and the wrong edits
+  earlier runs made and how they were fixed: [docs/real-world.md](docs/real-world.md).
 - **Known gaps are recorded, not hidden.** Four cases describe things it does
   not do yet, and all of them fail safely by doing nothing. They are listed in
   [docs/evaluation.md](docs/evaluation.md#the-gaps-that-remain).
@@ -310,7 +309,7 @@ Run it yourself with `python evals/run.py`.
 | [docs/migrations.md](docs/migrations.md) | Each kind of change in detail, including what it refuses |
 | [docs/safety.md](docs/safety.md) | What it protects you from, and what it does not |
 | [docs/evaluation.md](docs/evaluation.md) | The benchmark, and how to add a case |
-| [docs/real-world.md](docs/real-world.md) | Replaying ten real pydantic 1 -> 2 migrations |
+| [docs/real-world.md](docs/real-world.md) | Replaying real migrations: pydantic 1 -> 2, and Python 3.12's unittest removals |
 | [docs/contributing.md](docs/contributing.md) | Setting up, and adding a new kind of change |
 
 ## License

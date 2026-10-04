@@ -1,0 +1,53 @@
+{
+  "description": "Public commits in which maintainers replaced the unittest method aliases Python 3.12 removed (assertEquals, assertRegexpMatches, failUnless, ...) by hand. One commit per project: where a project migrated in several commits, the first is used, so no call is counted twice.",
+  "cases": [
+    {
+      "repo": "MTG/essentia",
+      "commit": "3a7e32e63417a2fec3b9f25b3317c47ebffd9bb9"
+    },
+    {
+      "repo": "zentralopensource/zentral",
+      "commit": "2de7bd13e6dacb816d204d18bde7ba55553befe6"
+    },
+    {
+      "repo": "scoursen/django-softdelete",
+      "commit": "5d4bde14ae1b0402a7436c57a66001ea8553fa9b"
+    },
+    {
+      "repo": "javifalces/HFTFramework",
+      "commit": "3d81f42eb31bd7a361df585b613a915b481108a3"
+    },
+    {
+      "repo": "NatLabRockies/REopt_API",
+      "commit": "13436f2faa3ff2673e3d97205c75f0ab847c1121"
+    },
+    {
+      "repo": "sstsimulator/sst-elements",
+      "commit": "6685f3a501dfa6cf2d424deb509f2f319db3142d"
+    },
+    {
+      "repo": "ultimate-pa/hanfor",
+      "commit": "cbb0dbcc9520c8366bcb6b4f429d452bc7e686b2"
+    },
+    {
+      "repo": "odin-detector/odin-data",
+      "commit": "40cb73aabff5436a2e2a303e33b8ba7d64a6362d"
+    },
+    {
+      "repo": "cnobile2012/dcolumn",
+      "commit": "cfcc7fe0077e9bd92288c94c3b3f5a81cfb2c139"
+    },
+    {
+      "repo": "AlexsLemonade/scpca-portal",
+      "commit": "dec6b75e7c3acca6126d672ba29cc49107622639"
+    },
+    {
+      "repo": "ruebeckscube/localmusic",
+      "commit": "5133fc50fe1553d9e49dbd22c52f3c044af4032c"
+    },
+    {
+      "repo": "openimis/openimis-be-policy_py",
+      "commit": "131848bcab1889ec2240a8b83eff8854683e96f2"
+    }
+  ]
+}

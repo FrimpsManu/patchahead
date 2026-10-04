@@ -465,6 +465,23 @@ class TestMethodRename:
         assert calls == {"uses_local.py": False, "uses_sdk.py": True}
 
 
+class TestDefinitionsInTests:
+    def test_a_shared_test_base_class_override_stops_test_renames(self, make_index):
+        """A test calling `self.assert_` calls the project's own shim in its base class."""
+        index = make_index(
+            {
+                "tests/base.py": "import unittest\n\nclass TestCase(unittest.TestCase):\n    def assert_(self, x):\n        assert x\n",
+                "tests/test_a.py": "from tests.base import TestCase\n\nclass T(TestCase):\n    def test_x(self):\n        self.assert_(True)\n",
+                "app/a.py": "def f(client):\n    return client.assert_(1)\n",
+            }
+        )
+
+        report, _ = run(change(ChangeKind.METHOD_RENAME, "assert_", "assertTrue"), index)
+
+        patchable = {f.path: f.patchable for f in report.findings}
+        assert patchable == {"tests/test_a.py": False, "app/a.py": True}
+
+
 class TestImportRename:
     """`from sdk import fetch_orders` has to change with the calls it serves."""
 
