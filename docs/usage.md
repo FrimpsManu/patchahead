@@ -124,7 +124,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - id: patchahead
-        uses: FrimpsManu/patchahead@v0.3.1
+        uses: FrimpsManu/patchahead@v0.4.0
         with:
           from-pull-request: true
           install-command: pip install -r requirements-dev.txt
@@ -143,7 +143,7 @@ jobs:
 | `require-complete` | `false` | Count it as not migrated while code or tests still use an old name |
 | `comment` | `false` | Post the summary on the pull request, updated in place on re-runs |
 | `apply` | `false` | Write a verified patch into the checked-out files for a later step; never commits |
-| `open-pull-request` | `false` | Open a verified patch as a pull request; see below. From 0.4.0 |
+| `open-pull-request` | `false` | Open a verified patch as a pull request; see below |
 | `github-token` | `github.token` | Token for the comment and the pull request |
 | `fail-on` | `error` | `never`, `error` (it could not run), or `not-migrated` |
 

@@ -33,6 +33,9 @@ import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 
+from patchahead.ci import COMMENT_MARKER, NOT_COMMITTED
+from patchahead.reporting import PROPOSED_NOTE
+
 log = logging.getLogger("patchahead.fixpr")
 
 BOT_NAME = "github-actions[bot]"
@@ -226,6 +229,13 @@ def describe(target: Target, summary: str) -> tuple[str, str]:
             "PatchAhead migrated the code a dependency change breaks, and a test that failed "
             "before the patch passes after it."
         )
+    # The summary was written for a comment on a patch nobody committed. This
+    # pull request is that commit, so the lines saying otherwise go.
+    summary = summary.replace(f"{COMMENT_MARKER}\n", "").replace(f"{NOT_COMMITTED}\n", "")
+    summary = summary.replace(
+        PROPOSED_NOTE,
+        "> Committed by **PatchAhead** after the tests verified it. Review before merging.",
+    )
     body = f"{lead}\n\n{summary}"
     if len(body) > MAX_BODY:
         body = body[:MAX_BODY] + "\n\n*(Summary cut short. The full report is in the run.)*"

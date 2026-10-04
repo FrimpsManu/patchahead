@@ -44,6 +44,11 @@ log = logging.getLogger("patchahead.ci")
 
 #: Marks PatchAhead's pull-request comment, so a re-run updates it in place.
 COMMENT_MARKER = "<!-- patchahead -->"
+#: True of the comment, and not of the pull request ``patchahead.fixpr`` opens.
+NOT_COMMITTED = (
+    "PatchAhead proposed a patch in a temporary copy of this branch; nothing was "
+    "committed. The diff and the evidence are below."
+)
 
 _VERSION = r"v?([0-9][\w.+!-]*?)\.?"
 _UPGRADE_PATTERNS = (
@@ -261,10 +266,7 @@ _HEADLINES = {
 def _summary_header(outcome: str, work: Plan, run_result) -> str:
     lines = [f"## PatchAhead: {_HEADLINES.get(outcome, outcome)}", ""]
     if run_result is not None and run_result.diff:
-        lines.append(
-            "PatchAhead proposed a patch in a temporary copy of this branch; nothing was "
-            "committed. The diff and the evidence are below."
-        )
+        lines.append(NOT_COMMITTED)
     if work.sources:
         lines.append(f"Read from {', '.join(work.sources)}.")
     elif not work.changes:

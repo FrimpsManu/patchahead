@@ -149,6 +149,19 @@ class TestOpeningThePullRequest:
         assert body["base"] == "bump" and body["head"] == "patchahead/bump"
         assert "#12" in body["title"] and "verified migration" in body["body"]
 
+    def test_the_description_does_not_say_nothing_was_committed(self):
+        from patchahead.ci import COMMENT_MARKER, NOT_COMMITTED
+        from patchahead.reporting import PROPOSED_NOTE
+
+        summary = f"{COMMENT_MARKER}\n## PatchAhead: verified migration\n\n{NOT_COMMITTED}\n"
+        summary += f"Read from the release notes.\n\n# Migrate\n\n{PROPOSED_NOTE}\n"
+
+        _, body = fixpr.describe(Target("bump", "abc", 12), summary)
+
+        assert "nothing was committed" not in body and "not applied" not in body
+        assert COMMENT_MARKER not in body
+        assert "Committed by **PatchAhead**" in body and "Read from the release notes." in body
+
     def test_the_checkout_is_left_alone(self, tmp_path, checkout):
         work, _, sha = checkout
 
