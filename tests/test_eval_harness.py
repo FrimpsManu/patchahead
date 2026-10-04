@@ -230,10 +230,12 @@ class TestKnownGaps:
             [
                 {
                     "id": "recorded_miss",
-                    "known_gap": "needs alias analysis",
+                    "known_gap": "needs to see through enumerate()",
                     "change": FIELD_CHANGE,
                     "files": {
-                        "app/a.py": 'def a(orders):\n    return [o["total"] for o in orders]\n'
+                        "app/a.py": (
+                            'def a(orders):\n    return [o["total"] for i, o in enumerate(orders)]\n'
+                        )
                     },
                     "expect_patched": ["app/a.py:2"],
                 }
@@ -309,10 +311,12 @@ class TestKnownGaps:
                 },
                 {
                     "id": "gap",
-                    "known_gap": "needs alias analysis",
+                    "known_gap": "needs to see through enumerate()",
                     "change": FIELD_CHANGE,
                     "files": {
-                        "app/b.py": 'def b(orders):\n    return [o["total"] for o in orders]\n'
+                        "app/b.py": (
+                            'def b(orders):\n    return [o["total"] for i, o in enumerate(orders)]\n'
+                        )
                     },
                     "expect_patched": ["app/b.py:2"],
                 },

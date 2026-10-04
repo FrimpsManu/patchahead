@@ -287,6 +287,142 @@ class TestReceiverNames:
         assert receiver_matches_owner(receiver, owner) is expected
 
 
+class TestAliases:
+    """A local name that stands for another, and every way it can stop doing so."""
+
+    @staticmethod
+    def resolved(source: str) -> list[tuple[int, str]]:
+        module = analyze_source(dedent(source), "a.py")
+        return [(s.range.line, s.resolved) for s in module.subscripts]
+
+    def test_an_assignment_makes_an_alias(self):
+        source = """
+            def go(order):
+                current = order
+                return current["total"]
+            """
+
+        assert self.resolved(source) == [(3, "order")]
+
+    def test_a_chain_resolves_to_its_start(self):
+        source = """
+            def go(order):
+                a = order
+                b = a
+                return b["total"]
+            """
+
+        assert self.resolved(source) == [(4, "order")]
+
+    def test_a_dotted_origin_keeps_its_path(self):
+        source = """
+            def go(self):
+                current = self.order
+                return current.data["total"]
+            """
+
+        assert self.resolved(source) == [(3, "self.order.data")]
+
+    @pytest.mark.parametrize(
+        "loop",
+        [
+            "for o in orders:\n        out.append(o['total'])",
+            "out = [o['total'] for o in orders]",
+            "out = {o['total'] for o in orders}",
+        ],
+    )
+    def test_a_loop_variable_is_an_item_of_the_collection(self, loop):
+        source = f"def go(orders, out):\n    {loop}\n"
+
+        assert [r for _, r in self.resolved(source)] == ["order"]
+
+    @pytest.mark.parametrize(
+        "collection, item",
+        [("entries", "entry"), ("recent_orders", "recent_order"), ("status", ""), ("analysis", "")],
+    )
+    def test_collection_names_are_singularized_plainly(self, collection, item):
+        source = f"def go({collection}):\n    return [o['total'] for o in {collection}]\n"
+
+        assert self.resolved(source) == [(2, item)]
+
+    @pytest.mark.parametrize(
+        "body",
+        [
+            "current = order\n    current = other",
+            "current = order\n    current += 1",
+            "current = order\n    del current",
+            "current = order\n    with x as current: pass",
+            "current = order\n    for current in y: pass",
+            "current = order\n    import current",
+            "current = order\n    def current(): pass",
+            "current = load(order)",
+            "current = order[0]",
+            "current, other = order, 1",
+            "global current\n    current = order",
+        ],
+    )
+    def test_any_other_binding_breaks_the_alias(self, body):
+        source = f"def go(order, other, x, y):\n    {body}\n    return current['total']\n"
+
+        assert [r for _, r in self.resolved(source)] == [""]
+
+    def test_a_parameter_is_never_an_alias(self):
+        source = "def go(order, current):\n    return current['total']\n"
+
+        assert self.resolved(source) == [(2, "")]
+
+    def test_a_nonlocal_in_a_nested_function_breaks_the_alias(self):
+        source = """
+            def go(order, other):
+                current = order
+
+                def swap():
+                    nonlocal current
+                    current = other
+
+                return current["total"]
+            """
+
+        assert self.resolved(source) == [(8, "")]
+
+    def test_a_comprehension_variable_exists_only_inside_it(self):
+        source = """
+            def go(orders):
+                ids = [o["id"] for o in orders]
+                return o["total"]
+            """
+
+        assert self.resolved(source) == [(2, "order"), (3, "")]
+
+    def test_a_lambda_parameter_shadows_the_loop_variable(self):
+        source = """
+            def go(orders):
+                for o in orders:
+                    key = lambda o: o["total"]
+            """
+
+        assert self.resolved(source) == [(3, "")]
+
+    def test_a_nested_function_does_not_see_the_outer_alias(self):
+        source = """
+            def go(order):
+                current = order
+
+                def inner():
+                    return current["total"]
+            """
+
+        assert self.resolved(source) == [(5, "")]
+
+    def test_module_level_names_are_never_resolved(self):
+        source = """
+            current = order
+            x = current["total"]
+            """
+
+        assert self.resolved(source) == [(2, "")]
+
+
 class TestParseFailures:
     def test_syntax_error_names_the_line(self):
         with pytest.raises(ParseError, match="a.py:1"):
