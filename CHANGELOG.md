@@ -7,6 +7,8 @@ this project uses [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.4.0] — 2026-10-04
+
 ### Added
 
 - **The GitHub Action can open the fix as a pull request.** With
@@ -17,7 +19,10 @@ this project uses [semantic versioning](https://semver.org/spec/v2.0.0.html).
   nothing for anything short of a verified migration, for a pull request from a
   fork, for a patch that does not apply, or when someone else has pushed to the
   branch. New output: `pull-request-url`. The logic is in
-  `patchahead.fixpr` and is tested against a real git remote.
+  `patchahead.fixpr`. It is tested against a real git remote, and was checked
+  end to end on GitHub: the fix's pull request, a re-run updating it, a rebased
+  bump, and the error when the repository does not allow Actions to open pull
+  requests.
 
 ### Changed
 
@@ -592,7 +597,8 @@ how each defect was verified.
 
 Hackathon prototype. Two hardcoded demo scenarios.
 
-[Unreleased]: https://github.com/FrimpsManu/patchahead/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/FrimpsManu/patchahead/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/FrimpsManu/patchahead/releases/tag/v0.4.0
 [0.3.1]: https://github.com/FrimpsManu/patchahead/releases/tag/v0.3.1
 [0.3.0]: https://github.com/FrimpsManu/patchahead/releases/tag/v0.3.0
 [0.2.0]: https://github.com/FrimpsManu/patchahead/commit/61772cbef4d6a0274fe175e63b4d25602f1606ea

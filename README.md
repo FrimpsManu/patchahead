@@ -146,7 +146,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: FrimpsManu/patchahead@v0.3.1
+      - uses: FrimpsManu/patchahead@v0.4.0
         with:
           from-pull-request: true
           install-command: pip install -r requirements-dev.txt
@@ -160,7 +160,7 @@ a note saying so. Then it migrates a temporary copy, runs your tests, and posts
 the verdict, the diff, and what is left of the old API as one comment, updated
 in place on re-runs.
 
-It never commits to your branches. With `open-pull-request: true` (from 0.4.0),
+It never commits to your branches. With `open-pull-request: true`,
 a verified fix is opened as its own pull request against the bump's branch, so
 merging it adds the fix to the bump. All inputs are in
 [docs/usage.md](docs/usage.md#github-action).
