@@ -206,7 +206,7 @@ SCENARIOS: tuple[Scenario, ...] = (
             "disabled -- the shape of any repository whose tests do not cover a change."
         ),
         watch_for=(
-            "Identical diff, different verdict: PATCHED, NOT VERIFIED. Without a test "
+            "Identical diff, different verdict: patched, not verified. Without a test "
             "that failed before and passes after, there is nothing to verify it."
         ),
     ),

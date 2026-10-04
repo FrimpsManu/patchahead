@@ -131,7 +131,7 @@ try:
         run_scenario(page, "field-rename")
         to_top(page)
         scroll_to(page, ".verdict", steps=6, offset=150)
-        shot(page, 3500)  # VERIFIED MIGRATION, and why
+        shot(page, 3500)  # "Verified migration", and why
 
         scroll_to(page, "section.step h2", nth=3)  # 4 Patch
         shot(page, 3500)  # two changed lines; TOTAL_LABEL untouched
@@ -143,7 +143,7 @@ try:
         run_scenario(page, "receiver-mismatch")
         to_top(page)
         scroll_to(page, ".verdict", steps=6, offset=150)
-        shot(page, 3000)  # REFUSED
+        shot(page, 3000)  # "Refused"
         scroll_to(page, "section.step h2", nth=1)  # 2 Impact
         shot(page, 4500)  # found, graded low, left alone -- end here
 
@@ -167,7 +167,40 @@ mosaic = Image.new("RGB", (images[0].width, images[0].height * len(sample)))
 for i, image in enumerate(sample):
     mosaic.paste(image, (0, i * image.height))
 palette = mosaic.quantize(colors=192, method=Image.Quantize.MEDIANCUT)
-quantized = [image.quantize(palette=palette, dither=Image.Dither.NONE) for image in images]
+# The page is almost all greys, so a median cut spends the palette on them and
+# drops the few small coloured marks -- the outcome dots, the accent -- along
+# with pure white. Those are reserved explicitly.
+RESERVED = [
+    *[(255, 255, 255), (0, 0, 0), (29, 29, 31)],  # page, ink
+    *[(0, 113, 227), (41, 151, 255)],  # accent, light and dark
+    *[(52, 199, 89), (255, 159, 10), (255, 59, 48)],  # outcome dots
+    *[(36, 138, 61), (215, 0, 21)],  # check marks
+]
+colors = palette.getpalette()[: 192 * 3]
+for rgb in RESERVED:
+    colors.extend(rgb)
+entries = [tuple(colors[i : i + 3]) for i in range(0, len(colors), 3)]
+nearest: dict[tuple[int, int, int], int] = {}
+
+
+def index_of(rgb: tuple[int, int, int]) -> int:
+    # Exact nearest colour. Pillow's own palette mapping rounds through a coarse
+    # cache, which turns pure white into (252, 252, 252).
+    if rgb not in nearest:
+        nearest[rgb] = min(
+            range(len(entries)),
+            key=lambda i: sum((a - b) ** 2 for a, b in zip(rgb, entries[i], strict=True)),
+        )
+    return nearest[rgb]
+
+
+quantized = []
+for image in images:
+    frame = Image.new("P", image.size)
+    frame.putpalette(colors)
+    pixels = image.tobytes()
+    frame.putdata([index_of(tuple(pixels[i : i + 3])) for i in range(0, len(pixels), 3)])
+    quantized.append(frame)
 quantized[0].save(
     OUT,
     save_all=True,

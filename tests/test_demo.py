@@ -155,7 +155,7 @@ class TestPackagedAssets:
             "migration_assertion",
         ):
             assert gate in page, gate
-        for verdict in ("VERIFIED MIGRATION", "PATCHED, NOT VERIFIED", "REFUSED"):
+        for verdict in ("Verified migration", "Patched, not verified", "Refused"):
             assert verdict in page, verdict
 
 
