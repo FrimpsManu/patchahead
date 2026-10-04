@@ -285,6 +285,9 @@ class CallSite:
     #: keyword name -> range of the ``name=`` token (name only, not the value).
     keywords: dict[str, SourceRange] = field(default_factory=dict)
     node: ast.Call | None = None
+    #: The receiver an alias stands for, as on the access records.
+    resolved: str = ""
+    alias: Alias | None = None
 
 
 @dataclass
@@ -366,6 +369,7 @@ class _Collector(ast.NodeVisitor):
                     continue
                 keywords[keyword.arg] = _keyword_name_range(keyword, self.columns)
 
+            resolved, alias = self._resolve(receiver, node)
             self.analysis.calls.append(
                 CallSite(
                     name=name,
@@ -375,6 +379,8 @@ class _Collector(ast.NodeVisitor):
                     symbol=self.symbol,
                     keywords=keywords,
                     node=node,
+                    resolved=resolved,
+                    alias=alias,
                 )
             )
 
@@ -386,7 +392,6 @@ class _Collector(ast.NodeVisitor):
                 and isinstance(node.args[0], ast.Constant)
                 and isinstance(node.args[0].value, str)
             ):
-                resolved, alias = self._resolve(receiver, node)
                 self.analysis.get_calls.append(
                     GetCallAccess(
                         key=node.args[0].value,

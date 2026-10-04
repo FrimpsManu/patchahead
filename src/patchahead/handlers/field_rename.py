@@ -55,6 +55,7 @@ from __future__ import annotations
 import logging
 
 from patchahead.analysis import receiver_matches_owner
+from patchahead.analysis.aliases import through_alias
 from patchahead.analysis.index import RepoIndex, is_test_path
 from patchahead.config import Config
 from patchahead.domain.change import BreakingChange, ChangeKind, Confidence
@@ -109,7 +110,7 @@ class FieldRenameHandler(MigrationHandler):
             for access in module.subscripts:
                 if access.key != old:
                     continue
-                receiver, via = _receiver_for(access, owner or hint)
+                receiver, via = through_alias(access, owner or hint)
                 confidence, reason, patchable, blocked = _in_tests_only_on_the_owner(
                     _noting(self._grade_subscript(receiver, owner, hint), via),
                     in_test,
@@ -141,7 +142,7 @@ class FieldRenameHandler(MigrationHandler):
             for access in module.get_calls:
                 if access.key != old:
                     continue
-                receiver, via = _receiver_for(access, owner or hint)
+                receiver, via = through_alias(access, owner or hint)
                 confidence, reason, patchable, blocked = _in_tests_only_on_the_owner(
                     _noting(self._grade_subscript(receiver, owner, hint), via),
                     in_test,
@@ -173,7 +174,7 @@ class FieldRenameHandler(MigrationHandler):
             for access in module.attributes:
                 if access.attr != old:
                     continue
-                receiver, via = _receiver_for(access, owner or hint)
+                receiver, via = through_alias(access, owner or hint)
                 confidence, reason, patchable, blocked = _in_tests_only_on_the_owner(
                     _noting(self._grade_attribute(receiver, owner, hint), via),
                     in_test,
@@ -430,28 +431,6 @@ def _in_tests_only_on_the_owner(
             "a test site whose receiver is not the named owner",
         )
     return graded
-
-
-def _receiver_for(access, owner: str) -> tuple[str, str]:
-    """The receiver to grade, and how it was reached when that was through an alias.
-
-    ``current["total"]`` after ``current = order`` is graded as ``order``, and
-    ``o["total"]`` in ``for o in orders`` as an item of ``orders``
-    (:mod:`patchahead.analysis.aliases`). Only when the name used does not
-    already match, and the name it stands for does.
-    """
-    alias = access.alias
-    if (
-        alias is None
-        or not owner
-        or receiver_matches_owner(access.receiver, owner)
-        or not receiver_matches_owner(access.resolved, owner)
-    ):
-        return access.receiver, ""
-    name = access.receiver.split(".", 1)[0]
-    if alias.element:
-        return access.resolved, f"`{name}` is an item of `{alias.origin}` (line {alias.line})"
-    return access.resolved, f"`{name}` is `{alias.origin}` (line {alias.line})"
 
 
 def _noting(

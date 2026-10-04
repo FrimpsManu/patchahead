@@ -10,9 +10,16 @@ Site (change document names ``client``)   Confidence  Patched by default?
 ========================================  ==========  ====================
 ``client.fetch_orders()``                 HIGH        yes
 ``self.client.fetch_orders()``            HIGH        yes
+``api.fetch_orders()``, ``api = client``  HIGH        yes
 ``analytics.fetch_orders()``              LOW         no -- reported
 ``fetch_orders()`` (bare, no receiver)    LOW         no -- reported
 ========================================  ==========  ====================
+
+A receiver reached through a local name -- ``api = client``, ``for c in
+clients`` -- is graded as the name it stands for
+(:mod:`patchahead.analysis.aliases`), and one whose assignment shows a
+standard-library object (``client = os.environ``) is refused whatever it is
+called.
 
 A ``from sdk import fetch_orders`` is renamed with the calls it serves --
 otherwise the renamed calls would meet an import of a name that no longer
@@ -46,6 +53,7 @@ import sys
 from dataclasses import dataclass
 
 from patchahead.analysis import MODULE_SCOPE, SourceRange, receiver_matches_owner
+from patchahead.analysis.aliases import through_alias
 from patchahead.analysis.index import RepoIndex, is_test_path
 from patchahead.config import Config
 from patchahead.domain.change import BreakingChange, ChangeKind, Confidence
@@ -125,15 +133,18 @@ class MethodRenameHandler(MigrationHandler):
                 is_method = (
                     isinstance(call.node.func, ast.Attribute) if call.node else bool(call.receiver)
                 )
+                receiver, via = through_alias(call, owner or hint)
+                graded_owner, graded_hint = _unless_stdlib(stdlib, call, owner, hint)
                 confidence, reason, patchable, blocked = self._grade(
-                    call.receiver,
-                    owner,
-                    defines_locally,
-                    hint,
-                    ambiguity,
-                    is_method,
-                    stdlib.get(_root(call.receiver), ""),
+                    receiver,
+                    owner=graded_owner,
+                    hint=graded_hint,
+                    defines_locally=defines_locally,
+                    ambiguity=ambiguity,
+                    is_method=is_method,
+                    stdlib_source=_stdlib_source(stdlib, call),
                 )
+                reason = f"{reason}; {via}" if via else reason
                 findings.append(
                     ImpactFinding(
                         reference=CodeReference(
@@ -152,8 +163,7 @@ class MethodRenameHandler(MigrationHandler):
                         source_text=old,
                         patchable=patchable,
                         unpatchable_reason=blocked,
-                        other_object=bool(owner)
-                        and not receiver_matches_owner(call.receiver, owner),
+                        other_object=bool(owner) and not receiver_matches_owner(receiver, owner),
                     )
                 )
 
@@ -197,15 +207,18 @@ class MethodRenameHandler(MigrationHandler):
                 if in_test and _configures_a_mock(module, attribute.receiver, old):
                     # `client.fetch_orders.return_value = []` sets up the method
                     # a test double stands in for; it moves with the calls.
+                    receiver, via = through_alias(attribute, owner or hint)
+                    graded_owner, graded_hint = _unless_stdlib(stdlib, attribute, owner, hint)
                     confidence, reason, patchable, blocked = self._grade(
-                        attribute.receiver,
-                        owner,
-                        defines_locally,
-                        hint,
-                        ambiguity,
-                        True,
-                        stdlib.get(_root(attribute.receiver), ""),
+                        receiver,
+                        owner=graded_owner,
+                        hint=graded_hint,
+                        defines_locally=defines_locally,
+                        ambiguity=ambiguity,
+                        is_method=True,
+                        stdlib_source=_stdlib_source(stdlib, attribute),
                     )
+                    reason = f"{reason}; {via}" if via else reason
                     findings.append(
                         ImpactFinding(
                             reference=CodeReference(
@@ -225,7 +238,7 @@ class MethodRenameHandler(MigrationHandler):
                             patchable=patchable,
                             unpatchable_reason=blocked,
                             other_object=bool(owner)
-                            and not receiver_matches_owner(attribute.receiver, owner),
+                            and not receiver_matches_owner(receiver, owner),
                         )
                     )
                     continue
@@ -535,6 +548,26 @@ _MOCK_ATTRIBUTES = frozenset(
 
 def _root(receiver: str) -> str:
     return receiver.split(".", 1)[0].removesuffix("()") if receiver else ""
+
+
+def _stdlib_source(stdlib: dict[str, str], access) -> str:
+    """The standard-library module a receiver comes from, written or aliased.
+
+    ``env = os.environ`` then ``env.get(...)`` is still a call on ``os``.
+    """
+    return stdlib.get(_root(access.receiver), "") or stdlib.get(_root(access.resolved), "")
+
+
+def _unless_stdlib(stdlib: dict[str, str], access, owner: str, hint: str) -> tuple[str, str]:
+    """The owner and hint to grade with: none, when an alias shows the receiver is stdlib.
+
+    ``client = os.environ`` then ``client.fetch_all()``: the name says ``Client``,
+    the assignment says ``os``. The assignment is the stronger evidence, so the
+    site is graded as the standard-library call it is.
+    """
+    if access.resolved and stdlib.get(_root(access.resolved)):
+        return "", ""
+    return owner, hint
 
 
 def _stdlib_bindings(module) -> dict[str, str]:

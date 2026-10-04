@@ -208,3 +208,26 @@ def resolve_receiver(
             return "", None
         origin = ".".join([*parents, item])
     return (f"{origin}.{rest}" if rest else origin), alias
+
+
+def through_alias(access, owner: str) -> tuple[str, str]:
+    """The receiver to grade ``access`` by, and how it was reached.
+
+    The written receiver, unless it does not name ``owner`` and the name it
+    stands for does: ``current["total"]`` after ``current = order`` is graded
+    as ``order``. The second value says so for the report, or is ``""``.
+    """
+    from patchahead.analysis.python_ast import receiver_matches_owner
+
+    alias = access.alias
+    if (
+        alias is None
+        or not owner
+        or receiver_matches_owner(access.receiver, owner)
+        or not receiver_matches_owner(access.resolved, owner)
+    ):
+        return access.receiver, ""
+    name = access.receiver.split(".", 1)[0]
+    if alias.element:
+        return access.resolved, f"`{name}` is an item of `{alias.origin}` (line {alias.line})"
+    return access.resolved, f"`{name}` is `{alias.origin}` (line {alias.line})"
