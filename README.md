@@ -262,9 +262,9 @@ special cases. More detail: [docs/architecture.md](docs/architecture.md).
 
 ## How it is measured
 
-- **587 automated tests**, covering unit, integration, and full end-to-end runs
+- **590 automated tests**, covering unit, integration, and full end-to-end runs
   with real test subprocesses.
-- **An evaluation benchmark of 148 cases**, run on every CI build: release notes
+- **An evaluation benchmark of 152 cases**, run on every CI build: release notes
   written the way vendors write them, before-and-after library versions
   (including what requests and pydantic actually did), repositories built to
   trick it (unrelated

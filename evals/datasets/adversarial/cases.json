@@ -913,6 +913,72 @@
       "expect_reported_only": [
         "app/n.py:9"
       ]
+    },
+    {
+      "id": "a_local_alias_of_the_client_is_migrated",
+      "note": "`api = client`, with `api` bound nowhere else, is the client.",
+      "change": {
+        "kind": "method_rename",
+        "symbol": "fetch_orders",
+        "replacement": "list_orders",
+        "owner": "client"
+      },
+      "files": {
+        "app/a.py": "def sync(client):\n    api = client\n    return api.fetch_orders()\n"
+      },
+      "expect_patched": [
+        "app/a.py:3"
+      ]
+    },
+    {
+      "id": "a_loop_over_clients_is_migrated",
+      "note": "`c` in `for c in clients` is one of the clients.",
+      "change": {
+        "kind": "method_rename",
+        "symbol": "fetch_orders",
+        "replacement": "list_orders",
+        "owner": "client"
+      },
+      "files": {
+        "app/b.py": "def sync_all(clients):\n    for c in clients:\n        c.fetch_orders()\n"
+      },
+      "expect_patched": [
+        "app/b.py:3"
+      ]
+    },
+    {
+      "id": "a_reassigned_client_alias_is_not_followed",
+      "note": "`api` is bound twice; the second binding is a different object.",
+      "change": {
+        "kind": "method_rename",
+        "symbol": "fetch_orders",
+        "replacement": "list_orders",
+        "owner": "client"
+      },
+      "files": {
+        "app/c.py": "def sync(client, cache):\n    api = client\n    api = cache\n    return api.fetch_orders()\n"
+      },
+      "expect_patched": [],
+      "expect_reported_only": [
+        "app/c.py:4"
+      ]
+    },
+    {
+      "id": "a_client_named_alias_of_a_standard_library_object_is_refused",
+      "note": "The name says client; the assignment says `os.environ`. The assignment wins.",
+      "change": {
+        "kind": "method_rename",
+        "symbol": "fetch_orders",
+        "replacement": "list_orders",
+        "owner": "client"
+      },
+      "files": {
+        "app/d.py": "import os\n\n\ndef sync():\n    client = os.environ\n    return client.fetch_orders()\n"
+      },
+      "expect_patched": [],
+      "expect_reported_only": [
+        "app/d.py:6"
+      ]
     }
   ]
 }

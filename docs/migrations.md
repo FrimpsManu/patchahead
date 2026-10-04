@@ -129,7 +129,15 @@ untouched.
 |---|---|---|
 | `client.fetch_orders()` | high | yes |
 | `self.client.fetch_orders()` | high | yes |
+| `api.fetch_orders()` after `api = client` | high | yes — `api` is `client` |
+| `c.fetch_orders()` in `for c in clients` | high | yes — `c` is an item of `clients` |
 | `analytics.fetch_orders()` | low | no — reported |
+| `client.fetch_orders()` after `client = os.environ` | low | no — the assignment shows a standard-library object |
+
+A name is followed under the same rule as for fields: bound exactly once in its
+function, not a parameter, not `global` or `nonlocal`. The assignment can also
+count *against* a site: when it shows the receiver is a standard-library object,
+the site is refused even though its name matches.
 
 With no receiver asserted, a call is patched only when the name itself is
 evidence. These are reported, not patched, unless the receiver matches the

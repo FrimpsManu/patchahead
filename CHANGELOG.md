@@ -9,13 +9,18 @@ this project uses [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
-- **Field renames follow a name within a function.** `current["total"]` after
-  `current = order`, and `o["total"]` in `for o in orders` or a comprehension
-  over `orders`, are now migrated when the change names `order`. Only when the
+- **Field and method renames follow a name within a function.**
+  `current["total"]` after `current = order`, `o["total"]` in `for o in orders`
+  or a comprehension over `orders`, and `api.fetch_orders()` after
+  `api = client` are now migrated when the change names the owner. Only when the
   name is bound exactly once in its function, is not a parameter, and no
   `global` or `nonlocal` names it; the report says how the site was reached.
-  This closes the two remaining `adversarial` known gaps, and eight cases were
-  added, seven of them shapes it must not follow.
+  This closes the two remaining `adversarial` known gaps, and twelve cases were
+  added, eight of them shapes it must not follow. Keyword renames already match
+  on the called function's name, so they needed no change.
+- **A method-rename site whose receiver is shown to be a standard-library
+  object is refused**, whatever it is called: `client = os.environ` then
+  `client.fetch_orders()` is a dict call, not an SDK call.
 
 ## [0.4.0] — 2026-10-04
 

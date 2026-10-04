@@ -304,6 +304,44 @@ class TestFieldRename:
 
 
 class TestMethodRename:
+    @pytest.mark.parametrize(
+        "source, how",
+        [
+            (
+                "def f(client):\n    api = client\n    return api.fetch_orders()\n",
+                "`api` is `client`",
+            ),
+            (
+                "def f(clients):\n    for c in clients:\n        c.fetch_orders()\n",
+                "`c` is an item of `clients`",
+            ),
+        ],
+    )
+    def test_a_name_that_stands_for_the_receiver_is_patched(self, make_index, source, how):
+        index = make_index({"a.py": source})
+
+        report, plan = run(
+            change(ChangeKind.METHOD_RENAME, "fetch_orders", "list_orders", "client"), index
+        )
+
+        assert report.findings[0].patchable is True
+        assert how in report.findings[0].reason
+        assert len(plan.transformations) == 1
+
+    def test_an_alias_of_a_standard_library_object_is_refused_whatever_its_name(self, make_index):
+        source = (
+            "import os\n\n\ndef f():\n    client = os.environ\n    return client.fetch_orders()\n"
+        )
+        index = make_index({"a.py": source})
+
+        report, plan = run(
+            change(ChangeKind.METHOD_RENAME, "fetch_orders", "list_orders", "client"), index
+        )
+
+        assert report.findings[0].patchable is False
+        assert "standard library" in report.findings[0].reason
+        assert plan.transformations == []
+
     def test_renames_only_the_callee_token(self, make_index):
         source = "def f(client):\n    return client.fetch_orders(limit=10, timeout=5)\n"
         index = make_index({"a.py": source})
