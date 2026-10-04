@@ -33,6 +33,10 @@ import ast
 import re
 from collections.abc import Iterator
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from patchahead.analysis.aliases import Alias
 
 #: Node types that introduce a new enclosing scope for symbol naming.
 _SCOPE_NODES = (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)
@@ -230,6 +234,10 @@ class SubscriptAccess:
     #: True for a store or delete context (``x["k"] = v``), which a rename
     #: must still handle but which reads differently in a report.
     is_write: bool = False
+    #: The receiver an alias stands for (``order`` for ``current`` after
+    #: ``current = order``), or ``""``. See :mod:`patchahead.analysis.aliases`.
+    resolved: str = ""
+    alias: Alias | None = None
 
 
 @dataclass
@@ -241,6 +249,10 @@ class GetCallAccess:
     range: SourceRange
     key_range: SourceRange
     symbol: str
+    #: The receiver an alias stands for (``order`` for ``current`` after
+    #: ``current = order``), or ``""``. See :mod:`patchahead.analysis.aliases`.
+    resolved: str = ""
+    alias: Alias | None = None
 
 
 @dataclass
@@ -254,6 +266,10 @@ class AttributeAccess:
     attr_range: SourceRange
     symbol: str
     is_write: bool = False
+    #: The receiver an alias stands for (``order`` for ``current`` after
+    #: ``current = order``), or ``""``. See :mod:`patchahead.analysis.aliases`.
+    resolved: str = ""
+    alias: Alias | None = None
 
 
 @dataclass
@@ -303,6 +319,9 @@ class _Collector(ast.NodeVisitor):
         self.analysis = analysis
         self.columns = columns
         self._scope: list[str] = []
+        # Aliases of the innermost enclosing function; empty at module level
+        # and in a class body, where nothing is resolved.
+        self._aliases: list[dict] = [{}]
         # Attribute nodes that are a call's callee, so they are recorded as
         # calls rather than double-counted as plain attribute reads.
         self._callee_nodes: set[int] = set()
@@ -312,9 +331,19 @@ class _Collector(ast.NodeVisitor):
         return ".".join(self._scope) if self._scope else MODULE_SCOPE
 
     def _enter(self, node: ast.AST) -> None:
+        from patchahead.analysis.aliases import function_aliases
+
         self._scope.append(node.name)  # type: ignore[attr-defined]
+        is_function = isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef)
+        self._aliases.append(function_aliases(node) if is_function else {})
         self.generic_visit(node)
+        self._aliases.pop()
         self._scope.pop()
+
+    def _resolve(self, receiver: str, node: ast.AST) -> tuple[str, Alias | None]:
+        from patchahead.analysis.aliases import resolve_receiver
+
+        return resolve_receiver(receiver, self._aliases[-1], node.lineno, node.col_offset)
 
     visit_FunctionDef = _enter
     visit_AsyncFunctionDef = _enter
@@ -357,6 +386,7 @@ class _Collector(ast.NodeVisitor):
                 and isinstance(node.args[0], ast.Constant)
                 and isinstance(node.args[0].value, str)
             ):
+                resolved, alias = self._resolve(receiver, node)
                 self.analysis.get_calls.append(
                     GetCallAccess(
                         key=node.args[0].value,
@@ -364,6 +394,8 @@ class _Collector(ast.NodeVisitor):
                         range=SourceRange.of(node, self.columns),
                         key_range=SourceRange.of(node.args[0], self.columns),
                         symbol=self.symbol,
+                        resolved=resolved,
+                        alias=alias,
                     )
                 )
         self.generic_visit(node)
@@ -371,28 +403,36 @@ class _Collector(ast.NodeVisitor):
     def visit_Subscript(self, node: ast.Subscript) -> None:
         key_node = node.slice
         if isinstance(key_node, ast.Constant) and isinstance(key_node.value, str):
+            receiver = receiver_name(node.value)
+            resolved, alias = self._resolve(receiver, node)
             self.analysis.subscripts.append(
                 SubscriptAccess(
                     key=key_node.value,
-                    receiver=receiver_name(node.value),
+                    receiver=receiver,
                     range=SourceRange.of(node, self.columns),
                     key_range=SourceRange.of(key_node, self.columns),
                     symbol=self.symbol,
                     is_write=not isinstance(node.ctx, ast.Load),
+                    resolved=resolved,
+                    alias=alias,
                 )
             )
         self.generic_visit(node)
 
     def visit_Attribute(self, node: ast.Attribute) -> None:
         if id(node) not in self._callee_nodes:
+            receiver = receiver_name(node.value)
+            resolved, alias = self._resolve(receiver, node)
             self.analysis.attributes.append(
                 AttributeAccess(
                     attr=node.attr,
-                    receiver=receiver_name(node.value),
+                    receiver=receiver,
                     range=SourceRange.of(node, self.columns),
                     attr_range=_attribute_name_range(node, self.columns),
                     symbol=self.symbol,
                     is_write=not isinstance(node.ctx, ast.Load),
+                    resolved=resolved,
+                    alias=alias,
                 )
             )
         self.generic_visit(node)

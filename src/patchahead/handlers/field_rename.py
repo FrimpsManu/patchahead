@@ -22,6 +22,7 @@ Site (change document names ``order``)    Confidence  Patched by default?
 ``order["total"]``                        HIGH        yes
 ``self.order["total"]``                   HIGH        yes
 ``customer["total"]``                     LOW         no -- reported
+``o["total"]`` in ``for o in orders``     HIGH        yes -- see below
 ``o["total"]``                            LOW         no -- reported
 ``df.total``                              LOW         no -- reported
 ========================================  ==========  ====================
@@ -33,10 +34,13 @@ a name, and rewriting both is precisely the class of corruption this handler
 exists to prevent. Such sites are still *reported*, with the mismatch stated, so
 a human can decide.
 
-The cost is real and accepted: ``for o in orders: o["total"]`` is not patched
-automatically, because ``o`` cannot be shown to be an ``order`` without type
-inference PatchAhead does not do. A false negative is recoverable by hand; a
-silent wrong edit in unrelated code is not.
+A receiver can be the owner under another name: ``current`` after ``current =
+order``, or ``o`` in ``for o in orders``. Those are followed when the name is
+bound exactly once in its function (:mod:`patchahead.analysis.aliases`), and the
+reason says how. Anything further -- ``for i, o in enumerate(orders)`` -- is not
+patched, because ``o`` cannot be shown to be an ``order`` without type inference
+PatchAhead does not do. A false negative is recoverable by hand; a silent wrong
+edit in unrelated code is not.
 
 When the document names **no** owner there is nothing to check the receiver
 against, so subscript and ``.get()`` accesses on a named receiver are graded
@@ -105,10 +109,11 @@ class FieldRenameHandler(MigrationHandler):
             for access in module.subscripts:
                 if access.key != old:
                     continue
+                receiver, via = _receiver_for(access, owner or hint)
                 confidence, reason, patchable, blocked = _in_tests_only_on_the_owner(
-                    self._grade_subscript(access.receiver, owner, hint),
+                    _noting(self._grade_subscript(receiver, owner, hint), via),
                     in_test,
-                    access.receiver,
+                    receiver,
                     owner or hint,
                 )
                 findings.append(
@@ -129,17 +134,18 @@ class FieldRenameHandler(MigrationHandler):
                         source_text=_span(module.source, access.key_range),
                         patchable=patchable,
                         unpatchable_reason=blocked,
-                        other_object=_other_object(access.receiver, owner),
+                        other_object=_other_object(receiver, owner),
                     )
                 )
 
             for access in module.get_calls:
                 if access.key != old:
                     continue
+                receiver, via = _receiver_for(access, owner or hint)
                 confidence, reason, patchable, blocked = _in_tests_only_on_the_owner(
-                    self._grade_subscript(access.receiver, owner, hint),
+                    _noting(self._grade_subscript(receiver, owner, hint), via),
                     in_test,
-                    access.receiver,
+                    receiver,
                     owner or hint,
                 )
                 findings.append(
@@ -160,17 +166,18 @@ class FieldRenameHandler(MigrationHandler):
                         source_text=_span(module.source, access.key_range),
                         patchable=patchable,
                         unpatchable_reason=blocked,
-                        other_object=_other_object(access.receiver, owner),
+                        other_object=_other_object(receiver, owner),
                     )
                 )
 
             for access in module.attributes:
                 if access.attr != old:
                     continue
+                receiver, via = _receiver_for(access, owner or hint)
                 confidence, reason, patchable, blocked = _in_tests_only_on_the_owner(
-                    self._grade_attribute(access.receiver, owner, hint),
+                    _noting(self._grade_attribute(receiver, owner, hint), via),
                     in_test,
-                    access.receiver,
+                    receiver,
                     owner or hint,
                 )
                 findings.append(
@@ -191,7 +198,7 @@ class FieldRenameHandler(MigrationHandler):
                         source_text=_span(module.source, access.attr_range),
                         patchable=patchable,
                         unpatchable_reason=blocked,
-                        other_object=_other_object(access.receiver, owner),
+                        other_object=_other_object(receiver, owner),
                     )
                 )
 
@@ -423,3 +430,32 @@ def _in_tests_only_on_the_owner(
             "a test site whose receiver is not the named owner",
         )
     return graded
+
+
+def _receiver_for(access, owner: str) -> tuple[str, str]:
+    """The receiver to grade, and how it was reached when that was through an alias.
+
+    ``current["total"]`` after ``current = order`` is graded as ``order``, and
+    ``o["total"]`` in ``for o in orders`` as an item of ``orders``
+    (:mod:`patchahead.analysis.aliases`). Only when the name used does not
+    already match, and the name it stands for does.
+    """
+    alias = access.alias
+    if (
+        alias is None
+        or not owner
+        or receiver_matches_owner(access.receiver, owner)
+        or not receiver_matches_owner(access.resolved, owner)
+    ):
+        return access.receiver, ""
+    name = access.receiver.split(".", 1)[0]
+    if alias.element:
+        return access.resolved, f"`{name}` is an item of `{alias.origin}` (line {alias.line})"
+    return access.resolved, f"`{name}` is `{alias.origin}` (line {alias.line})"
+
+
+def _noting(
+    graded: tuple[Confidence, str, bool, str], via: str
+) -> tuple[Confidence, str, bool, str]:
+    confidence, reason, patchable, blocked = graded
+    return (confidence, f"{reason}; {via}" if via else reason, patchable, blocked)

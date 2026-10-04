@@ -7,6 +7,8 @@ that pasted a hardcoded function over user code (§2.1).
 
 from __future__ import annotations
 
+import pytest
+
 from patchahead import handlers
 from patchahead.analysis import apply_edits
 from patchahead.config import Config
@@ -137,12 +139,12 @@ class TestFieldRename:
         assert 'customer["total"]' in result, "an unrelated object must be untouched"
 
     def test_a_receiver_that_cannot_be_shown_to_be_the_owner_fails_closed(self, make_index):
-        """`for o in orders` is a real cost of this rule, and it is accepted.
+        """`for i, o in enumerate(orders)` is a real cost of this rule, and it is accepted.
 
-        Proving `o` is an `order` needs type inference PatchAhead does not do.
+        `o` is an item of `orders` only by knowing what `enumerate` returns.
         A false negative is recoverable by hand; a wrong edit is not.
         """
-        source = 'def f(orders):\n    return [o["total"] for o in orders]\n'
+        source = 'def f(orders):\n    return [o["total"] for i, o in enumerate(orders)]\n'
         index = make_index({"a.py": source})
 
         report, plan = run(change(ChangeKind.FIELD_RENAME, "total", "amount", "order"), index)
@@ -150,6 +152,31 @@ class TestFieldRename:
         assert report.findings[0].patchable is False
         assert plan.transformations == []
         assert "not the declared owner" in report.findings[0].unpatchable_reason
+
+    @pytest.mark.parametrize(
+        "source, how",
+        [
+            (
+                'def f(order):\n    current = order\n    return current["total"]\n',
+                "`current` is `order`",
+            ),
+            (
+                'def f(orders):\n    for o in orders:\n        print(o["total"])\n',
+                "`o` is an item of `orders`",
+            ),
+        ],
+    )
+    def test_a_name_that_stands_for_the_owner_is_patched_and_says_why(
+        self, make_index, source, how
+    ):
+        index = make_index({"a.py": source})
+
+        report, plan = run(change(ChangeKind.FIELD_RENAME, "total", "amount", "order"), index)
+
+        assert report.findings[0].patchable is True
+        assert report.findings[0].confidence is Confidence.HIGH
+        assert how in report.findings[0].reason
+        assert len(plan.transformations) == 1
 
     def test_a_dotted_receiver_matches_its_last_segment(self, make_index):
         source = 'def f(self):\n    return self.order["total"]\n'
@@ -186,9 +213,8 @@ class TestFieldRename:
         assert 'LOG_LABEL = "total"' in result, "unrelated constant must survive"
         assert 'message = "total"' in result, "unrelated string must survive"
         assert "df.total" in result, "unrelated attribute must survive"
-        assert 'o["total"]' in result, (
-            "`o` cannot be shown to be the declared owner `order`, so it is "
-            "reported rather than rewritten"
+        assert 'o["amount"] for o in orders' in result, (
+            "`o` is an item of `orders`, bound nowhere else, so it is the owner"
         )
 
     def test_matching_receiver_raises_confidence_to_high(self, make_index):

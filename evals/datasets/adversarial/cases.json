@@ -749,8 +749,7 @@
     },
     {
       "id": "loop_variable_aliases_the_owner",
-      "known_gap": "the loop variable `o` is an `order`, but showing that needs alias analysis over the iterable; PatchAhead reports the site and declines to patch it (roadmap PR #8)",
-      "note": "The dominant known false negative, written down as an executable case rather than left out of the dataset. Under-migrating is survivable -- a missed site is fixed by hand -- but it is still a miss, and it stays visible in the benchmark until it is fixed.",
+      "note": "A loop variable over a collection named for the owner is one of its items: `o` in `for o in orders` is an `order`. It is bound once in the function, by the loop, so nothing else can make it mean something else.",
       "change": {
         "kind": "field_rename",
         "symbol": "total",
@@ -766,7 +765,6 @@
     },
     {
       "id": "a_local_variable_aliases_the_owner",
-      "known_gap": "`current = order` is a one-line alias inside a single function; resolving it needs local dataflow PatchAhead does not do (roadmap PR #8)",
       "change": {
         "kind": "field_rename",
         "symbol": "total",
@@ -778,6 +776,142 @@
       },
       "expect_patched": [
         "app/alias2.py:3"
+      ],
+      "note": "`current = order`, with `current` bound nowhere else in the function, makes `current` the same object as `order`."
+    },
+    {
+      "id": "a_comprehension_over_the_owners_collection",
+      "note": "A comprehension's variable over `orders` is an `order`, inside that comprehension.",
+      "change": {
+        "kind": "field_rename",
+        "symbol": "total",
+        "replacement": "amount",
+        "owner": "order"
+      },
+      "files": {
+        "app/c.py": "def revenue(orders):\n    return sum(o[\"total\"] for o in orders)\n"
+      },
+      "expect_patched": [
+        "app/c.py:2"
+      ]
+    },
+    {
+      "id": "a_reassigned_alias_is_not_followed",
+      "note": "`current` is bound twice, so it cannot be shown to be `order` where it is used.",
+      "change": {
+        "kind": "field_rename",
+        "symbol": "total",
+        "replacement": "amount",
+        "owner": "order"
+      },
+      "files": {
+        "app/r.py": "def go(order, customer):\n    current = order\n    current = customer\n    return current[\"total\"]\n"
+      },
+      "expect_patched": [],
+      "expect_reported_only": [
+        "app/r.py:4"
+      ]
+    },
+    {
+      "id": "a_loop_over_another_collection_is_not_followed",
+      "note": "`o` is an item of `customers`, not of `orders`; the field on it is a different field.",
+      "change": {
+        "kind": "field_rename",
+        "symbol": "total",
+        "replacement": "amount",
+        "owner": "order"
+      },
+      "files": {
+        "app/l.py": "def go(customers):\n    for o in customers:\n        print(o[\"total\"])\n"
+      },
+      "expect_patched": [],
+      "expect_reported_only": [
+        "app/l.py:3"
+      ]
+    },
+    {
+      "id": "a_rebound_loop_variable_is_not_followed",
+      "note": "`o` is rebound inside the loop body to the order's customer.",
+      "change": {
+        "kind": "field_rename",
+        "symbol": "total",
+        "replacement": "amount",
+        "owner": "order"
+      },
+      "files": {
+        "app/b.py": "def go(orders):\n    for o in orders:\n        o = o[\"customer\"]\n        print(o[\"total\"])\n"
+      },
+      "expect_patched": [],
+      "expect_reported_only": [
+        "app/b.py:4"
+      ]
+    },
+    {
+      "id": "an_alias_of_a_call_is_not_followed",
+      "note": "`current = load(order)` is whatever `load` returns, not `order`.",
+      "change": {
+        "kind": "field_rename",
+        "symbol": "total",
+        "replacement": "amount",
+        "owner": "order"
+      },
+      "files": {
+        "app/k.py": "def go(order):\n    current = load(order)\n    return current[\"total\"]\n"
+      },
+      "expect_patched": [],
+      "expect_reported_only": [
+        "app/k.py:3"
+      ]
+    },
+    {
+      "id": "a_comprehension_variable_does_not_leak",
+      "note": "The comprehension's `o` is gone after it; the later `o` is the module's customer.",
+      "change": {
+        "kind": "field_rename",
+        "symbol": "total",
+        "replacement": "amount",
+        "owner": "order"
+      },
+      "files": {
+        "app/g.py": "o = {\"total\": 1}\n\n\ndef go(orders):\n    names = [o[\"id\"] for o in orders]\n    return names, o[\"total\"]\n"
+      },
+      "expect_patched": [],
+      "expect_reported_only": [
+        "app/g.py:6"
+      ]
+    },
+    {
+      "id": "a_lambda_parameter_shadows_the_loop_variable",
+      "note": "Inside the lambda, `o` is the lambda's own parameter, not the loop's order.",
+      "change": {
+        "kind": "field_rename",
+        "symbol": "total",
+        "replacement": "amount",
+        "owner": "order"
+      },
+      "files": {
+        "app/s.py": "def go(orders, customers):\n    for o in orders:\n        key = lambda o: o[\"total\"]\n    return sorted(customers, key=key)\n"
+      },
+      "expect_patched": [],
+      "expect_reported_only": [
+        "app/s.py:3"
+      ]
+    },
+    {
+      "id": "a_nonlocal_rebinding_is_respected",
+      "note": "A nested function rebinds `current` with `nonlocal`, so it is not reliably `order`.",
+      "change": {
+        "kind": "field_rename",
+        "symbol": "total",
+        "replacement": "amount",
+        "owner": "order"
+      },
+      "files": {
+        "app/n.py": "def go(order, customer):\n    current = order\n\n    def swap():\n        nonlocal current\n        current = customer\n\n    swap()\n    return current[\"total\"]\n"
+      },
+      "expect_patched": [],
+      "expect_reported_only": [
+        "app/n.py:9"
       ]
     }
   ]

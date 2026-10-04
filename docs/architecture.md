@@ -148,9 +148,17 @@ type inference; `receiver_name` yields a *name*, not a type.
 
 The decisive rule is the receiver check. When a change document **asserts** an
 owner, a site whose receiver is not that owner is graded LOW and never patched
-— `customer["total"]` survives an `order.total` rename, and so does `o["total"]`
-in `for o in orders`. That second case is a false negative PatchAhead accepts on
-purpose: proving `o` is an `order` needs type inference, and a missed site is
+— `customer["total"]` survives an `order.total` rename.
+
+A receiver can reach the owner under another name, and two such names are
+followed (`analysis/aliases.py`): `current` after `current = order`, and `o` in
+`for o in orders` or a comprehension over `orders`. Only when the name is bound
+exactly once in its function, is not a parameter, and no `global` or
+`nonlocal` names it — any second binding, and the site is reported instead.
+This is name resolution inside one function, not type inference: `current` is
+whatever `order` is, and whether `order` is the owner is still decided by its
+name. Anything further — `enumerate(orders)`, a value returned from a call — is
+a false negative PatchAhead accepts on purpose, because a missed site is
 recoverable in a way a wrong edit is not.
 
 An owner *inferred* from an illustrative snippet is treated differently — it

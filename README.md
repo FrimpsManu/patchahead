@@ -262,9 +262,9 @@ special cases. More detail: [docs/architecture.md](docs/architecture.md).
 
 ## How it is measured
 
-- **545 automated tests**, covering unit, integration, and full end-to-end runs
+- **587 automated tests**, covering unit, integration, and full end-to-end runs
   with real test subprocesses.
-- **An evaluation benchmark of 140 cases**, run on every CI build: release notes
+- **An evaluation benchmark of 148 cases**, run on every CI build: release notes
   written the way vendors write them, before-and-after library versions
   (including what requests and pydantic actually did), repositories built to
   trick it (unrelated
@@ -290,8 +290,10 @@ Run it yourself with `python evals/run.py`.
 
 - **Python only.**
 - **Four kinds of change.** Other changes are reported as unsupported.
-- **No type inference.** It matches names. In `for o in orders: o["total"]` it
-  cannot prove `o` is an order, so it reports the site and does not patch it.
+- **No type inference.** It matches names, and follows them only within a
+  function: `current = order` and `for o in orders` are understood, but
+  `for i, o in enumerate(orders)` is not, so that site is reported and not
+  patched.
 - **One pagination loop shape.** Other shapes are refused.
 - **One repository at a time.**
 

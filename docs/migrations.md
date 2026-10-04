@@ -44,17 +44,27 @@ was renamed" — only that receiver is patched:
 | `order["total"]` | high | yes |
 | `self.order["total"]` | high | yes |
 | `customer["total"]` | low | no — reported |
-| `o["total"]` in `for o in orders` | low | no — reported |
+| `o["total"]` in `for o in orders` | high | yes — `o` is an item of `orders` |
+| `current["total"]` after `current = order` | high | yes — `current` is `order` |
+| `o["total"]` in `for i, o in enumerate(orders)` | low | no — reported |
 | `df.total` | low | no — reported |
 
 `order["total"]` and `customer["total"]` are different fields that happen to
 share a name. Rewriting both is the corruption this handler exists to prevent,
 so a receiver that is not the asserted owner is reported and left alone.
 
-**The cost is real and accepted.** `for o in orders: o["total"]` is not migrated
-automatically, because showing that `o` is an `order` needs type inference
-PatchAhead does not do. A missed site is fixable by hand; a wrong edit in
-unrelated code may not be noticed at all.
+A name is followed only within its function, and only when nothing else there
+could change what it means: it is bound exactly once (by the assignment or the
+loop), is not a parameter, and is not named by `global` or `nonlocal`. A second
+assignment, a rebinding inside the loop, or a lambda parameter of the same name
+and the site is reported instead. A comprehension's variable counts only inside
+that comprehension.
+
+**The cost is real and accepted.** `for i, o in enumerate(orders)` is not
+migrated automatically: showing that `o` is an `order` means knowing what
+`enumerate` returns, which is type inference PatchAhead does not do. A missed
+site is fixable by hand; a wrong edit in unrelated code may not be noticed at
+all.
 
 When the document asserts **no** owner, there is nothing to check against:
 

@@ -7,6 +7,16 @@ this project uses [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **Field renames follow a name within a function.** `current["total"]` after
+  `current = order`, and `o["total"]` in `for o in orders` or a comprehension
+  over `orders`, are now migrated when the change names `order`. Only when the
+  name is bound exactly once in its function, is not a parameter, and no
+  `global` or `nonlocal` names it; the report says how the site was reached.
+  This closes the two remaining `adversarial` known gaps, and eight cases were
+  added, seven of them shapes it must not follow.
+
 ## [0.4.0] — 2026-10-04
 
 ### Added

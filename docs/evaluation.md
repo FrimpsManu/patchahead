@@ -209,20 +209,13 @@ than guesses at:
 | `before_after_code_fences_only` | The rename is visible only by comparing a Before and an After code sample |
 | `aws_style_token_pagination` | Renamed request parameters (`PageNumber` -> `NextToken`) in the pagination contract; today the change is reported as unsupported |
 
-Two are in `adversarial`, both the same gap, and both *under*-patching:
-PatchAhead finds the site, explains it, and declines to rewrite it. Neither can
-be a false positive -- the harness counts a wrong edit as fatal and no marker
-excuses it -- so what each costs is a hand-edit, not a broken call site.
-
-| Case | What it needs | Why it stays |
-|---|---|---|
-| `loop_variable_aliases_the_owner` | `for o in orders:` -- knowing `o` is an `order` | Alias analysis over the iterable |
-| `a_local_variable_aliases_the_owner` | `current = order` | Local dataflow |
-
-Both need PatchAhead to track *what a name refers to* rather than what it is
-called -- a dataflow layer, not a patch to an existing handler. The alternative
-available today is to rewrite on the name alone, which is exactly the
-false-positive behaviour the adversarial suite exists to prevent.
+The two `adversarial` gaps are closed: `for o in orders:` and
+`current = order`. PatchAhead now follows a name within its function when it is
+bound exactly once (`analysis/aliases.py`). Eight cases went in with the fix,
+and seven of them are things it must *not* follow: a reassigned alias, a loop
+over another collection, a loop variable rebound in the body, an alias of a
+call's result, a comprehension variable used after the comprehension, a lambda
+parameter shadowing the loop variable, and a `nonlocal` rebinding.
 
 Two former gaps closed without that layer, because the name already says what
 it holds: `self._order` is an `order`, and `factory.get_client()` returns a
