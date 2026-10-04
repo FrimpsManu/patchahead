@@ -6,16 +6,15 @@ mode, and the web UI.
 
 ## Install
 
-PatchAhead is not on PyPI yet, so install it from a clone:
-
 ```bash
-git clone https://github.com/FrimpsManu/patchahead
-cd patchahead
-pip install -e .                 # core tool: no third-party runtime deps on 3.11+
-pip install -e '.[demo]'         # + the local UI and the bundled walkthrough
-pip install -e '.[llm]'          # + AI proposals when a code shape is unrecognized
-pip install -e '.[all]'          # everything
+pip install patchahead                 # core tool: no third-party runtime deps on 3.11+
+pip install 'patchahead[demo]'         # + the local UI and the bundled walkthrough
+pip install 'patchahead[llm]'          # + AI proposals when a code shape is unrecognized
+pip install 'patchahead[all]'          # everything
 ```
+
+To work on PatchAhead itself, install from a clone instead:
+[contributing.md](contributing.md).
 
 Python 3.10 or newer.
 
@@ -125,7 +124,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - id: patchahead
-        uses: FrimpsManu/patchahead@main
+        uses: FrimpsManu/patchahead@v0.3.0
         with:
           from-pull-request: true
           install-command: pip install -r requirements-dev.txt
@@ -233,8 +232,8 @@ patchahead migrate --repo ./my-service --change ./notes.md --use-llm
 ## Web UI
 
 ```bash
-pip install -e '.[demo]' && patchahead demo                 # bundled walkthrough
-pip install -e '.[web]'  && patchahead web --repo ./my-service --changes ./changes
+pip install 'patchahead[demo]' && patchahead demo                 # bundled walkthrough
+pip install 'patchahead[web]'  && patchahead web --repo ./my-service --changes ./changes
 ```
 
 The same page in both cases: the upstream change, the impact, the plan, the

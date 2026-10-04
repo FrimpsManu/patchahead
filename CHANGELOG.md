@@ -7,6 +7,10 @@ this project uses [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-10-03
+
+The first release published to PyPI.
+
 ### Added (a second real-world study)
 
 - **Python 3.12's `unittest` removals, replayed on 12 projects** from the
@@ -550,5 +554,6 @@ how each defect was verified.
 
 Hackathon prototype. Two hardcoded demo scenarios.
 
-[Unreleased]: https://github.com/FrimpsManu/patchahead/compare/v0.2.0...HEAD
-[0.2.0]: https://github.com/FrimpsManu/patchahead/releases/tag/v0.2.0
+[Unreleased]: https://github.com/FrimpsManu/patchahead/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/FrimpsManu/patchahead/releases/tag/v0.3.0
+[0.2.0]: https://github.com/FrimpsManu/patchahead/commit/61772cbef4d6a0274fe175e63b4d25602f1606ea
