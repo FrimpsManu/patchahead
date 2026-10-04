@@ -39,7 +39,7 @@ This opens a local page with six example scenarios against a small, deliberately
 broken service. Three end in a verified fix. The other three show it refusing,
 being rejected by the tests, and reporting a patch it could not prove.
 
-![A verified migration in the PatchAhead demo](https://raw.githubusercontent.com/FrimpsManu/patchahead/main/docs/media/demo-verified.png)
+![PatchAhead's demo: a verified migration, then a refusal](https://raw.githubusercontent.com/FrimpsManu/patchahead/main/docs/media/demo.gif)
 
 Python 3.10 or newer. `pip install patchahead` alone is the core tool, with no
 third-party dependencies on 3.11+; [docs/usage.md](docs/usage.md#install) lists
@@ -146,7 +146,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: FrimpsManu/patchahead@v0.3.0
+      - uses: FrimpsManu/patchahead@v0.3.1
         with:
           from-pull-request: true
           install-command: pip install -r requirements-dev.txt

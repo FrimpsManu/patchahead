@@ -124,7 +124,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - id: patchahead
-        uses: FrimpsManu/patchahead@v0.3.0
+        uses: FrimpsManu/patchahead@v0.3.1
         with:
           from-pull-request: true
           install-command: pip install -r requirements-dev.txt

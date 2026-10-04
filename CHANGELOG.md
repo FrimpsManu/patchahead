@@ -7,6 +7,21 @@ this project uses [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.3.1] — 2026-10-04
+
+### Added
+
+- **A demo GIF** at the top of the README: the six scenarios, a verified
+  migration and its five gates, then a refusal. It is recorded by
+  `scripts/record_demo.py`, which drives the real `patchahead demo` page with a
+  headless browser.
+
+### Changed
+
+- **PyPI's one-line summary** now matches the project's description: "Updates
+  your Python code when an API you depend on changes, and proves the fix with
+  your tests."
+
 ## [0.3.0] — 2026-10-03
 
 The first release published to PyPI.
@@ -554,6 +569,7 @@ how each defect was verified.
 
 Hackathon prototype. Two hardcoded demo scenarios.
 
-[Unreleased]: https://github.com/FrimpsManu/patchahead/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/FrimpsManu/patchahead/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/FrimpsManu/patchahead/releases/tag/v0.3.1
 [0.3.0]: https://github.com/FrimpsManu/patchahead/releases/tag/v0.3.0
 [0.2.0]: https://github.com/FrimpsManu/patchahead/commit/61772cbef4d6a0274fe175e63b4d25602f1606ea

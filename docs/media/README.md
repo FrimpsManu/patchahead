@@ -7,11 +7,13 @@ Images used by the top of `README.md`.
 | `demo-verified.png` | The scenario picker and the `VERIFIED MIGRATION` banner, dark theme. |
 | `demo-gates.png` | The five validation gates for that run. |
 | `demo-refusal.png` | The `REFUSED` verdict and the impact table behind it, light theme. |
-| `demo.gif` | **Not committed yet.** See [../demo-recording.md](../demo-recording.md). |
+| `demo.gif` | The demo run end to end: the six scenarios, a verified migration and its gates, then a refusal. |
 
-All three PNGs are real screenshots of `patchahead demo`, captured from a
+All of them are real screenshots of `patchahead demo`, captured from a
 headless browser driving the running server — not mockups, and not composites.
-Whatever the engine returned that run is what is in the frame.
+Whatever the engine returned that run is what is in the frame. The GIF is made
+by [`scripts/record_demo.py`](../../scripts/record_demo.py); its frames start
+just below the page's header bar, which shows the local install path.
 
 They are documentation of the current UI, so they go stale when it changes.
 `../demo-recording.md` has the procedure for retaking them.
