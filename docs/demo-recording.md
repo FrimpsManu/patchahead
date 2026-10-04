@@ -49,13 +49,13 @@ Then:
 | 0:00–0:05 | **Terminal.** Type `pip install 'patchahead[demo]'` — already satisfied, so it completes instantly — then `patchahead demo`. | The whole setup cost, shown rather than claimed. |
 | 0:05–0:09 | The banner prints: the URL, the repository path, "the bundled repository is never modified", "localhost only". Pause on it. | Establishes the trust boundary before anything runs. |
 | 0:09–0:14 | Switch to the browser at `http://127.0.0.1:8000`. Let the page settle. Do not scroll yet. | The header states the problem in one sentence; give it a beat to be read. |
-| 0:14–0:18 | Move the cursor across the six scenario cards, slowly enough to read the chips: three **VERIFIED**, one **REFUSED**, one **VALIDATION FAILED**, one **PATCHED UNVERIFIED**. | Four outcomes, visible before a single click. This is the honesty of the tool in one frame. |
+| 0:14–0:18 | Move the cursor across the six scenario cards, slowly enough to read the expected outcomes: three *verified*, one *refused*, one *rejected*, one *patched, not verified*. | Four outcomes, visible before a single click. This is the honesty of the tool in one frame. |
 | 0:18–0:20 | Click **A renamed field**, then **Run this scenario**. | — |
-| 0:20–0:24 | It runs — a real `pytest` subprocess in a temporary copy. Stay on the status line (`copying the repository, patching the copy, running its tests…`). | The pause is the product working, not a spinner. |
-| 0:24–0:29 | The green **VERIFIED MIGRATION** banner. Hold on it, including the line *"A test failed before this patch and passes after it."* | The claim, and the evidence for it, in the same frame. |
-| 0:29–0:36 | Scroll steadily to **④ Patch**. Stop on the diff: two changed lines, and `TOTAL_LABEL = "total"` nowhere in it. Then continue to **⑤ Verification** and hold on the five green gates. | Minimal diff, then the gates that earned the banner. |
+| 0:20–0:24 | It runs — a real `pytest` subprocess in a temporary copy. Stay on the status line (*Copying the repository, patching the copy, running its tests…*). | The pause is the product working, not a spinner. |
+| 0:24–0:29 | The **Verified migration** card, marked with a green dot. Hold on it, including the line *"A test that failed before the patch passes after it."* | The claim, and the evidence for it, in the same frame. |
+| 0:29–0:36 | Scroll steadily to **04 Patch**. Stop on the diff: two changed lines, and `TOTAL_LABEL = "total"` nowhere in it. Then continue to **05 Verification** and hold on the five passed checks. | Minimal diff, then the checks that earned the verdict. |
 | 0:36–0:41 | Scroll back up and click **Same field name, different object** → **Run this scenario**. | The pivot. |
-| 0:41–0:45 | The amber **REFUSED** banner, then the impact table: both sites found, graded `low`, decision **leave alone**, reason *"receiver is order, not the declared owner invoice"*. End here. | The differentiator: it found the code and chose not to touch it. |
+| 0:41–0:45 | The **Refused** card, marked with an orange dot, then the impact table: both sites found, graded `low`, decision **leave alone**, reason *"receiver is order, not the declared owner invoice"*. End here. | The differentiator: it found the code and chose not to touch it. |
 
 ### What to say, if there is narration
 

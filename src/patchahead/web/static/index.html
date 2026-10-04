@@ -4,212 +4,203 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <meta name="patchahead-token" content="__PATCHAHEAD_TOKEN__" />
+<meta name="color-scheme" content="light dark" />
 <title>PatchAhead</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%237c8cff'/%3E%3Cpath d='M9 17.5l4.5 4.5L23 12' stroke='white' stroke-width='3.2' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231d1d1f'/%3E%3Cpath d='M10 16.5l4 4L22.5 12' stroke='white' stroke-width='2.6' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E" />
 <style>
+  /* One neutral palette, one accent. Colour is reserved for meaning -- a small
+     dot for an outcome, a tint in a diff -- never for decoration. */
   :root {
-    --bg: #0d1017; --panel: #151a23; --panel-2: #1b212c; --line: #262d3a;
-    --text: #e8edf5; --muted: #98a3b6; --faint: #6b7688;
-    --red: #ff6b6b; --green: #37d39b; --amber: #ffb64a; --accent: #7c8cff;
-    --green-bg: rgba(55, 211, 155, 0.10); --red-bg: rgba(255, 107, 107, 0.10);
-    --amber-bg: rgba(255, 182, 74, 0.10); --accent-bg: rgba(124, 140, 255, 0.10);
-    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-    --sans: system-ui, -apple-system, "Segoe UI", sans-serif;
+    --bg: #ffffff; --surface: #f5f5f7; --raised: #ffffff;
+    --text: #1d1d1f; --secondary: #6e6e73; --tertiary: #86868b;
+    --hairline: rgba(0, 0, 0, 0.08); --hairline-strong: rgba(0, 0, 0, 0.14);
+    --accent: #0071e3; --accent-soft: rgba(0, 113, 227, 0.08);
+    --green: #248a3d; --orange: #c93400; --red: #d70015;
+    --dot-green: #34c759; --dot-orange: #ff9f0a; --dot-red: #ff3b30;
+    --add: rgba(52, 199, 89, 0.12); --del: rgba(255, 59, 48, 0.09);
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 4px 16px rgba(0, 0, 0, 0.04);
+    --sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", "Segoe UI", sans-serif;
+    --display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", "Segoe UI", sans-serif;
+    --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
   }
-  @media (prefers-color-scheme: light) {
+  @media (prefers-color-scheme: dark) {
     :root {
-      --bg: #f7f8fa; --panel: #fff; --panel-2: #f1f3f7; --line: #e0e4ec;
-      --text: #12151c; --muted: #5b6575; --faint: #8b94a3;
-      --red: #b52d2d; --green: #10704a; --amber: #8a5a00; --accent: #3d4bc7;
-      --green-bg: rgba(16, 112, 74, 0.08); --red-bg: rgba(181, 45, 45, 0.07);
-      --amber-bg: rgba(138, 90, 0, 0.08); --accent-bg: rgba(61, 75, 199, 0.07);
+      --bg: #000000; --surface: #161617; --raised: #1d1d1f;
+      --text: #f5f5f7; --secondary: #a1a1a6; --tertiary: #86868b;
+      --hairline: rgba(255, 255, 255, 0.10); --hairline-strong: rgba(255, 255, 255, 0.18);
+      --accent: #2997ff; --accent-soft: rgba(41, 151, 255, 0.12);
+      --green: #30d158; --orange: #ff9f0a; --red: #ff453a;
+      --add: rgba(48, 209, 88, 0.14); --del: rgba(255, 69, 58, 0.14);
+      --shadow: none;
     }
   }
   * { box-sizing: border-box; }
   body {
     margin: 0; background: var(--bg); color: var(--text);
-    font-family: var(--sans); line-height: 1.55; padding-bottom: 72px;
+    font-family: var(--sans); font-size: 15px; line-height: 1.5;
+    -webkit-font-smoothing: antialiased; padding-bottom: 96px;
   }
-  .wrap { max-width: 1120px; margin: 0 auto; padding: 0 20px; }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 0 24px; }
+  code { font-family: var(--mono); font-size: 0.88em; }
 
   /* ---------- header ---------- */
-  header { border-bottom: 1px solid var(--line); background: var(--panel); }
-  .bar { display: flex; align-items: baseline; gap: 14px; padding: 16px 0; flex-wrap: wrap; }
-  .logo { font-weight: 700; font-size: 19px; letter-spacing: -0.02em; }
-  .logo span { color: var(--accent); }
+  .bar { display: flex; align-items: center; gap: 16px; padding: 18px 0;
+         border-bottom: 1px solid var(--hairline); }
+  .logo { font-family: var(--display); font-weight: 600; font-size: 17px; letter-spacing: -0.01em; }
   .spacer { flex: 1; }
-  /* The repository path has no spaces to break on and can be long, so it is
-     allowed to break anywhere rather than pushing the page sideways. */
-  .tag { font-family: var(--mono); font-size: 12px; color: var(--faint);
-         overflow-wrap: anywhere; min-width: 0; }
-  .pitch { padding: 0 0 18px; max-width: 74ch; color: var(--muted); font-size: 14.5px; }
-  .pitch b { color: var(--text); font-weight: 600; }
-
-  /* ---------- pipeline rail ---------- */
-  .rail { display: flex; gap: 6px; flex-wrap: wrap; padding: 14px 0 0; }
-  .rail .step {
-    display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--faint);
-    border: 1px solid var(--line); border-radius: 20px; padding: 4px 11px 4px 5px;
-    background: var(--panel-2);
+  .tag { font-family: var(--mono); font-size: 11.5px; color: var(--tertiary); white-space: nowrap; }
+  /* The repository path can be long; keep the bar on one line and show it all on hover. */
+  #context-line { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .pitch {
+    margin: 0; padding: 56px 0 12px; max-width: 22ch;
+    font-family: var(--display); font-size: 44px; line-height: 1.08;
+    font-weight: 600; letter-spacing: -0.025em;
   }
-  .rail .step b {
-    display: inline-flex; align-items: center; justify-content: center;
-    width: 18px; height: 18px; border-radius: 50%; font-size: 11px;
-    background: var(--line); color: var(--muted); font-weight: 600;
-  }
-  .rail .step.on { color: var(--text); border-color: var(--accent); }
-  .rail .step.on b { background: var(--accent); color: #fff; }
+  .lede { margin: 0; padding: 0 0 28px; max-width: 58ch; color: var(--secondary); font-size: 19px;
+          line-height: 1.45; letter-spacing: -0.01em; }
 
-  /* ---------- scenario picker ---------- */
-  .picker { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px; }
+  /* ---------- progress ---------- */
+  .rail { display: flex; flex-wrap: wrap; gap: 6px 0; padding: 0 0 28px; font-size: 13px; color: var(--tertiary); }
+  .rail .step { display: flex; align-items: center; }
+  .rail .step:not(:last-child)::after { content: "›"; margin: 0 10px; color: var(--hairline-strong); }
+  .rail .step.on { color: var(--text); }
+
+  /* ---------- scenarios ---------- */
+  .picker { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 12px; }
   .scenario {
-    text-align: left; cursor: pointer; border: 1px solid var(--line); border-radius: 9px;
-    background: var(--panel); color: var(--text); padding: 11px 13px; font-family: var(--sans);
-    display: flex; flex-direction: column; gap: 5px; line-height: 1.35;
+    text-align: left; cursor: pointer; border: 1px solid var(--hairline); border-radius: 14px;
+    background: var(--raised); color: var(--text); padding: 16px 16px 14px; font-family: var(--sans);
+    display: flex; flex-direction: column; gap: 6px; line-height: 1.3;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
   }
-  .scenario:hover { border-color: var(--accent); }
-  .scenario[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-bg); }
-  .scenario .name { font-weight: 600; font-size: 14px; }
-  .scenario .fam { font-family: var(--mono); font-size: 11px; color: var(--faint); }
-  .expects {
-    align-self: flex-start; font-size: 10.5px; letter-spacing: 0.06em; text-transform: uppercase;
-    border-radius: 4px; padding: 1px 6px; font-weight: 600;
-  }
-  .expects.verified { color: var(--green); background: var(--green-bg); }
-  .expects.refused { color: var(--amber); background: var(--amber-bg); }
-  .expects.validation_failed { color: var(--red); background: var(--red-bg); }
-  .expects.patched_unverified { color: var(--amber); background: var(--amber-bg); }
+  .scenario:hover { box-shadow: var(--shadow); border-color: var(--hairline-strong); }
+  .scenario[aria-pressed="true"] { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+  .scenario .name { font-weight: 600; font-size: 15px; letter-spacing: -0.01em; }
+  .scenario .fam { font-family: var(--mono); font-size: 11.5px; color: var(--tertiary); }
+  .expects { display: flex; align-items: center; gap: 6px; margin-top: 6px; font-size: 12.5px; color: var(--secondary); }
+  .expects::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--tertiary); }
+  .expects.verified::before { background: var(--dot-green); }
+  .expects.refused::before, .expects.patched_unverified::before { background: var(--dot-orange); }
+  .expects.validation_failed::before { background: var(--dot-red); }
 
-  .runbar { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; padding: 14px 0 4px; }
+  .runbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 22px 0 6px; }
   select, button {
-    font-family: var(--sans); font-size: 14px; border-radius: 7px;
-    border: 1px solid var(--line); background: var(--panel); color: var(--text); padding: 9px 13px;
+    font-family: var(--sans); font-size: 15px; border-radius: 980px;
+    border: 1px solid var(--hairline-strong); background: transparent; color: var(--text);
+    padding: 9px 18px; letter-spacing: -0.01em;
   }
-  button { cursor: pointer; }
-  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
-  button:disabled { opacity: 0.55; cursor: progress; }
-  .headline { color: var(--muted); font-size: 14px; padding: 8px 0 0; max-width: 78ch; }
-  .headline code { font-family: var(--mono); font-size: 12.5px; color: var(--text); }
+  select { border-radius: 10px; }
+  button { cursor: pointer; transition: opacity 0.2s ease, background 0.2s ease; }
+  button:hover { background: var(--surface); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 500; }
+  button.primary:hover { opacity: 0.88; background: var(--accent); }
+  button:disabled { opacity: 0.5; cursor: progress; }
+  .headline { color: var(--secondary); font-size: 15px; padding: 18px 0 0; max-width: 70ch; margin: 0; }
+  .headline code, .headline b { color: var(--text); }
 
-  .banner {
-    background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--amber);
-    border-radius: 7px; padding: 11px 14px; font-size: 13px; color: var(--muted); margin: 18px 0 0;
-  }
-  .banner code { font-family: var(--mono); color: var(--text); }
+  .banner { font-size: 13px; color: var(--tertiary); margin: 14px 0 0; max-width: 80ch; }
+  .banner code { color: var(--secondary); }
 
   /* ---------- outcome ---------- */
-  .verdict { border-radius: 11px; border: 1px solid var(--line); padding: 18px 20px; margin: 22px 0 6px; }
-  .verdict .label { font-size: 22px; font-weight: 700; letter-spacing: -0.01em; }
-  .verdict .said { font-size: 14px; color: var(--muted); margin-top: 5px; }
-  .verdict .watch { font-size: 13.5px; margin-top: 11px; padding-top: 11px; border-top: 1px solid var(--line); color: var(--muted); }
-  .verdict .watch b { color: var(--text); }
-  .verdict.good { border-color: var(--green); background: var(--green-bg); }
-  .verdict.good .label { color: var(--green); }
-  .verdict.warn { border-color: var(--amber); background: var(--amber-bg); }
-  .verdict.warn .label { color: var(--amber); }
-  .verdict.bad { border-color: var(--red); background: var(--red-bg); }
-  .verdict.bad .label { color: var(--red); }
+  .verdict { border-radius: 18px; background: var(--surface); padding: 26px 28px; margin: 40px 0 8px; }
+  .verdict .label { display: flex; align-items: center; gap: 10px;
+                    font-family: var(--display); font-size: 28px; font-weight: 600; letter-spacing: -0.02em; }
+  .verdict .label::before { content: ""; width: 10px; height: 10px; border-radius: 50%; background: var(--tertiary); flex: none; }
+  .verdict.good .label::before { background: var(--dot-green); }
+  .verdict.warn .label::before { background: var(--dot-orange); }
+  .verdict.bad .label::before { background: var(--dot-red); }
+  .verdict .said { font-size: 16px; color: var(--secondary); margin-top: 6px; max-width: 70ch; }
+  .verdict .said.mono { font-size: 12.5px; color: var(--tertiary); }
+  .verdict .watch { font-size: 14px; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--hairline); color: var(--secondary); }
+  .verdict .watch b { color: var(--text); font-weight: 600; }
 
-  /* ---------- step sections ---------- */
-  section.step { margin: 26px 0 0; }
+  /* ---------- steps ---------- */
+  section.step { margin: 52px 0 0; }
   section.step > h2 {
-    display: flex; align-items: center; gap: 10px; margin: 0 0 10px;
-    font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em;
-    color: var(--muted);
+    display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 12px; margin: 0 0 16px;
+    font-family: var(--display); font-size: 24px; font-weight: 600; letter-spacing: -0.02em;
   }
-  section.step > h2 i {
-    font-style: normal; display: inline-flex; align-items: center; justify-content: center;
-    width: 21px; height: 21px; border-radius: 50%; background: var(--accent); color: #fff;
-    font-size: 11.5px; font-weight: 700;
-  }
-  section.step > h2 small { font-weight: 500; text-transform: none; letter-spacing: 0; color: var(--faint); font-size: 12.5px; }
+  section.step > h2 i { font-style: normal; font-size: 13px; font-weight: 500; color: var(--tertiary);
+                        font-variant-numeric: tabular-nums; letter-spacing: 0; }
+  section.step > h2 small { flex-basis: 100%; font-family: var(--sans); font-weight: 400; font-size: 15px;
+                            color: var(--secondary); letter-spacing: -0.01em; }
 
-  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
-  .card > .body { padding: 14px 16px; }
+  .card { background: var(--raised); border: 1px solid var(--hairline); border-radius: 14px; overflow: hidden; }
+  .card > .body { padding: 18px 20px; }
   .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; align-items: start; }
   @media (max-width: 820px) { .cols { grid-template-columns: 1fr; } }
 
-  dl { display: grid; grid-template-columns: auto 1fr; gap: 5px 14px; margin: 0; font-size: 14px; }
-  dt { color: var(--muted); }
+  dl { display: grid; grid-template-columns: auto 1fr; gap: 8px 18px; margin: 0; font-size: 14px; }
+  dt { color: var(--tertiary); }
   dd { margin: 0; }
 
-  .beforeafter { display: grid; gap: 8px; font-family: var(--mono); font-size: 12.5px; }
-  .beforeafter div { padding: 8px 11px; border-radius: 7px; background: var(--panel-2); }
-  .beforeafter .was { border-left: 3px solid var(--red); }
-  .beforeafter .now { border-left: 3px solid var(--green); }
-  .beforeafter span { display: block; font-family: var(--sans); font-size: 11px; color: var(--faint); margin-bottom: 2px; }
+  .beforeafter { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-family: var(--mono); font-size: 13px; }
+  .beforeafter div { padding: 10px 12px; border-radius: 10px; background: var(--surface); }
+  .beforeafter span { display: block; font-family: var(--sans); font-size: 11.5px; color: var(--tertiary); margin-bottom: 2px; }
 
-  .pill {
-    display: inline-block; font-family: var(--mono); font-size: 11px;
-    padding: 2px 8px; border-radius: 20px; border: 1px solid var(--line); background: var(--panel-2);
-  }
-  .pill.high, .pill.passed { color: var(--green); }
-  .pill.medium, .pill.skipped { color: var(--amber); }
-  .pill.low { color: var(--faint); }
+  .pill { display: inline-block; font-size: 12px; color: var(--secondary);
+          padding: 2px 9px; border-radius: 980px; background: var(--surface); }
   .pill.failed { color: var(--red); }
-  .yes { color: var(--green); font-weight: 600; }
-  .no { color: var(--faint); }
+  .yes { color: var(--text); font-weight: 500; }
+  .no { color: var(--tertiary); }
 
-  table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
-  th { color: var(--muted); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; }
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  th, td { text-align: left; padding: 11px 14px; border-bottom: 1px solid var(--hairline); vertical-align: top; }
+  th { color: var(--tertiary); font-weight: 500; font-size: 12px; }
   tr:last-child td { border-bottom: 0; }
-  td.mono, .mono { font-family: var(--mono); font-size: 12px; }
+  td.mono, .mono { font-family: var(--mono); font-size: 12.5px; }
   .scroll { overflow-x: auto; }
 
   pre {
-    margin: 0; font-family: var(--mono); font-size: 12.5px; line-height: 1.55;
-    overflow-x: auto; padding: 14px 16px; background: var(--panel-2); white-space: pre;
+    margin: 0; font-family: var(--mono); font-size: 12.5px; line-height: 1.6;
+    overflow-x: auto; padding: 16px 20px; background: var(--surface); white-space: pre;
   }
   .diff span { display: block; }
-  .diff .add { color: var(--green); background: var(--green-bg); }
-  .diff .del { color: var(--red); background: var(--red-bg); }
-  .diff .hunk { color: var(--accent); margin-top: 4px; }
-  .diff .meta { color: var(--faint); }
-  .diff .ctx { color: var(--muted); }
+  .diff .add { background: var(--add); }
+  .diff .del { background: var(--del); }
+  .diff .hunk { color: var(--tertiary); margin-top: 6px; }
+  .diff .meta { color: var(--tertiary); }
+  .diff .ctx { color: var(--secondary); }
   /* The release note is prose, not code: wrap it rather than scrolling it. */
   pre.note-source { white-space: pre-wrap; word-break: break-word; max-height: 430px; overflow-y: auto; }
 
-  /* ---------- gates ---------- */
-  .gates { display: grid; gap: 1px; background: var(--line); }
-  .gate { display: grid; grid-template-columns: 24px 168px 78px 1fr; gap: 10px; align-items: baseline;
-          padding: 11px 16px; background: var(--panel); font-size: 13px; }
-  @media (max-width: 720px) { .gate { grid-template-columns: 24px 1fr; } .gate .detail { grid-column: 1 / -1; } }
-  .gate .mark { font-size: 14px; line-height: 1.3; }
-  .gate .gname { font-family: var(--mono); font-size: 12.5px; }
-  .gate .detail { color: var(--muted); font-size: 12.5px; }
+  /* ---------- checks ---------- */
+  .gates { display: grid; }
+  .gate { display: grid; grid-template-columns: 22px 190px 1fr; gap: 12px; align-items: baseline;
+          padding: 14px 20px; font-size: 14px; border-bottom: 1px solid var(--hairline); }
+  .gate:last-child { border-bottom: 0; }
+  .gate > :nth-child(3) { display: none; }
+  @media (max-width: 720px) { .gate { grid-template-columns: 22px 1fr; } .gate .detail { grid-column: 2; } }
+  .gate .mark { font-size: 14px; line-height: 1.3; color: var(--tertiary); }
   .gate.passed .mark { color: var(--green); }
   .gate.failed .mark { color: var(--red); }
-  .gate.skipped .mark { color: var(--faint); }
+  .gate .gname { font-family: var(--mono); font-size: 12.5px; }
+  .gate .detail { color: var(--secondary); font-size: 13.5px; }
   .gate.failed .gname { color: var(--red); }
 
-  .note { color: var(--muted); font-size: 13px; }
-  .reason { color: var(--faint); font-size: 12px; }
-  .empty { color: var(--faint); font-size: 13px; padding: 10px 0; }
-  details > summary { cursor: pointer; color: var(--muted); font-size: 13px; padding: 5px 0; }
-  .changeblock { border-top: 1px solid var(--line); margin-top: 30px; padding-top: 6px; }
+  .note { color: var(--secondary); font-size: 14px; margin: 0; }
+  .reason { color: var(--tertiary); font-size: 13px; }
+  .empty { color: var(--secondary); font-size: 14px; }
+  details > summary { cursor: pointer; color: var(--accent); font-size: 14px; padding: 6px 0; list-style-position: inside; }
+  .changeblock { border-top: 1px solid var(--hairline); margin-top: 56px; padding-top: 8px; }
   .changeblock:first-of-type { border-top: 0; margin-top: 0; }
-  .changelabel { font-size: 12px; color: var(--faint); font-family: var(--mono); padding-top: 14px; }
+  .changelabel { font-size: 13px; color: var(--tertiary); padding-top: 18px; }
 </style>
 </head>
 <body>
 <header>
   <div class="wrap">
     <div class="bar">
-      <div class="logo">Patch<span>Ahead</span></div>
+      <div class="logo">PatchAhead</div>
       <div class="tag" id="context-line">loading…</div>
-      <div class="spacer"></div>
       <div class="tag" id="version"></div>
     </div>
-    <p class="pitch">
-      An upstream API changes. <b>Which of your code breaks, what is the smallest
-      correct fix, and can it be proven to work?</b> PatchAhead reads the release
-      note, finds the affected call sites, patches a throwaway copy of the
-      repository, and runs your tests against it. A migration counts as done only
-      when a test that failed before the patch passes after it.
+    <h1 class="pitch">An API changed. Your code doesn't have to break.</h1>
+    <p class="lede">
+      PatchAhead finds the code a change breaks, fixes it in a copy, and proves the fix
+      with your tests. It only calls a fix done when a test that failed before it passes after.
     </p>
     <div class="rail" id="rail"></div>
-    <div style="height:14px"></div>
   </div>
 </header>
 
@@ -218,15 +209,13 @@
   <p class="headline" id="headline"></p>
   <div class="runbar">
     <button id="run" class="primary">Run this scenario</button>
-    <button id="analyze">Analyze only (read-only)</button>
+    <button id="analyze">Analyze only</button>
     <span class="note" id="status"></span>
   </div>
-  <div class="banner">
-    PatchAhead never writes to the repository it is pointed at. <b>Run</b> copies it to a
-    temporary directory, patches the copy, and runs <code id="test-command">its test command</code>
-    there. A test command is ordinary code running as you — the copy is isolation from
-    <i>writes</i>, not a sandbox. Nothing here is applied or merged; a human approves.
-  </div>
+  <p class="banner">
+    Your repository is never modified. Runs happen in a temporary copy, with
+    <code id="test-command">its test command</code> running as you. Nothing is merged; you approve.
+  </p>
   <div id="results"></div>
 </div>
 
@@ -250,7 +239,7 @@ const STEPS = [
 
 function renderRail(active) {
   $("rail").innerHTML = STEPS.map((name, i) =>
-    `<div class="step ${active > i ? "on" : ""}"><b>${i + 1}</b>${esc(name)}</div>`
+    `<div class="step ${active > i ? "on" : ""}">${esc(name)}</div>`
   ).join("");
 }
 
@@ -266,7 +255,7 @@ function renderChange(change, source) {
     : "";
   return `
   <section class="step">
-    <h2><i>1</i> Upstream change <small>what the vendor says broke</small></h2>
+    <h2><i>01</i> Upstream change <small>What the library says changed.</small></h2>
     <div class="cols">
       <div class="card"><div class="body">
         <dl>
@@ -287,7 +276,7 @@ function renderChange(change, source) {
             `<li>“${esc(e.quote)}”${e.note ? ` — ${esc(e.note)}` : ""}</li>`).join("")}</ul></details>` : ""}
       </div></div>
       <div class="card">
-        <div class="body"><div class="reason">the release note, as published</div></div>
+        <div class="body"><div class="reason">The release note, as published</div></div>
         <pre class="note-source">${esc(source || "(not loaded)")}</pre>
       </div>
     </div>
@@ -328,7 +317,7 @@ function renderImpact(impact) {
       </div>`;
   }
   return `<section class="step">
-    <h2><i>2</i> Impact <small>every site the name matches, and what was decided about it</small></h2>
+    <h2><i>02</i> Impact <small>Every place the name appears, and what was decided about each.</small></h2>
     ${inner}</section>`;
 }
 
@@ -348,8 +337,8 @@ function renderPlan(plan) {
       <tr>
         <td class="mono">${esc(t.reference.path)}:${t.reference.line}</td>
         <td class="mono">${esc(t.symbol)}</td>
-        <td class="mono" style="color:var(--red)">${esc(t.old)}</td>
-        <td class="mono" style="color:var(--green)">${esc(t.new)}</td>
+        <td class="mono" style="color:var(--tertiary)">${esc(t.old)}</td>
+        <td class="mono">${esc(t.new)}</td>
         <td>${pill(t.confidence)}</td>
       </tr>`).join("");
     inner = `
@@ -370,7 +359,7 @@ function renderPlan(plan) {
       </div>`;
   }
   return `<section class="step">
-    <h2><i>3</i> Migration plan <small>what it intends to change, before touching anything</small></h2>
+    <h2><i>03</i> Migration plan <small>What it will change, before touching anything.</small></h2>
     ${inner}</section>`;
 }
 
@@ -397,8 +386,7 @@ function renderPatch(proposal, outcome) {
     /* "Nothing here" is a result, not an absence, and the reason differs by
        outcome. Saying which one it is keeps the story readable end to end. */
     const why = {
-      not_plannable: "No patch — and that is the outcome. PatchAhead found the affected code, "
-        + "explained it, and declined to rewrite it rather than guess.",
+      not_plannable: "No patch. PatchAhead found the affected code and chose not to guess.",
       unsupported_change: "No patch: this kind of change has no handler in this version.",
       no_impact: "No patch: nothing in this repository uses the old contract.",
       dry_run: "No patch: this was a dry run, which stops after planning.",
@@ -410,14 +398,13 @@ function renderPatch(proposal, outcome) {
         <div class="body"><p class="reason" style="margin:0">
           <b>${proposal.diff_line_count}</b> changed line(s) across
           <b>${proposal.changed_files.length}</b> file(s), by
-          ${esc(proposal.engine)} edits to exact source ranges — comments, blank lines and
-          formatting outside the edited spans are untouched.
+          ${esc(proposal.engine)} edits to exact source ranges. Everything else is left as it was.
         </p></div>
         <pre class="diff">${renderDiff(proposal.diff)}</pre>
       </div>`;
   }
   return `<section class="step">
-    <h2><i>4</i> Patch <small>applied to a temporary copy, never to the repository</small></h2>
+    <h2><i>04</i> Patch <small>Applied to a temporary copy, never to your repository.</small></h2>
     ${inner}</section>`;
 }
 
@@ -437,8 +424,7 @@ function renderGates(validation, outcome) {
   let inner;
   if (!validation) {
     const why = outcome === "not_plannable"
-      ? "The gates did not run: nothing was patched, so there is nothing to validate. "
-        + "A refusal is decided before any code is copied or executed."
+      ? "Nothing was patched, so there was nothing to check. A refusal is decided before any code runs."
       : "The gates did not run.";
     inner = `<div class="card"><div class="body"><div class="empty">${esc(why)}</div></div></div>`;
   } else {
@@ -455,29 +441,34 @@ function renderGates(validation, outcome) {
     inner = `<div class="card"><div class="gates">${rows}</div></div>`;
   }
   return `<section class="step">
-    <h2><i>5</i> Verification <small>five gates, in order; the cheap decisive ones run before any code executes</small></h2>
+    <h2><i>05</i> Verification <small>Five checks, in order. The quick ones run before any code does.</small></h2>
     ${inner}</section>`;
 }
 
 /* ---------- step 6: outcome ---------- */
 
 const VERDICT = {
-  migrated: { tone: "good", label: "VERIFIED MIGRATION",
-    said: "A test failed before this patch and passes after it. That is the evidence, and it is the only thing that earns this label." },
-  patched_unverified: { tone: "warn", label: "PATCHED, NOT VERIFIED",
-    said: "A patch was produced and no test proved it works. The diff may well be correct — nothing here demonstrates that, so nothing here claims it." },
-  validation_failed: { tone: "bad", label: "REJECTED BY THE TESTS",
-    said: "A patch was produced and a gate rejected it. The diff is still shown, so you can see exactly what was tried and why it was not accepted." },
-  not_plannable: { tone: "warn", label: "REFUSED",
-    said: "The affected code was found and explained, and PatchAhead declined to rewrite it. Refusing is the correct answer when the evidence does not support an edit." },
-  unsupported_change: { tone: "warn", label: "UNSUPPORTED CHANGE",
-    said: "This kind of change has no handler in this version. It is reported as unsupported rather than forced into a family that happens to fit." },
-  no_impact: { tone: "warn", label: "NO IMPACT",
-    said: "Nothing in this repository uses the old contract. Not an error — there is simply nothing to migrate." },
-  patch_failed: { tone: "bad", label: "PATCH FAILED",
-    said: "Planning succeeded and generating the patch did not." },
-  dry_run: { tone: "warn", label: "DRY RUN",
-    said: "Stopped after planning, by request. Nothing was patched and no tests ran." },
+  migrated: { tone: "good", label: "Verified migration",
+    said: "A test that failed before the patch passes after it. That is the only thing that earns this label." },
+  patched_unverified: { tone: "warn", label: "Patched, not verified",
+    said: "A patch was made, but no test proved it works. It may be right; nothing here claims it is." },
+  validation_failed: { tone: "bad", label: "Rejected by the tests",
+    said: "A patch was made and a check rejected it. The diff is below, so you can see what was tried." },
+  not_plannable: { tone: "warn", label: "Refused",
+    said: "PatchAhead found the affected code and chose not to change it. The evidence did not support an edit." },
+  unsupported_change: { tone: "warn", label: "Unsupported change",
+    said: "This kind of change has no handler yet, so it is reported rather than forced." },
+  no_impact: { tone: "neutral", label: "No impact",
+    said: "Nothing in this repository uses the old API. There is nothing to migrate." },
+  patch_failed: { tone: "bad", label: "Patch failed",
+    said: "Planning worked; producing the patch did not." },
+  dry_run: { tone: "neutral", label: "Dry run",
+    said: "Stopped after planning, as asked. Nothing was patched and no tests ran." },
+};
+
+const EXPECT = {
+  verified: "Expect: verified", refused: "Expect: refused",
+  patched_unverified: "Expect: patched, not verified", validation_failed: "Expect: rejected",
 };
 
 function renderVerdict(result, scenario) {
@@ -486,14 +477,14 @@ function renderVerdict(result, scenario) {
     <div class="verdict ${v.tone}">
       <div class="label">${esc(v.label)}</div>
       <div class="said">${esc(v.said)}</div>
-      <div class="said mono" style="margin-top:8px">${prose(result.message)}</div>
-      ${scenario ? `<div class="watch"><b>What to look at:</b> ${prose(scenario.watch_for)}</div>` : ""}
+      <div class="said mono" style="margin-top:10px">${prose(result.message)}</div>
+      ${scenario ? `<div class="watch"><b>What to look at.</b> ${prose(scenario.watch_for)}</div>` : ""}
     </div>`;
 }
 
 function renderResult(result, prSummary, scenario, source, index, total) {
   const label = total > 1
-    ? `<div class="changelabel">change ${index + 1} of ${total} in this document</div>` : "";
+    ? `<div class="changelabel">Change ${index + 1} of ${total} in this document</div>` : "";
   return `
     <div class="changeblock">
       ${label}
@@ -504,10 +495,10 @@ function renderResult(result, prSummary, scenario, source, index, total) {
       ${renderPatch(result.proposal, result.outcome)}
       ${renderGates(result.validation, result.outcome)}
       <section class="step">
-        <h2><i>6</i> Outcome <small>what a reviewer would receive</small></h2>
+        <h2><i>06</i> Outcome <small>What a reviewer would receive.</small></h2>
         <div class="card"><div class="body">
           ${prSummary
-            ? `<details><summary>Reviewable pull-request summary (Markdown)</summary><pre>${esc(prSummary)}</pre></details>`
+            ? `<details><summary>Pull request summary (Markdown)</summary><pre>${esc(prSummary)}</pre></details>`
             : '<div class="empty">No summary.</div>'}
         </div></div>
       </section>
@@ -559,15 +550,15 @@ async function act(kind) {
   const buttons = [$("run"), $("analyze")];
   buttons.forEach((b) => (b.disabled = true));
   $("status").textContent = kind === "analyze"
-    ? "analyzing (nothing is copied or executed)…"
-    : "copying the repository, patching the copy, running its tests…";
+    ? "Analyzing. Nothing is copied or run…"
+    : "Copying the repository, patching the copy, running its tests…";
   $("results").innerHTML = "";
   renderRail(1);
   try {
     if (kind === "analyze") {
       const data = await call("/api/analyze", { document: name });
       $("results").innerHTML = renderAnalysis(data);
-      $("status").textContent = `${data.total_findings} site(s) found — read-only, nothing was changed`;
+      $("status").textContent = `${data.total_findings} site(s) found. Nothing was changed.`;
       renderRail(2);
     } else {
       const params = selected
@@ -581,8 +572,8 @@ async function act(kind) {
         .map((r, i) => renderResult(r, data.pr_summaries?.[i], selected, source, i, data.results.length))
         .join("");
       $("status").textContent = data.succeeded
-        ? "verified by the tests"
-        : "not verified — see the outcome above";
+        ? "Verified by the tests."
+        : "Not verified. See the outcome below.";
       renderRail(6);
       $("results").scrollIntoView({ behavior: "smooth", block: "start" });
     }
@@ -612,7 +603,7 @@ function renderChooser() {
       <button class="scenario" data-id="${esc(s.id)}" aria-pressed="false">
         <span class="name">${esc(s.title)}</span>
         <span class="fam">${esc(s.family)}</span>
-        <span class="expects ${esc(s.expect)}">${esc(s.expect.replace(/_/g, " "))}</span>
+        <span class="expects ${esc(s.expect)}">${esc(EXPECT[s.expect] || s.expect.replace(/_/g, " "))}</span>
       </button>`).join("")}</div>`;
     document.querySelectorAll(".scenario").forEach((node) =>
       node.addEventListener("click", () => selectScenario(node.dataset.id)));
@@ -633,11 +624,12 @@ async function init() {
   try {
     context = await (await fetch("/api/context")).json();
   } catch {
-    $("context-line").textContent = "could not reach the server";
+    $("context-line").textContent = "Could not reach the server";
     return;
   }
-  $("version").textContent = `v${context.version} · localhost`;
+  $("version").textContent = `${context.version} · localhost`;
   $("context-line").textContent = context.repo;
+  $("context-line").title = context.repo;
   $("test-command").textContent = context.config.test_command;
   renderChooser();
 }

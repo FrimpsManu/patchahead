@@ -4,9 +4,9 @@ Images used by the top of `README.md`.
 
 | File | What it is |
 |---|---|
-| `demo-verified.png` | The scenario picker and the `VERIFIED MIGRATION` banner, dark theme. |
-| `demo-gates.png` | The five validation gates for that run. |
-| `demo-refusal.png` | The `REFUSED` verdict and the impact table behind it, light theme. |
+| `demo-verified.png` | The scenario picker and the *Verified migration* outcome, light theme. |
+| `demo-gates.png` | The five validation gates for that run, light theme. |
+| `demo-refusal.png` | The *Refused* outcome and the impact table behind it, dark theme. |
 | `demo.gif` | The demo run end to end: the six scenarios, a verified migration and its gates, then a refusal. |
 
 All of them are real screenshots of `patchahead demo`, captured from a

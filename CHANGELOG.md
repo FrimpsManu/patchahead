@@ -7,6 +7,17 @@ this project uses [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- **A quieter web UI.** `patchahead demo` and `patchahead web` now use one
+  neutral palette and a single accent colour, the system font, and more space.
+  Colour is kept for meaning only: a small dot marks each outcome, and diffs keep
+  their tints. Outcome labels are in sentence case ("Verified migration",
+  "Refused"), the numbered step pills became a plain breadcrumb, and the copy
+  is shorter. Light and dark mode follow the system. Nothing about what the page
+  shows or how it behaves changed. The README GIF and screenshots were
+  re-recorded.
+
 ## [0.3.1] — 2026-10-04
 
 ### Added
