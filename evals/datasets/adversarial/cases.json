@@ -979,6 +979,130 @@
       "expect_reported_only": [
         "app/d.py:6"
       ]
+    },
+    {
+      "id": "a_query_parameter_on_the_named_endpoint_is_renamed",
+      "note": "`f\"{BASE_URL}/orders\"` with `BASE_URL` ending in `/v2` addresses `GET [/v2]/orders`.",
+      "change": {
+        "kind": "query_param_rename",
+        "symbol": "page",
+        "replacement": "cursor",
+        "owner": "GET [/v2]/orders"
+      },
+      "files": {
+        "app/api.py": "import requests\n\nBASE_URL = \"https://api.shop.com/v2\"\n\n\ndef orders(page):\n    return requests.get(f\"{BASE_URL}/orders\", params={\"page\": page, \"limit\": 50})\n"
+      },
+      "expect_patched": [
+        "app/api.py:7"
+      ]
+    },
+    {
+      "id": "the_same_parameter_on_another_endpoint_is_left_alone",
+      "note": "`page` is sent to every paginated endpoint; only `/orders` renamed it.",
+      "change": {
+        "kind": "query_param_rename",
+        "symbol": "page",
+        "replacement": "cursor",
+        "owner": "GET [/v2]/orders"
+      },
+      "files": {
+        "app/api.py": "import requests\n\nBASE_URL = \"https://api.shop.com/v2\"\n\n\ndef invoices(page):\n    return requests.get(f\"{BASE_URL}/invoices\", params={\"page\": page})\n\n\ndef orders(page):\n    return requests.get(f\"{BASE_URL}/orders\", params={\"page\": page})\n"
+      },
+      "expect_patched": [
+        "app/api.py:11"
+      ]
+    },
+    {
+      "id": "a_nested_path_ending_the_same_is_another_endpoint",
+      "note": "`/customers/{id}/orders` ends in `/orders` but is not `GET /orders`.",
+      "change": {
+        "kind": "query_param_rename",
+        "symbol": "page",
+        "replacement": "cursor",
+        "owner": "GET [/v2]/orders"
+      },
+      "files": {
+        "app/api.py": "def customer_orders(session, base, customer, page):\n    return session.get(f\"{base}/customers/{customer}/orders\", params={\"page\": page})\n"
+      },
+      "expect_patched": []
+    },
+    {
+      "id": "another_verb_on_the_same_path_is_left_alone",
+      "note": "`POST /orders` is a different operation from `GET /orders`.",
+      "change": {
+        "kind": "query_param_rename",
+        "symbol": "page",
+        "replacement": "cursor",
+        "owner": "GET [/v2]/orders"
+      },
+      "files": {
+        "app/api.py": "def create(session, base, page):\n    return session.post(f\"{base}/orders\", params={\"page\": page})\n"
+      },
+      "expect_patched": []
+    },
+    {
+      "id": "a_dict_get_is_not_an_http_call",
+      "note": "`settings.get(url, params=...)` has the shape, but `params` must also be readable and the URL must address the endpoint; a bare name URL does not.",
+      "change": {
+        "kind": "query_param_rename",
+        "symbol": "page",
+        "replacement": "cursor",
+        "owner": "GET [/v2]/orders"
+      },
+      "files": {
+        "app/cfg.py": "def lookup(settings, url, page):\n    return settings.get(url, params={\"page\": page})\n"
+      },
+      "expect_patched": []
+    },
+    {
+      "id": "a_parameters_dict_also_used_elsewhere_is_reported",
+      "note": "The dict is changed after it is built, so renaming its literal would miss the later key.",
+      "change": {
+        "kind": "query_param_rename",
+        "symbol": "page",
+        "replacement": "cursor",
+        "owner": "GET [/v2]/orders"
+      },
+      "files": {
+        "app/api.py": "def orders(session, base, page):\n    query = {\"page\": page}\n    query[\"page\"] = page + 1\n    return session.get(f\"{base}/orders\", params=query)\n"
+      },
+      "expect_patched": [],
+      "expect_reported_only": [
+        "app/api.py:4"
+      ]
+    },
+    {
+      "id": "a_module_level_parameters_dict_is_reported",
+      "note": "A module-level dict is shared by every caller; editing it for one call changes them all.",
+      "change": {
+        "kind": "query_param_rename",
+        "symbol": "page",
+        "replacement": "cursor",
+        "owner": "GET [/v2]/orders"
+      },
+      "files": {
+        "app/api.py": "DEFAULTS = {\"page\": 1}\n\n\ndef orders(session, base):\n    return session.get(f\"{base}/orders\", params=DEFAULTS)\n"
+      },
+      "expect_patched": [],
+      "expect_reported_only": [
+        "app/api.py:5"
+      ]
+    },
+    {
+      "id": "a_relative_url_on_a_client_with_a_base_url",
+      "note": "`httpx.Client(base_url=...)` code calls relative paths.",
+      "change": {
+        "kind": "query_param_rename",
+        "symbol": "page",
+        "replacement": "cursor",
+        "owner": "GET [/v2]/orders"
+      },
+      "files": {
+        "app/api.py": "def orders(client, page):\n    return client.get(\"/orders\", params=dict(page=page))\n"
+      },
+      "expect_patched": [
+        "app/api.py:2"
+      ]
     }
   ]
 }

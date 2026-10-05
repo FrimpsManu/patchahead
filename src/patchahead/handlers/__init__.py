@@ -24,6 +24,7 @@ from patchahead.handlers import field_rename as field_rename  # noqa: E402,F401 
 from patchahead.handlers import kwarg_rename as kwarg_rename  # noqa: E402,F401  isort:skip
 from patchahead.handlers import method_rename as method_rename  # noqa: E402,F401  isort:skip
 from patchahead.handlers import pagination as pagination  # noqa: E402,F401  isort:skip
+from patchahead.handlers import query_params as query_params  # noqa: E402,F401  isort:skip
 
 __all__ = [
     "MigrationHandler",

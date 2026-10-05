@@ -17,6 +17,7 @@ and its properties are not read.
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -64,6 +65,9 @@ class Operation:
 class Spec:
     title: str = ""
     version: str = ""
+    #: The path every operation's path is under: the first server URL's path in
+    #: OpenAPI 3 (``https://api.shop.com/v2`` -> ``/v2``), ``basePath`` in Swagger 2.
+    base_path: str = ""
     schemas: dict[str, Schema] = field(default_factory=dict)
     operations: dict[tuple[str, str], Operation] = field(default_factory=dict)
 
@@ -113,7 +117,11 @@ def read(document: dict[str, Any], name: str = "spec") -> Spec:
         raise SpecError(f"{name}: no `openapi` or `swagger` version field; is this a spec?")
 
     info = document.get("info") or {}
-    spec = Spec(title=str(info.get("title", "")), version=str(info.get("version", "")))
+    spec = Spec(
+        title=str(info.get("title", "")),
+        version=str(info.get("version", "")),
+        base_path=_base_path(document),
+    )
     resolver = _Resolver(document)
     for schema_name, schema in sorted(schemas.items()):
         if isinstance(schema, dict):
@@ -224,6 +232,21 @@ class _Resolver:
             return f"array<{self.shape(schema.get('items'), depth + 1)}>"
         fmt = schema.get("format")
         return f"{kind}/{fmt}" if fmt else str(kind)
+
+
+def _base_path(document: dict[str, Any]) -> str:
+    if "swagger" in document:
+        path = str(document.get("basePath") or "")
+    else:
+        servers = document.get("servers") or []
+        url = str(servers[0].get("url", "")) if servers and isinstance(servers[0], dict) else ""
+        path = re.sub(r"^[a-z][a-z0-9+.-]*://[^/]*", "", url, flags=re.I)
+        # A server variable (`https://{region}.api.com`) is part of the host, and
+        # one in the path cannot be known; either way the path is not usable.
+        if "{" in path:
+            path = ""
+    path = "/" + path.strip("/")
+    return "" if path == "/" else path
 
 
 def _ref_name(ref: str) -> str:

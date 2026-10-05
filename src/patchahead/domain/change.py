@@ -31,6 +31,9 @@ class ChangeKind(str, enum.Enum):
     METHOD_RENAME = "method_rename"
     KWARG_RENAME = "kwarg_rename"
     PAGINATION_PAGE_TO_CURSOR = "pagination_page_to_cursor"
+    #: A query parameter of one HTTP endpoint renamed; the owner is the
+    #: endpoint, ``GET [/v2]/orders`` (see :mod:`patchahead.handlers.query_params`).
+    QUERY_PARAM_RENAME = "query_param_rename"
 
     #: Recognized as a breaking change, but no v1 handler can migrate it.
     UNSUPPORTED = "unsupported"

@@ -15,7 +15,8 @@ gone; exactly one property added to the same schema with the    field rename    
 gone; several same-shape candidates, or one shared by several   ambiguous       reported
 gone; nothing of the same shape added                           removed         reported
 the same endpoint's ``operationId`` changed                     method rename   medium
-a parameter gone and one added in the same place and shape      param rename    reported
+a query parameter gone, exactly one added with the same shape   param rename    medium
+another parameter (path, header, cookie) renamed                param rename    reported
 a new required parameter                                        new required    reported
 an endpoint gone                                                removed         reported
 =============================================================  ==============  ==========
@@ -23,9 +24,11 @@ an endpoint gone                                                removed         
 A field rename's owner is the schema's name, asserted: ``Order.total`` renamed
 is applied to ``order["total"]`` and never to ``customer["total"]``. A method
 rename is applied to the method a generated client derives from the
-``operationId`` (``listOrders`` -> ``list_orders``). Parameters are reported,
-not rewritten: in code calling an API over HTTP they are usually keys in a
-``params={...}`` dictionary, which no handler reads yet.
+``operationId`` (``listOrders`` -> ``list_orders``). A query parameter rename
+is owned by its endpoint, ``GET [/v2]/orders`` with the server's base path in
+brackets, and is applied only to calls that address that endpoint
+(:mod:`patchahead.handlers.query_params`). Path parameters are positions in the
+URL, not names a client sends; header and cookie parameters are reported.
 """
 
 from __future__ import annotations
@@ -71,7 +74,7 @@ def compare(old: Spec, new: Spec) -> SpecDiff:
             diff.changes.append(_endpoint_gone(before, new))
             continue
         diff.operations_compared += 1
-        diff.changes.extend(_compare_operation(before, after))
+        diff.changes.extend(_compare_operation(before, after, new.base_path))
     return diff
 
 
@@ -205,7 +208,9 @@ def _field_rename(
 # --------------------------------------------------------------------------
 
 
-def _compare_operation(before: Operation, after: Operation) -> list[BreakingChange]:
+def _compare_operation(
+    before: Operation, after: Operation, base_path: str = ""
+) -> list[BreakingChange]:
     changes: list[BreakingChange] = []
     old_id, new_id = before.operation_id, after.operation_id
     if old_id and new_id and old_id != new_id:
@@ -245,12 +250,14 @@ def _compare_operation(before: Operation, after: Operation) -> list[BreakingChan
             for a in added
             if a[0] == location and after.parameters[a].shape == before.parameters[key].shape
         ]
+        if len(twins) == 1 and location == "query":
+            changes.append(_query_rename(before, name, twins[0][1], base_path))
+            continue
         if len(twins) == 1:
             title = f"`{before.label}`: {location} parameter `{name}` renamed to `{twins[0][1]}`"
             why = (
                 f"`{name}` was removed and `{twins[0][1]}` added in the same place with the "
-                "same type. Not migrated: in code calling the API over HTTP a parameter is "
-                "usually a key in a `params` dictionary, which PatchAhead does not rewrite yet"
+                f"same type; a {location} parameter is not something PatchAhead rewrites"
             )
         else:
             title = f"`{before.label}`: {location} parameter `{name}` removed"
@@ -266,6 +273,27 @@ def _compare_operation(before: Operation, after: Operation) -> list[BreakingChan
             )
         )
     return changes
+
+
+def _query_rename(before: Operation, old: str, new: str, base_path: str) -> BreakingChange:
+    base = f"[{base_path}]" if base_path else ""
+    endpoint = f"{before.method.upper()} {base}{before.path}"
+    return BreakingChange(
+        title=f"`{before.label}`: query parameter `{old}` renamed to `{new}`",
+        kind=ChangeKind.QUERY_PARAM_RENAME,
+        target=SymbolTarget(symbol=old, replacement=new, owner=endpoint, owner_is_explicit=True),
+        severity=Severity.HIGH,
+        confidence=Confidence.MEDIUM,
+        evidence=[
+            Evidence(quote=f"before: {old} (query)", note=before.label),
+            Evidence(quote=f"after:  {new} (query)", note=before.label),
+        ],
+        source=SOURCE,
+        classification_reason=(
+            f"`{old}` was removed from `{before.label}` and `{new}` added as a query "
+            "parameter of the same type, the only one"
+        ),
+    )
 
 
 def _endpoint_gone(before: Operation, new: Spec) -> BreakingChange:

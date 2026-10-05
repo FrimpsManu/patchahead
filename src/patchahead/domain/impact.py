@@ -41,6 +41,8 @@ class AccessKind(str, enum.Enum):
     PAGE_LOOP = "page_loop"
     #: ``from sdk import name``
     IMPORT = "import"
+    #: ``requests.get(url, params={"name": ...})``
+    QUERY_PARAM = "query_param"
 
     def __str__(self) -> str:  # pragma: no cover - trivial
         return self.value

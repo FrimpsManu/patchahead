@@ -1051,8 +1051,8 @@
       "expected_changes": []
     },
     {
-      "id": "a_parameter_rename_is_reported_not_migrated",
-      "note": "Query parameters are usually dict keys in `params={...}`, which no handler rewrites yet.",
+      "id": "a_query_parameter_rename_is_owned_by_its_endpoint",
+      "note": "`page` -> `pageNumber` on `GET /orders` applies only to calls that address `GET /orders`.",
       "old_spec": {
         "openapi": "3.0.3",
         "info": {
@@ -1117,7 +1117,11 @@
       },
       "expected_changes": [
         {
-          "kind": "unsupported"
+          "kind": "query_param_rename",
+          "symbol": "page",
+          "replacement": "pageNumber",
+          "owner": "GET /orders",
+          "owner_explicit": true
         }
       ]
     },
@@ -1284,6 +1288,302 @@
         }
       },
       "expected_changes": []
+    },
+    {
+      "id": "the_server_base_path_is_part_of_the_endpoint",
+      "note": "`servers: [https://api.shop.com/v2]` puts every path under `/v2`, written in brackets.",
+      "old_spec": {
+        "openapi": "3.0.3",
+        "info": {
+          "title": "API",
+          "version": "1"
+        },
+        "paths": {
+          "/orders": {
+            "get": {
+              "operationId": "listOrders",
+              "parameters": [
+                {
+                  "name": "page",
+                  "in": "query",
+                  "schema": {
+                    "type": "integer"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "ok"
+                }
+              }
+            }
+          }
+        },
+        "components": {
+          "schemas": {}
+        },
+        "servers": [
+          {
+            "url": "https://api.shop.com/v2"
+          }
+        ]
+      },
+      "new_spec": {
+        "openapi": "3.0.3",
+        "info": {
+          "title": "API",
+          "version": "1"
+        },
+        "paths": {
+          "/orders": {
+            "get": {
+              "operationId": "listOrders",
+              "parameters": [
+                {
+                  "name": "cursor",
+                  "in": "query",
+                  "schema": {
+                    "type": "integer"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "ok"
+                }
+              }
+            }
+          }
+        },
+        "components": {
+          "schemas": {}
+        },
+        "servers": [
+          {
+            "url": "https://api.shop.com/v2"
+          }
+        ]
+      },
+      "expected_changes": [
+        {
+          "kind": "query_param_rename",
+          "symbol": "page",
+          "replacement": "cursor",
+          "owner": "GET [/v2]/orders",
+          "owner_explicit": true
+        }
+      ]
+    },
+    {
+      "id": "a_header_parameter_rename_is_reported",
+      "note": "Headers are not query parameters; nothing rewrites them.",
+      "old_spec": {
+        "openapi": "3.0.3",
+        "info": {
+          "title": "API",
+          "version": "1"
+        },
+        "paths": {
+          "/orders": {
+            "get": {
+              "operationId": "listOrders",
+              "parameters": [
+                {
+                  "name": "X-Trace",
+                  "in": "header",
+                  "schema": {
+                    "type": "string"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "ok"
+                }
+              }
+            }
+          }
+        },
+        "components": {
+          "schemas": {}
+        }
+      },
+      "new_spec": {
+        "openapi": "3.0.3",
+        "info": {
+          "title": "API",
+          "version": "1"
+        },
+        "paths": {
+          "/orders": {
+            "get": {
+              "operationId": "listOrders",
+              "parameters": [
+                {
+                  "name": "X-Request-Id",
+                  "in": "header",
+                  "schema": {
+                    "type": "string"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "ok"
+                }
+              }
+            }
+          }
+        },
+        "components": {
+          "schemas": {}
+        }
+      },
+      "expected_changes": [
+        {
+          "kind": "unsupported"
+        }
+      ]
+    },
+    {
+      "id": "a_query_parameter_of_another_type_is_not_a_rename",
+      "note": "An integer `page` replaced by a string `cursor` is a different parameter.",
+      "old_spec": {
+        "openapi": "3.0.3",
+        "info": {
+          "title": "API",
+          "version": "1"
+        },
+        "paths": {
+          "/orders": {
+            "get": {
+              "operationId": "listOrders",
+              "parameters": [
+                {
+                  "name": "page",
+                  "in": "query",
+                  "schema": {
+                    "type": "integer"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "ok"
+                }
+              }
+            }
+          }
+        },
+        "components": {
+          "schemas": {}
+        }
+      },
+      "new_spec": {
+        "openapi": "3.0.3",
+        "info": {
+          "title": "API",
+          "version": "1"
+        },
+        "paths": {
+          "/orders": {
+            "get": {
+              "operationId": "listOrders",
+              "parameters": [
+                {
+                  "name": "cursor",
+                  "in": "query",
+                  "schema": {
+                    "type": "string"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "ok"
+                }
+              }
+            }
+          }
+        },
+        "components": {
+          "schemas": {}
+        }
+      },
+      "expected_changes": [
+        {
+          "kind": "unsupported"
+        }
+      ]
+    },
+    {
+      "id": "swagger_2_base_path",
+      "note": "Swagger 2.0 keeps the base path in `basePath`.",
+      "old_spec": {
+        "swagger": "2.0",
+        "info": {
+          "title": "API",
+          "version": "1"
+        },
+        "basePath": "/v1",
+        "paths": {
+          "/orders": {
+            "get": {
+              "operationId": "listOrders",
+              "parameters": [
+                {
+                  "name": "page",
+                  "in": "query",
+                  "type": "integer"
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "ok"
+                }
+              }
+            }
+          }
+        },
+        "definitions": {}
+      },
+      "new_spec": {
+        "swagger": "2.0",
+        "info": {
+          "title": "API",
+          "version": "1"
+        },
+        "basePath": "/v1",
+        "paths": {
+          "/orders": {
+            "get": {
+              "operationId": "listOrders",
+              "parameters": [
+                {
+                  "name": "offset",
+                  "in": "query",
+                  "type": "integer"
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "ok"
+                }
+              }
+            }
+          }
+        },
+        "definitions": {}
+      },
+      "expected_changes": [
+        {
+          "kind": "query_param_rename",
+          "symbol": "page",
+          "replacement": "offset",
+          "owner": "GET [/v1]/orders",
+          "owner_explicit": true
+        }
+      ]
     }
   ]
 }
