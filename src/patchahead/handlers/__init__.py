@@ -20,6 +20,7 @@ from patchahead.handlers.base import (
 # Imported for their registration side effects. Registration order is match
 # order; the built-ins claim disjoint kinds, so the order among them is
 # immaterial and is kept alphabetical.
+from patchahead.handlers import endpoint_move as endpoint_move  # noqa: E402,F401  isort:skip
 from patchahead.handlers import field_rename as field_rename  # noqa: E402,F401  isort:skip
 from patchahead.handlers import kwarg_rename as kwarg_rename  # noqa: E402,F401  isort:skip
 from patchahead.handlers import method_rename as method_rename  # noqa: E402,F401  isort:skip

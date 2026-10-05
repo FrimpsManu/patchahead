@@ -1103,6 +1103,81 @@
       "expect_patched": [
         "app/api.py:2"
       ]
+    },
+    {
+      "id": "a_moved_endpoint_is_rewritten_in_the_call_url",
+      "note": "Only the moved words change; the base URL and interpolated values stay as written.",
+      "change": {
+        "kind": "endpoint_move",
+        "symbol": "/repos/{owner}/{repo}/pages/deployment",
+        "replacement": "/repos/{owner}/{repo}/pages/deployments",
+        "owner": "POST /repos/{owner}/{repo}/pages/deployment"
+      },
+      "files": {
+        "app/pages.py": "def deploy(session, base, owner, repo, body):\n    return session.post(f\"{base}/repos/{owner}/{repo}/pages/deployment\", json=body)\n"
+      },
+      "expect_patched": [
+        "app/pages.py:2"
+      ]
+    },
+    {
+      "id": "the_same_words_on_another_verb_are_left_alone",
+      "note": "`GET .../pages/deployment` is not the operation that moved.",
+      "change": {
+        "kind": "endpoint_move",
+        "symbol": "/repos/{owner}/{repo}/pages/deployment",
+        "replacement": "/repos/{owner}/{repo}/pages/deployments",
+        "owner": "POST /repos/{owner}/{repo}/pages/deployment"
+      },
+      "files": {
+        "app/pages.py": "def status(session, base, owner, repo):\n    return session.get(f\"{base}/repos/{owner}/{repo}/pages/deployment\")\n"
+      },
+      "expect_patched": []
+    },
+    {
+      "id": "an_already_moved_url_is_not_touched",
+      "note": "`/deployments` contains `/deployment`, but the segment does not end there.",
+      "change": {
+        "kind": "endpoint_move",
+        "symbol": "/repos/{owner}/{repo}/pages/deployment",
+        "replacement": "/repos/{owner}/{repo}/pages/deployments",
+        "owner": "POST /repos/{owner}/{repo}/pages/deployment"
+      },
+      "files": {
+        "app/pages.py": "def deploy(session, base, owner, repo):\n    return session.post(f\"{base}/repos/{owner}/{repo}/pages/deployments\")\n"
+      },
+      "expect_patched": []
+    },
+    {
+      "id": "a_moved_part_in_a_shared_constant_is_reported",
+      "note": "The words live in a module constant other calls may use; editing it there is not this call's to decide.",
+      "change": {
+        "kind": "endpoint_move",
+        "symbol": "/repos/{owner}/{repo}/pages/deployment",
+        "replacement": "/repos/{owner}/{repo}/pages/deployments",
+        "owner": "POST /repos/{owner}/{repo}/pages/deployment"
+      },
+      "files": {
+        "app/pages.py": "DEPLOYMENT = \"/pages/deployment\"\n\n\ndef deploy(session, base, owner, repo):\n    return session.post(f\"{base}/repos/{owner}/{repo}\" + DEPLOYMENT)\n"
+      },
+      "expect_patched": [],
+      "expect_reported_only": [
+        "app/pages.py:5"
+      ]
+    },
+    {
+      "id": "a_word_inside_an_interpolation_is_not_text",
+      "note": "`{deployment}` is a variable's value, not the word in the path.",
+      "change": {
+        "kind": "endpoint_move",
+        "symbol": "/repos/{owner}/{repo}/pages/deployment",
+        "replacement": "/repos/{owner}/{repo}/pages/deployments",
+        "owner": "POST /repos/{owner}/{repo}/pages/deployment"
+      },
+      "files": {
+        "app/pages.py": "def deploy(session, base, owner, repo, deployment):\n    return session.post(f\"{base}/repos/{owner}/{repo}/pages/{deployment}\")\n"
+      },
+      "expect_patched": []
     }
   ]
 }

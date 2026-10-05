@@ -34,6 +34,9 @@ class ChangeKind(str, enum.Enum):
     #: A query parameter of one HTTP endpoint renamed; the owner is the
     #: endpoint, ``GET [/v2]/orders`` (see :mod:`patchahead.handlers.query_params`).
     QUERY_PARAM_RENAME = "query_param_rename"
+    #: An endpoint's path changed in its fixed words only; the owner is the old
+    #: endpoint (see :mod:`patchahead.handlers.endpoint_move`).
+    ENDPOINT_MOVE = "endpoint_move"
 
     #: Recognized as a breaking change, but no v1 handler can migrate it.
     UNSUPPORTED = "unsupported"

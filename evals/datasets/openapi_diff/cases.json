@@ -1750,6 +1750,116 @@
           "owner_explicit": true
         }
       ]
+    },
+    {
+      "id": "a_moved_endpoint_with_the_same_placeholders",
+      "note": "GitHub's `pages/deployment` -> `pages/deployments`: the same operationId at a path whose fixed words changed.",
+      "old_spec": {
+        "openapi": "3.0.3",
+        "info": {
+          "title": "API",
+          "version": "1"
+        },
+        "paths": {
+          "/repos/{owner}/{repo}/pages/deployment": {
+            "post": {
+              "operationId": "repos/create-pages-deployment",
+              "responses": {
+                "200": {
+                  "description": "ok"
+                }
+              }
+            }
+          }
+        },
+        "components": {
+          "schemas": {}
+        }
+      },
+      "new_spec": {
+        "openapi": "3.0.3",
+        "info": {
+          "title": "API",
+          "version": "1"
+        },
+        "paths": {
+          "/repos/{owner}/{repo}/pages/deployments": {
+            "post": {
+              "operationId": "repos/create-pages-deployment",
+              "responses": {
+                "200": {
+                  "description": "ok"
+                }
+              }
+            }
+          }
+        },
+        "components": {
+          "schemas": {}
+        }
+      },
+      "expected_changes": [
+        {
+          "kind": "endpoint_move",
+          "symbol": "/repos/{owner}/{repo}/pages/deployment",
+          "replacement": "/repos/{owner}/{repo}/pages/deployments",
+          "owner": "POST /repos/{owner}/{repo}/pages/deployment",
+          "owner_explicit": true
+        }
+      ]
+    },
+    {
+      "id": "a_move_that_changes_the_placeholders_is_reported",
+      "note": "GitHub's `/repositories/{repository_id}/...` -> `/repos/{owner}/{repo}/...` needs other values in the URL.",
+      "old_spec": {
+        "openapi": "3.0.3",
+        "info": {
+          "title": "API",
+          "version": "1"
+        },
+        "paths": {
+          "/repositories/{repository_id}/environments": {
+            "get": {
+              "operationId": "list-environments",
+              "responses": {
+                "200": {
+                  "description": "ok"
+                }
+              }
+            }
+          }
+        },
+        "components": {
+          "schemas": {}
+        }
+      },
+      "new_spec": {
+        "openapi": "3.0.3",
+        "info": {
+          "title": "API",
+          "version": "1"
+        },
+        "paths": {
+          "/repos/{owner}/{repo}/environments": {
+            "get": {
+              "operationId": "list-environments",
+              "responses": {
+                "200": {
+                  "description": "ok"
+                }
+              }
+            }
+          }
+        },
+        "components": {
+          "schemas": {}
+        }
+      },
+      "expected_changes": [
+        {
+          "kind": "unsupported"
+        }
+      ]
     }
   ]
 }

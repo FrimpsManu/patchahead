@@ -1,13 +1,13 @@
 # Supported migrations
 
-PatchAhead performs five migration families. Anything else is reported as
+PatchAhead performs six migration families. Anything else is reported as
 unsupported rather than attempted.
 
 A family is only included when it has **all six**: change-document parsing, AST
 impact analysis, planning, patch generation, validation, and tests. That bar is
-why there are five and not twelve. (`query_param_rename` is read from OpenAPI
-specs and structured change documents; release-note prose does not name an
-endpoint precisely enough to produce one.)
+why there are six and not twelve. (`query_param_rename` and `endpoint_move` are
+read from OpenAPI specs and structured change documents; release-note prose does
+not name an endpoint precisely enough to produce one.)
 
 Run `patchahead handlers` for the same information from the tool itself.
 
@@ -324,12 +324,44 @@ style.
 
 ---
 
+## `endpoint_move`
+
+An endpoint moved, and code that builds the URL itself still calls the old one:
+
+```diff
+-    return session.post(f"{BASE}/repos/{owner}/{repo}/pages/deployment", json=body)
++    return session.post(f"{BASE}/repos/{owner}/{repo}/pages/deployments", json=body)
+```
+
+Only moves that change **fixed words** in the path: the placeholders keep their
+names and positions, and one run of fixed segments is replaced by another
+(`deployment` -> `deployments`, `v1/orders` -> `v2/orders`). `openapi-diff` reads
+one when an operationId moves to such a path with the same verb. A move that
+changes the placeholders (`/repositories/{repository_id}` ->
+`/repos/{owner}/{repo}`), or only adds or removes segments, is reported: the
+code would need other values, or the change is really in the base URL.
+
+The owner is the old endpoint, as for `query_param_rename`, and a call is
+rewritten under the same verb-and-URL test. Then:
+
+| The moved words are... | Result |
+|---|---|
+| written once in the call's own string or f-string | rewritten |
+| in a constant bound elsewhere (`BASE + DEPLOYMENT`) | reported: other calls may share it |
+| written more than once in the URL | reported |
+| only inside an interpolation (`/{deployment}`) | not a match |
+
+A match must end its segment, so `/deployment` never matches inside
+`/deployments`.
+
+---
+
 ## Not supported in v1
 
 | Change | Status |
 |---|---|
 | Response-shape changes (nesting, list→object) | recognized, reported as `unsupported` |
-| Endpoint moves | recognized, reported as `unsupported` |
+| Endpoint moves that change placeholders or only add or remove segments | recognized, reported as `unsupported` |
 | Authentication changes | recognized, reported as `unsupported` |
 | Rate-limit behavior changes | recognized, reported as `unsupported` |
 | Anything unclassifiable | reported as `unknown` |

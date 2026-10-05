@@ -43,6 +43,7 @@ _ACTIONABLE = {
     "kwarg_rename",
     "pagination_page_to_cursor",
     "query_param_rename",
+    "endpoint_move",
 }
 
 

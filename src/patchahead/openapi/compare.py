@@ -18,7 +18,9 @@ the same endpoint's ``operationId`` changed                     method rename   
 a query parameter gone, exactly one added with the same shape   param rename    medium
 another parameter (path, header, cookie) renamed                param rename    reported
 a new required parameter                                        new required    reported
-an endpoint gone                                                removed         reported
+an endpoint gone, its operationId at a new path that changes    endpoint move   medium
+  only fixed words (``/deployment`` -> ``/deployments``)
+an endpoint moved with other placeholders, or gone              moved/removed   reported
 =============================================================  ==============  ==========
 
 A field rename's owner is the schema's name, asserted: ``Order.total`` renamed
@@ -71,7 +73,7 @@ def compare(old: Spec, new: Spec) -> SpecDiff:
         before = old.operations[key]
         after = new.operations.get(key)
         if after is None:
-            diff.changes.append(_endpoint_gone(before, new))
+            diff.changes.append(_endpoint_gone(before, new, new.base_path))
             continue
         diff.operations_compared += 1
         diff.changes.extend(_compare_operation(before, after, new.base_path))
@@ -328,12 +330,39 @@ def _query_rename(before: Operation, old: str, new: str, base_path: str) -> Brea
     )
 
 
-def _endpoint_gone(before: Operation, new: Spec) -> BreakingChange:
+def _endpoint_gone(before: Operation, new: Spec, base_path: str = "") -> BreakingChange:
+    from patchahead.handlers.endpoint_move import moved_run
+
     moved = [
         op
         for op in new.operations.values()
         if before.operation_id and op.operation_id == before.operation_id
     ]
+    if moved and moved[0].method == before.method and moved_run(before.path, moved[0].path):
+        base = f"[{base_path}]" if base_path else ""
+        old_words, new_words = moved_run(before.path, moved[0].path)
+        operation = f"operationId {before.operation_id}"
+        return BreakingChange(
+            title=f"`{before.label}` moved to `{moved[0].label}`",
+            kind=ChangeKind.ENDPOINT_MOVE,
+            target=SymbolTarget(
+                symbol=before.path,
+                replacement=moved[0].path,
+                owner=f"{before.method.upper()} {base}{before.path}",
+                owner_is_explicit=True,
+            ),
+            severity=Severity.HIGH,
+            confidence=Confidence.MEDIUM,
+            evidence=[
+                Evidence(quote=f"before: {before.label}", note=operation),
+                Evidence(quote=f"after:  {moved[0].label}", note=operation),
+            ],
+            source=SOURCE,
+            classification_reason=(
+                f"the operationId `{before.operation_id}` moved from `{before.label}` to "
+                f"`{moved[0].label}`; only `{old_words}` -> `{new_words}` changed in the path"
+            ),
+        )
     if moved:
         return _reported(
             f"`{before.label}` moved to `{moved[0].label}`",
