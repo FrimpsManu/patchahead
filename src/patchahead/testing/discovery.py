@@ -4,16 +4,20 @@ Used for two things: telling a reviewer which tests cover the code being
 changed, and giving the targeted-tests validation gate a narrow, fast subset to
 run before the full suite.
 
-The strategy is name-based and deliberately simple: a module ``app/client.py``
-is matched to ``tests/test_client.py``, ``tests/app/test_client.py``,
-``tests/test_app_client.py``, and so on. It does not trace imports, so it is
-*best effort*. That is why the regression gate always runs the full suite as
-well -- the targeted gate exists to fail fast and to tell a reviewer where to
-look, not to replace running everything.
+Two signals. By name: a module ``app/client.py`` is matched to
+``tests/test_client.py``, ``tests/app/test_client.py``,
+``tests/test_app_client.py``, and so on. By import: a test module that imports
+it -- ``from app.client import fetch``, ``import app.client``, ``from app import
+client`` -- covers it whatever it is called. A test that reaches the module only
+through another module is not found, so this is still *best effort*. That is why
+the regression gate always runs the full suite as well -- the targeted gate
+exists to fail fast and to tell a reviewer where to look, not to replace
+running everything.
 """
 
 from __future__ import annotations
 
+import ast
 import logging
 import shlex
 from pathlib import PurePosixPath
@@ -57,14 +61,45 @@ def tests_for_path(index: RepoIndex, source_path: str) -> list[str]:
     exact: list[str] = []
     fuzzy: list[str] = []
 
+    importers: list[str] = []
+    dotted = _dotted(source_path)
+
     for test_path in index.test_paths():
         name = PurePosixPath(test_path).name
         if name in candidates:
             exact.append(test_path)
+        elif dotted and _imports(index, test_path, dotted):
+            importers.append(test_path)
         elif stem and stem in name:
             fuzzy.append(test_path)
 
-    return exact + fuzzy
+    return exact + importers + fuzzy
+
+
+def _dotted(source_path: str) -> str:
+    """``src/app/shop_client.py`` -> ``app.shop_client``; ``app/__init__.py`` -> ``app``."""
+    parts = [p for p in PurePosixPath(source_path).with_suffix("").parts if p not in (".", "src")]
+    if parts and parts[-1] == "__init__":
+        parts = parts[:-1]
+    return ".".join(parts)
+
+
+def _imports(index: RepoIndex, test_path: str, dotted: str) -> bool:
+    """Whether a test module imports ``dotted``, or a name from it, absolutely."""
+    module = index.modules.get(test_path)
+    if module is None:
+        return False
+    package, _, leaf = dotted.rpartition(".")
+    for node in ast.walk(module.tree):
+        if isinstance(node, ast.Import):
+            if any(alias.name == dotted for alias in node.names):
+                return True
+        elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
+            if node.module == dotted:
+                return True
+            if package and node.module == package and any(a.name == leaf for a in node.names):
+                return True
+    return False
 
 
 def tests_for_paths(index: RepoIndex, source_paths: list[str]) -> list[str]:

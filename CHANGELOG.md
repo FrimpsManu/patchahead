@@ -7,6 +7,29 @@ this project uses [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **A sixth kind of change: `endpoint_move`.** `session.post(f"{BASE}/repos/{owner}/{repo}/pages/deployment")`
+  becomes `.../pages/deployments` when the endpoint moved. Only moves that
+  change fixed words in the path, with the placeholders unchanged; the words
+  are replaced only where they are written once in the call's own URL string,
+  and a URL whose moved part comes from a shared constant is reported.
+  `openapi-diff` reads one when an operationId moves to such a path with the
+  same verb: on GitHub's REST API description (January 2024 against January
+  2025) it read one, `pages/deployment` -> `pages/deployments`, and left the
+  ten moves that change placeholders reported. The HTTP-call reading shared
+  with `query_param_rename` moved to `patchahead.analysis.http`.
+
+### Fixed
+
+- **A test that imports a module now counts as covering it.** The targeted
+  tests, and the before/after evidence check run on them, were matched to a
+  module by file name only, so a test named for what it checks
+  (`tests/test_order_lookup.py` for `app/shop_client.py`) was never targeted
+  and a correct migration was reported unverified. Found running the Action
+  live. A test module importing the module, or a name from it, is now
+  targeted too.
+
 ## [0.7.0] — 2026-10-05
 
 ### Added

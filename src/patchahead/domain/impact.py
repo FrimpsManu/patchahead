@@ -43,6 +43,8 @@ class AccessKind(str, enum.Enum):
     IMPORT = "import"
     #: ``requests.get(url, params={"name": ...})``
     QUERY_PARAM = "query_param"
+    #: The path in a URL an HTTP call is made to.
+    URL = "url"
 
     def __str__(self) -> str:  # pragma: no cover - trivial
         return self.value

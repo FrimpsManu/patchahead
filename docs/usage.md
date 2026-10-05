@@ -129,8 +129,9 @@ References within the file are followed; references to other files are not.
 | A property gone, exactly one property of the same type added to the same schema | a field rename (medium) |
 | The same endpoint's `operationId` changed | a method rename, for a generated client (`listOrders` -> `list_orders`) |
 | A query parameter gone, exactly one of the same type added | a query parameter rename, owned by its endpoint (`GET [/v2]/orders`) |
+| An operationId at a new path with the same verb, only fixed words changed | an endpoint move (`/pages/deployment` -> `/pages/deployments`) |
 | Several same-type candidates, a different type, a property moved to another schema | reported |
-| A header or cookie parameter renamed, a parameter removed, a new required parameter, an endpoint moved or removed | reported |
+| A header or cookie parameter renamed, a parameter removed, a new required parameter, an endpoint removed, or moved with other placeholders | reported |
 
 A field rename's owner is the schema: `Order.total` renamed to `amount`
 rewrites `order["total"]`, `self.order["total"]` and `current["total"]` after
