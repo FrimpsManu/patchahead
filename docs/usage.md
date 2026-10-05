@@ -161,7 +161,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - id: patchahead
-        uses: FrimpsManu/patchahead@v0.6.0
+        uses: FrimpsManu/patchahead@v0.7.0
         with:
           from-pull-request: true
           install-command: pip install -r requirements-dev.txt
@@ -200,7 +200,7 @@ on:
   pull_request:
     paths: [openapi.yaml]
 ...
-      - uses: FrimpsManu/patchahead@v0.6.0
+      - uses: FrimpsManu/patchahead@v0.7.0
         with:
           openapi-spec: openapi.yaml
           install-command: pip install -r requirements-dev.txt
@@ -220,7 +220,7 @@ permissions:
   contents: write
   pull-requests: write
 ...
-      - uses: FrimpsManu/patchahead@v0.6.0
+      - uses: FrimpsManu/patchahead@v0.7.0
         with:
           from-pull-request: true
           install-command: pip install -r requirements-dev.txt
