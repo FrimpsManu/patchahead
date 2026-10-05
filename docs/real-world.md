@@ -9,6 +9,11 @@ compares what PatchAhead did with what the people did, call by call.
 |---|---|---|---|---|---|
 | [pydantic 1 -> 2](#study-1-pydantic-1---2) | two versions of the library (`api-diff`) | 10 | 97 | 49 | **0** |
 | [Python 3.12's unittest removals](#study-2-python-312-removes-the-unittest-aliases) | the release note (CPython's "What's New") | 12 | 412 | 288 | **0** |
+| [GitHub's and Stripe's OpenAPI specs](#study-3-five-years-of-github-and-stripe-openapi-specs) | two versions of the spec (`openapi-diff`) | 132 | 13 | no hand migrations to compare with | **0** |
+
+Study 3 is built differently: it checks every rename `openapi-diff` reads in
+five years of two real specs, then applies the real renames to public code that
+uses the same words.
 
 ## Study 1: pydantic 1 -> 2
 
@@ -141,6 +146,91 @@ first is replayed, so no call is counted twice.
   essentia is how that rule came to cover a test base class in another module,
   not just the calling one.
 
+## Study 3: five years of GitHub and Stripe OpenAPI specs
+
+### Part A: what it reads from a spec's history
+
+`openapi-diff` was run on GitHub's REST API description and Stripe's OpenAPI
+spec, taking the version current at the start of each month from January 2021
+to October 2025 and comparing each with the next: 57 comparisons per API, of
+files around 10 MB, in about two seconds for all 57.
+
+| | GitHub | Stripe |
+|---|---|---|
+| Field renames read | 4 | 4 |
+| Method (`operationId`) renames read | 68 | 0 |
+| Endpoint moves read | 22 | 0 |
+| Reported, not migrated | 315 | 180 |
+| Readings checked and found wrong | **0** | **0** |
+
+Every rename was checked against the spec. The field renames carry the same
+description before and after (`auto_stop_delay_minutes` and
+`idle_timeout_minutes` are both "the number of minutes of inactivity after
+which this codespace will be automatically stopped"), and the four on Stripe
+are its documented ones: `checkout.session.shipping` -> `shipping_details`,
+`product.features` -> `marketing_features`,
+`issuing_transaction_fuel_data.volume_decimal` -> `quantity_decimal`,
+`billing.alert.usage_threshold_config` -> `usage_threshold`. Of the endpoint
+moves, 21 are GitHub correcting paths it had documented under `/organizations/`
+and `/user/` to the real `/orgs/` and `/users/`, and one is `pages/deployment`
+-> `pages/deployments`. Ten moves that change the path's placeholders, and a
+property split into four (`copilot_chat` -> `ide_chat`, `platform_chat`, `cli`,
+`plan_type`), were reported rather than guessed at.
+
+For what it missed, every reported property removal was checked for a same-type
+property added to the same schema in the same month: 116 of 128 had none. Of
+the other 12, three were one rename -- `dismissed_note`, in three schemas --
+and the rest were real removals beside unrelated additions.
+
+The first run was not this clean. It found two defects, both fixed before the
+numbers above:
+
+- **A missed rename.** GitHub's `dismissed_note` -> `dismissed_comment` (in
+  three schemas) points at two named schemas that are each just `type:
+  string`. They were compared by name. A reference to a named schema that is
+  only a value is now compared by that value.
+- **A wrong rename.** When Stripe replaced its legacy Orders API, `returns` and
+  `line_items` were both inline `object`s and were read as one renamed to the
+  other. An inline object is now compared by its fields.
+
+### Part B: the renames on real code
+
+For each rename with a specific old name, GitHub code search found public
+Python files containing it. Most use the word for something else -- a
+`volume_decimal` in crypto-exchange code, a `dismissed_note` on a database
+model, `pages/deployment` as a folder name -- and those are the precision test.
+Each repository is pinned to a commit, and the matched files were migrated with
+the rename exactly as `openapi-diff` writes it.
+
+| Rename | Repositories | Edits | Reported, not migrated |
+|---|---|---|---|
+| Stripe `checkout.session.shipping` -> `shipping_details` | 32 | 13 | 7 |
+| Stripe `billing.alert.usage_threshold_config` -> `usage_threshold` | 25 | 0 | 0 |
+| Stripe `issuing_transaction_fuel_data.volume_decimal` -> `quantity_decimal` | 25 | 0 | 0 |
+| GitHub `code-scanning-alert.dismissed_note` -> `dismissed_comment` | 25 | 0 | 17 |
+| GitHub `POST .../pages/deployment` -> `.../pages/deployments` | 25 | 0 | 0 |
+
+All 13 edits are on Stripe checkout sessions: each receiver was traced to
+`stripe.checkout.Session.create`, `.retrieve`, or a `checkout.session.completed`
+webhook. Every reported site was another object, and among them are the ones a
+text replace would have broken: `payment_intent.get("shipping")` and
+`charge.get("shipping")`, Stripe objects whose `shipping` was not renamed.
+Where code tests the old name as a string --
+`hasattr(checkout_session, 'shipping')` -- PatchAhead edited the attribute
+accesses and listed the four string uses as unfinished, so the run was not
+reported complete.
+
+What Part B cannot show: none of the sampled repositories still called the old
+`pages/deployment` endpoint or read GitHub's `dismissed_note`, so those renames
+are confirmed on the spec only. And since none of these projects has migrated,
+there is no hand migration to compare with; correctness was judged by tracing
+each receiver.
+
+Running it also showed that Stripe's dotted object names (`checkout.session`)
+and GitHub's kebab-case ones (`code-scanning-alert`) never matched a receiver.
+A dotted name now matches by its last part (`session`), and hyphens count as
+underscores.
+
 ## What this does and does not show
 
 - **It measures editing, not verification.** The projects' tests were not run:
@@ -162,6 +252,18 @@ proof that its edit worked. The second replay, with tests in scope, found the
 as the built-in `dict()`. Both are fixed and in the benchmark.
 
 ## Reproduce it
+
+Study 3:
+
+```bash
+python evals/realworld/spec_history.py github/rest-api-description \
+    descriptions/api.github.com/api.github.com.json 2021-01 2025-10 > github.jsonl
+python evals/realworld/spec_history.py stripe/openapi openapi/spec3.json \
+    2021-01 2025-10 > stripe.jsonl
+python evals/realworld/openapi_replay.py
+```
+
+Studies 1 and 2:
 
 ```bash
 # Study 1

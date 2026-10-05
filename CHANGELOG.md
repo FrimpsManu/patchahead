@@ -7,6 +7,30 @@ this project uses [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **A third real-world study: five years of GitHub's and Stripe's OpenAPI
+  specs** (`docs/real-world.md`). `openapi-diff` on every month from January
+  2021 to October 2025 read 98 renames and moves, every one checked and found
+  correct; applied to 132 public repositories whose code uses the same words, it
+  made 13 edits, all on Stripe checkout sessions and all correct, and none on
+  the unrelated code. `evals/realworld/spec_history.py` and
+  `openapi_replay.py` reproduce it.
+
+### Fixed
+
+Found by that study:
+
+- **A named schema that is only a value is compared by its value.** GitHub's
+  `dismissed_note` -> `dismissed_comment` was missed because each points at its
+  own `type: string` schema, and they were compared by name.
+- **An inline object is compared by its fields.** Stripe's `order.returns` and
+  `order.line_items`, both inline objects, were read as one renamed to the
+  other.
+- **Dotted and kebab-case object names match their receivers.** Stripe's
+  `checkout.session` now matches `session` and `checkout_session`; GitHub's
+  `code-scanning-alert` matches `code_scanning_alert`.
+
 ## [0.8.0] — 2026-10-05
 
 ### Added
