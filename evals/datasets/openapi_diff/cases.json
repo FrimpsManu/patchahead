@@ -1584,6 +1584,172 @@
           "owner_explicit": true
         }
       ]
+    },
+    {
+      "id": "a_camel_case_rename_also_renames_the_generated_attribute",
+      "note": "A client generated from the spec reads `totalAmount` as `total_amount`; that attribute is renamed too.",
+      "old_spec": {
+        "openapi": "3.0.3",
+        "info": {
+          "title": "API",
+          "version": "1"
+        },
+        "paths": {},
+        "components": {
+          "schemas": {
+            "Order": {
+              "type": "object",
+              "properties": {
+                "totalAmount": {
+                  "type": "number"
+                }
+              }
+            }
+          }
+        }
+      },
+      "new_spec": {
+        "openapi": "3.0.3",
+        "info": {
+          "title": "API",
+          "version": "1"
+        },
+        "paths": {},
+        "components": {
+          "schemas": {
+            "Order": {
+              "type": "object",
+              "properties": {
+                "grandTotal": {
+                  "type": "number"
+                }
+              }
+            }
+          }
+        }
+      },
+      "expected_changes": [
+        {
+          "kind": "field_rename",
+          "symbol": "totalAmount",
+          "replacement": "grandTotal",
+          "owner": "Order",
+          "owner_explicit": true
+        },
+        {
+          "kind": "field_rename",
+          "symbol": "total_amount",
+          "replacement": "grand_total",
+          "owner": "Order",
+          "owner_explicit": true
+        }
+      ]
+    },
+    {
+      "id": "a_rename_to_the_same_snake_case_name_changes_nothing_generated",
+      "note": "`createdAt` -> `created_at`: a generated client already called it `created_at`, so only the JSON key changes.",
+      "old_spec": {
+        "openapi": "3.0.3",
+        "info": {
+          "title": "API",
+          "version": "1"
+        },
+        "paths": {},
+        "components": {
+          "schemas": {
+            "Order": {
+              "type": "object",
+              "properties": {
+                "createdAt": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "new_spec": {
+        "openapi": "3.0.3",
+        "info": {
+          "title": "API",
+          "version": "1"
+        },
+        "paths": {},
+        "components": {
+          "schemas": {
+            "Order": {
+              "type": "object",
+              "properties": {
+                "created_at": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "expected_changes": [
+        {
+          "kind": "field_rename",
+          "symbol": "createdAt",
+          "replacement": "created_at",
+          "owner": "Order",
+          "owner_explicit": true
+        }
+      ]
+    },
+    {
+      "id": "a_name_with_digits_gets_no_generated_attribute",
+      "note": "Generators disagree whether `lineItems2` is `line_items_2` or `line_items2`, so only the JSON key is renamed.",
+      "old_spec": {
+        "openapi": "3.0.3",
+        "info": {
+          "title": "API",
+          "version": "1"
+        },
+        "paths": {},
+        "components": {
+          "schemas": {
+            "Order": {
+              "type": "object",
+              "properties": {
+                "lineItems2": {
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        }
+      },
+      "new_spec": {
+        "openapi": "3.0.3",
+        "info": {
+          "title": "API",
+          "version": "1"
+        },
+        "paths": {},
+        "components": {
+          "schemas": {
+            "Order": {
+              "type": "object",
+              "properties": {
+                "lines2": {
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        }
+      },
+      "expected_changes": [
+        {
+          "kind": "field_rename",
+          "symbol": "lineItems2",
+          "replacement": "lines2",
+          "owner": "Order",
+          "owner_explicit": true
+        }
+      ]
     }
   ]
 }

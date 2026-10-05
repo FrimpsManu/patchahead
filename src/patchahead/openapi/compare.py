@@ -111,8 +111,8 @@ def _compare_schema(old: Schema, new: Schema) -> list[BreakingChange]:
             )
             continue
         claimed.add(replacement.name)
-        changes.append(
-            _field_rename(
+        changes.extend(
+            _field_renames(
                 old.name,
                 before,
                 replacement,
@@ -134,8 +134,8 @@ def _compare_schema(old: Schema, new: Schema) -> list[BreakingChange]:
         rivals = [g for g in gone if g != name and set(candidates[g]) & set(matches)]
         if len(matches) == 1 and not rivals:
             replacement = new.properties[matches[0]]
-            changes.append(
-                _field_rename(
+            changes.extend(
+                _field_renames(
                     old.name,
                     before,
                     replacement,
@@ -179,6 +179,38 @@ def _pointed_at(description: str, names: set[str]) -> list[str]:
         if re.search(rf"(?<![\w.]){re.escape(name)}(?![\w])", description):
             found.append(name)
     return found
+
+
+def _field_renames(
+    schema: str, before: Property, after: Property, confidence: Confidence, why: str
+) -> list[BreakingChange]:
+    """The rename of the JSON property, and of the attribute a generated client names for it.
+
+    A client generated from the spec reads ``totalAmount`` as ``order.total_amount``.
+    When the snake_case names differ, that attribute is renamed too, on the same
+    schema; when they are the same (``createdAt`` -> ``created_at``), a generated
+    client sees no change. Generators disagree about digits -- ``lineItems2`` is
+    ``line_items_2`` to openapi-python-client and ``line_items2`` to others -- so
+    a name with a digit beside a letter gets no attribute rename rather than a
+    guess.
+    """
+    renames = [_field_rename(schema, before, after, confidence, why)]
+    old_attr, new_attr = snake_case(before.name), snake_case(after.name)
+    digits = any(re.search(r"[A-Za-z]\d|\d[A-Za-z]", n) for n in (before.name, after.name))
+    if not digits and old_attr != new_attr and (old_attr, new_attr) != (before.name, after.name):
+        generated = _field_rename(
+            schema,
+            Property(old_attr, before.shape),
+            Property(new_attr, after.shape),
+            min(confidence, Confidence.MEDIUM),
+            f"{why}; a client generated from the spec names the attribute "
+            f"`{old_attr}`, which becomes `{new_attr}`",
+        )
+        generated.title = (
+            f"`{schema}.{old_attr}` (generated from `{before.name}`) renamed to `{new_attr}`"
+        )
+        renames.append(generated)
+    return renames
 
 
 def _field_rename(

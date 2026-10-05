@@ -19,6 +19,12 @@ this project uses [semantic versioning](https://semver.org/spec/v2.0.0.html).
   ends the same is left alone; a dictionary it cannot follow is reported.
   `openapi-diff` now reads a renamed query parameter as this kind instead of
   reporting it. Eight adversarial and four `openapi_diff` cases were added.
+- **Generated-client attributes are renamed with their JSON property.**
+  `openapi-diff` reading `Order.totalAmount` -> `grandTotal` also renames
+  `order.total_amount` to `order.grand_total`, the attribute a client generated
+  from the spec uses, on the same schema and at no more than medium confidence.
+  Names were checked against openapi-python-client's output. A name with a digit
+  beside a letter gets no attribute rename, since generators disagree on it.
 
 ## [0.6.0] — 2026-10-05
 
