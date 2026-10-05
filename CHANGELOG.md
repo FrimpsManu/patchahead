@@ -20,6 +20,12 @@ this project uses [semantic versioning](https://semver.org/spec/v2.0.0.html).
   `openapi_diff` benchmark suite has 21 cases; run on GitHub's REST API
   description (January 2024 against January 2025), it read three
   `operationId` renames, all real, and no false ones.
+- **The GitHub Action reads OpenAPI specs kept in the repository.** Name them
+  in `openapi-spec`; when a pull request changes one, its base-branch version
+  is compared with the pull request's and the code is migrated in the same run.
+  The Action now installs PatchAhead with YAML support. Checked on GitHub: a
+  pull request renaming `Order.total` to `amount` in `openapi.yaml` got a
+  verified fix, and the `Customer` schema's own `total` was left alone.
 
 ## [0.5.0] — 2026-10-04
 

@@ -25,6 +25,13 @@ inputs:
       (downloaded from PyPI as wheels, never installed or run).
     required: false
     default: "true"
+  openapi-spec:
+    description: >-
+      OpenAPI spec files kept in the repository, relative to `repo`, one per line
+      or separated by commas. Each one the pull request changed is compared with
+      its version on the base branch.
+    required: false
+    default: ""
   repo:
     description: The repository to migrate, relative to the workspace.
     required: false
@@ -116,7 +123,7 @@ runs:
       shell: bash
       env:
         ACTION_PATH: ${{ github.action_path }}
-      run: python -m pip install --quiet --disable-pip-version-check "$ACTION_PATH"
+      run: python -m pip install --quiet --disable-pip-version-check "$ACTION_PATH[yaml]"
 
     - name: Install the project
       if: inputs.install-command != ''
@@ -134,6 +141,7 @@ runs:
         PATCHAHEAD_CHANGE: ${{ inputs.change }}
         PATCHAHEAD_FROM_PULL_REQUEST: ${{ inputs.from-pull-request }}
         PATCHAHEAD_COMPARE_VERSIONS: ${{ inputs.compare-versions }}
+        PATCHAHEAD_OPENAPI: ${{ inputs.openapi-spec }}
         PATCHAHEAD_TEST_COMMAND: ${{ inputs.test-command }}
         PATCHAHEAD_REQUIRE_COMPLETE: ${{ inputs.require-complete }}
       run: python -m patchahead.ci

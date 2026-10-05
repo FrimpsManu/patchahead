@@ -216,3 +216,110 @@ class TestRun:
 
         assert (outputs["outcome"], outputs["exit-code"]) == ("error", "2")
         assert "could not run" in Path(outputs["summary"]).read_text()
+
+
+def _spec(**properties):
+    return json.dumps(
+        {
+            "openapi": "3.0.3",
+            "info": {"title": "Shop", "version": "1"},
+            "paths": {},
+            "components": {"schemas": {"Order": {"properties": properties}}},
+        },
+        indent=2,
+    )
+
+
+def _git(cwd, *args):
+    import subprocess
+
+    return subprocess.run(
+        ["git", *args], cwd=cwd, check=True, capture_output=True, text=True
+    ).stdout.strip()
+
+
+@pytest.fixture
+def spec_repo(tmp_path):
+    """A repository whose base commit has v1 of the spec, and whose branch has v2."""
+    repo = tmp_path / "repo"
+    (repo / "app").mkdir(parents=True)
+    (repo / "tests").mkdir()
+    (repo / "app" / "__init__.py").write_text("")
+    (repo / "app" / "report.py").write_text(
+        'def revenue(orders):\n    return sum(order["total"] for order in orders)\n'
+    )
+    (repo / "tests" / "__init__.py").write_text("")
+    (repo / "tests" / "test_report.py").write_text(
+        "from app.report import revenue\n\n\n"
+        "def test_revenue():\n"
+        '    assert revenue([{"amount": 2}, {"amount": 3}]) == 5\n'
+    )
+    (repo / "openapi.json").write_text(_spec(total={"type": "number"}))
+    _git(repo, "init", "--quiet", "-b", "main")
+    _git(repo, "-c", "user.name=t", "-c", "user.email=t@example.invalid", "add", "-A")
+    _git(repo, "-c", "user.name=t", "-c", "user.email=t@example.invalid", "commit", "-qm", "v1")
+    base = _git(repo, "rev-parse", "HEAD")
+    (repo / "openapi.json").write_text(_spec(amount={"type": "number"}))
+    return repo, base
+
+
+class TestOpenApiSpecs:
+    def test_a_changed_spec_is_compared_with_the_base_branch(self, spec_repo, tmp_path):
+        repo, base = spec_repo
+
+        work = ci.plan(specs=["openapi.json"], base=base, repo=repo, scratch=tmp_path)
+
+        [change] = work.changes
+        assert change.kind is ChangeKind.FIELD_RENAME
+        assert (change.target.symbol, change.target.replacement) == ("total", "amount")
+        assert work.sources == ["a comparison of `openapi.json` with the base branch's version"]
+
+    def test_an_unchanged_spec_adds_nothing(self, spec_repo, tmp_path):
+        repo, base = spec_repo
+        _git(repo, "checkout", "--quiet", "--", "openapi.json")
+
+        work = ci.plan(specs=["openapi.json"], base=base, repo=repo, scratch=tmp_path)
+
+        assert work.changes == [] and work.sources == [] and work.notes == []
+
+    def test_a_spec_new_in_the_pull_request_has_nothing_to_compare(self, spec_repo, tmp_path):
+        repo, base = spec_repo
+        (repo / "billing.json").write_text(_spec(total={"type": "number"}))
+
+        work = ci.plan(specs=["billing.json"], base=base, repo=repo, scratch=tmp_path)
+
+        assert work.changes == []
+        assert "new in this pull request" in work.notes[0]
+
+    def test_without_a_pull_request_there_is_no_base_to_compare_with(self, spec_repo, tmp_path):
+        repo, _ = spec_repo
+
+        work = ci.plan(specs=["openapi.json"], repo=repo, scratch=tmp_path)
+
+        assert work.changes == []
+        assert "no pull request" in work.notes[0]
+
+    def test_spec_paths_are_read_from_lines_or_commas(self):
+        assert ci.specs_in("api/shop.yaml\n api/billing.json, \n") == [
+            "api/shop.yaml",
+            "api/billing.json",
+        ]
+
+    @pytest.mark.slow
+    def test_a_spec_change_in_a_pull_request_is_migrated_and_verified(self, spec_repo, tmp_path):
+        repo, base = spec_repo
+        event = tmp_path / "event.json"
+        event.write_text(
+            json.dumps({"pull_request": {"title": "Update the spec", "base": {"sha": base}}})
+        )
+        env = environment(
+            tmp_path,
+            PATCHAHEAD_REPO=str(repo),
+            PATCHAHEAD_OPENAPI="openapi.json",
+            GITHUB_EVENT_PATH=str(event),
+        )
+
+        outputs = ci.run(env)
+
+        assert outputs["outcome"] == "migrated", Path(outputs["summary"]).read_text()
+        assert 'order["amount"]' in Path(outputs["diff"]).read_text()

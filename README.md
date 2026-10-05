@@ -173,6 +173,10 @@ a note saying so. Then it migrates a temporary copy, runs your tests, and posts
 the verdict, the diff, and what is left of the old API as one comment, updated
 in place on re-runs.
 
+If you keep a copy of an API's OpenAPI spec in the repository, name it in
+`openapi-spec`: a pull request that updates the spec is compared with the base
+branch's version and the code is migrated in the same run.
+
 It never commits to your branches. With `open-pull-request: true`,
 a verified fix is opened as its own pull request against the bump's branch, so
 merging it adds the fix to the bump. All inputs are in
@@ -275,7 +279,7 @@ special cases. More detail: [docs/architecture.md](docs/architecture.md).
 
 ## How it is measured
 
-- **611 automated tests**, covering unit, integration, and full end-to-end runs
+- **617 automated tests**, covering unit, integration, and full end-to-end runs
   with real test subprocesses.
 - **An evaluation benchmark of 173 cases**, run on every CI build: release notes
   written the way vendors write them, before-and-after library versions

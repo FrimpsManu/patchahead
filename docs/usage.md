@@ -165,6 +165,7 @@ jobs:
 | `from-pull-request` | `false` | Read the triggering pull request: its release notes, and the versions it bumps |
 | `compare-versions` | `true` | Compare the old and new version of each bumped package, and drop release-note readings the new version contradicts |
 | `change` | | A change document to migrate, instead of or as well as the pull request |
+| `openapi-spec` | | OpenAPI spec files in the repository; each one a pull request changed is compared with its base-branch version |
 | `repo` | `.` | The repository to migrate, relative to the checkout |
 | `install-command` | | How to install your project and its test dependencies |
 | `test-command` | | Overrides the configured test command |
@@ -178,6 +179,31 @@ jobs:
 
 Outputs: `outcome`, `succeeded`, `complete`, `exit-code`, `diff` (a file),
 `summary` (a file), and `pull-request-url`.
+
+### When a pull request updates an OpenAPI spec
+
+Keep a copy of an API's spec in the repository and name it in `openapi-spec`.
+When a pull request changes it, PatchAhead compares the base branch's version
+with the pull request's, the way `openapi-diff` does, and migrates the code in
+the same run:
+
+```yaml
+on:
+  pull_request:
+    paths: [openapi.yaml]
+...
+      - uses: FrimpsManu/patchahead@v0.6.0
+        with:
+          openapi-spec: openapi.yaml
+          install-command: pip install -r requirements-dev.txt
+          open-pull-request: true
+```
+
+Several specs go one per line, or separated by commas, relative to `repo`. A
+spec the pull request did not change adds nothing; one that is new in the pull
+request has no earlier version to compare, and the summary says so. The base
+commit is fetched if the checkout does not have it. YAML specs work without any
+extra setup in the Action.
 
 ### Opening the fix as a pull request
 
