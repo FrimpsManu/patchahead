@@ -37,7 +37,13 @@ from patchahead.ingest.base import ChangeDocument, parse_document
 
 SUITE = "release_notes"
 
-_ACTIONABLE = {"field_rename", "method_rename", "kwarg_rename", "pagination_page_to_cursor"}
+_ACTIONABLE = {
+    "field_rename",
+    "method_rename",
+    "kwarg_rename",
+    "pagination_page_to_cursor",
+    "query_param_rename",
+}
 
 
 def _reading(change) -> dict[str, Any]:

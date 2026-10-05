@@ -1,11 +1,13 @@
 # Supported migrations
 
-PatchAhead v1 performs four migration families. Anything else is reported as
+PatchAhead performs five migration families. Anything else is reported as
 unsupported rather than attempted.
 
 A family is only included when it has **all six**: change-document parsing, AST
 impact analysis, planning, patch generation, validation, and tests. That bar is
-why there are four and not twelve.
+why there are five and not twelve. (`query_param_rename` is read from OpenAPI
+specs and structured change documents; release-note prose does not name an
+endpoint precisely enough to produce one.)
 
 Run `patchahead handlers` for the same information from the tool itself.
 
@@ -280,6 +282,45 @@ These are exactly the cases `--use-llm` exists for.
 
 **Assumes** the new API exposes `has_more` and `next_cursor` (configurable). It
 cannot verify that from your code — your tests do.
+
+---
+
+## `query_param_rename`
+
+A query parameter of one HTTP endpoint renamed, in code that calls the API
+directly:
+
+```diff
+-    return requests.get(f"{BASE_URL}/orders", params={"page": page, "limit": 50})
++    return requests.get(f"{BASE_URL}/orders", params={"cursor": page, "limit": 50})
+```
+
+The owner is the endpoint: `GET /orders`, or `GET [/v2]/orders` with the
+server's base path in brackets. `openapi-diff` writes it that way. `page` is
+sent to every paginated endpoint an application calls, so a key is renamed only
+in a call that provably targets the named one:
+
+| Site (owner `GET [/v2]/orders`) | Patched |
+|---|---|
+| `requests.get(f"{BASE_URL}/orders", params={"page": n})` | yes — `BASE_URL` stands for scheme, host and base path |
+| `session.get("https://api.shop.com/v2/orders", params=dict(page=n))` | yes |
+| `client.get("/orders", params=query)`, `query = {"page": n}` built once in the function | yes |
+| `session.request("GET", URL, params=...)`, `URL` a name bound once to the URL | yes |
+| `session.get(f"{BASE}/invoices", params={"page": n})` | no — another endpoint |
+| `session.get(f"{BASE}/customers/{id}/orders", ...)` | no — a path that merely ends the same |
+| `session.post(f"{BASE}/orders", ...)` | no — another verb |
+| `session.get(url, ...)` with `url` a parameter | no — the URL cannot be read |
+| a parameters dict also changed elsewhere, or defined at module level | reported |
+
+A `{placeholder}` in the spec's path matches any segment; an interpolated value
+in the URL matches only a placeholder. Only the key is replaced, in its quote
+style.
+
+**Does not**
+
+- Rename header, cookie, or body parameters, which are reported.
+- Follow a parameters dictionary built up across several statements, or passed
+  in from elsewhere.
 
 ---
 

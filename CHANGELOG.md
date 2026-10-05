@@ -7,6 +7,19 @@ this project uses [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **A fifth kind of change: `query_param_rename`.** `requests.get(f"{BASE}/orders",
+  params={"page": n})` becomes `params={"cursor": n}`, only in calls whose verb
+  and URL address the endpoint the change names (`GET [/v2]/orders`, with the
+  server's base path in brackets). The URL is read from a string, an f-string, a
+  `+` concatenation, or a name bound once to one of those; the parameters from a
+  dictionary literal, `dict(...)`, or a dictionary built once in the function
+  and used nowhere else. Another endpoint, another verb, or a path that merely
+  ends the same is left alone; a dictionary it cannot follow is reported.
+  `openapi-diff` now reads a renamed query parameter as this kind instead of
+  reporting it. Eight adversarial and four `openapi_diff` cases were added.
+
 ## [0.6.0] — 2026-10-05
 
 ### Added

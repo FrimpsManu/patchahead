@@ -99,11 +99,13 @@ still uses the old name.
 | A renamed method | `client.fetch_orders()` becomes `client.list_orders()` |
 | A renamed keyword argument | `fetch(timeout_seconds=5)` becomes `fetch(timeout=5)` |
 | Page numbers to cursors | a `page` / `total_pages` loop becomes `cursor` / `has_more` |
+| A renamed query parameter | `get(f"{BASE}/orders", params={"page": 2})` becomes `params={"cursor": 2}`, only for that endpoint |
 
 It reads release notes the way vendors write them: headings, bullet lists,
 tables, reStructuredText and Sphinx (CPython's own "What's New"), and phrasings like "renamed to", "is now", or
-"deprecated in favor of". Anything outside these four kinds of change is
-reported as unsupported, not forced into one that almost fits.
+"deprecated in favor of". Query parameter renames come from comparing two
+versions of an OpenAPI spec (below). Anything outside these five kinds of change
+is reported as unsupported, not forced into one that almost fits.
 
 ## No release note? Compare the versions
 
@@ -279,9 +281,9 @@ special cases. More detail: [docs/architecture.md](docs/architecture.md).
 
 ## How it is measured
 
-- **617 automated tests**, covering unit, integration, and full end-to-end runs
+- **641 automated tests**, covering unit, integration, and full end-to-end runs
   with real test subprocesses.
-- **An evaluation benchmark of 173 cases**, run on every CI build: release notes
+- **An evaluation benchmark of 185 cases**, run on every CI build: release notes
   written the way vendors write them, before-and-after library versions
   (including what requests and pydantic actually did), before-and-after OpenAPI
   specs, repositories built to trick it (unrelated objects with the same field
@@ -306,7 +308,7 @@ Run it yourself with `python evals/run.py`.
 ## Limitations
 
 - **Python only.**
-- **Four kinds of change.** Other changes are reported as unsupported.
+- **Five kinds of change.** Other changes are reported as unsupported.
 - **No type inference.** It matches names, and follows them only within a
   function: `current = order` and `for o in orders` are understood, but
   `for i, o in enumerate(orders)` is not, so that site is reported and not
