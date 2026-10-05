@@ -184,6 +184,59 @@ class TestComparing:
         assert openapi.snake_case(operation_id) == method
 
 
+class TestGeneratedClients:
+    def test_a_camel_case_rename_renames_the_generated_attribute_too(self):
+        deprecated = {"type": "number", "deprecated": True, "description": "Use `grandTotal`."}
+
+        found = changes(
+            spec({"Order": obj(totalAmount=NUMBER)}),
+            spec({"Order": obj(totalAmount=deprecated, grandTotal=NUMBER)}),
+        )
+
+        assert [(c.target.symbol, c.target.replacement, c.confidence) for c in found] == [
+            ("totalAmount", "grandTotal", Confidence.HIGH),
+            # Derived from a naming convention, so never more than medium.
+            ("total_amount", "grand_total", Confidence.MEDIUM),
+        ]
+        assert all(c.target.owner == "Order" and c.target.owner_is_explicit for c in found)
+
+    def test_the_attribute_is_renamed_on_the_schemas_objects_only(self, tmp_path, make_repo):
+        from patchahead import engine
+
+        document = tmp_path / "changes.json"
+        diff = openapi.compare(
+            openapi.read(
+                spec({"Order": obj(totalAmount=NUMBER), "Customer": obj(totalAmount=NUMBER)})
+            ),
+            openapi.read(
+                spec({"Order": obj(grandTotal=NUMBER), "Customer": obj(totalAmount=NUMBER)})
+            ),
+        )
+        from patchahead.ingest.structured import change_to_mapping
+
+        document.write_text(json.dumps({"changes": [change_to_mapping(c) for c in diff.changes]}))
+        repo = make_repo(
+            {
+                "app/__init__.py": "",
+                "app/report.py": """
+                    def revenue(orders):
+                        return sum(order.total_amount for order in orders)
+
+
+                    def spent(customer):
+                        return customer.total_amount
+                """,
+            }
+        )
+
+        run = engine.migrate(
+            repo, document, engine.EngineOptions(run_tests=False, write_artifacts=False)
+        )
+
+        assert "order.grand_total for order in orders" in run.diff
+        assert "customer.grand_total" not in run.diff
+
+
 class TestCommand:
     @pytest.fixture
     def specs(self, tmp_path):

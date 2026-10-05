@@ -136,9 +136,16 @@ A field rename's owner is the schema: `Order.total` renamed to `amount`
 rewrites `order["total"]`, `self.order["total"]` and `current["total"]` after
 `current = order`, and never `customer["total"]`. A query parameter rename is
 applied only to calls whose verb and URL address its endpoint (see
-`docs/migrations.md`). Not done yet: renaming the `snake_case` attribute a
-generated client gives a camelCase property (`totalAmount` becomes
-`total_amount`).
+`docs/migrations.md`).
+
+For code using a client generated from the spec, a camelCase property's
+attribute is renamed too: `totalAmount` -> `grandTotal` also renames
+`order.total_amount` to `order.grand_total`, on the same schema. The names
+follow what generators produce (checked against openapi-python-client:
+`totalAmount` -> `total_amount`, `orderID` -> `order_id`, `listOrders` ->
+`list_orders`). Generators disagree about digits (`lineItems2` is
+`line_items_2` to some and `line_items2` to others), so a name with a digit
+beside a letter gets no attribute rename.
 
 ## GitHub Action
 
