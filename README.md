@@ -146,7 +146,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: FrimpsManu/patchahead@v0.4.0
+      - uses: FrimpsManu/patchahead@v0.5.0
         with:
           from-pull-request: true
           install-command: pip install -r requirements-dev.txt
@@ -262,7 +262,7 @@ special cases. More detail: [docs/architecture.md](docs/architecture.md).
 
 ## How it is measured
 
-- **590 automated tests**, covering unit, integration, and full end-to-end runs
+- **594 automated tests**, covering unit, integration, and full end-to-end runs
   with real test subprocesses.
 - **An evaluation benchmark of 152 cases**, run on every CI build: release notes
   written the way vendors write them, before-and-after library versions

@@ -7,6 +7,8 @@ this project uses [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.5.0] — 2026-10-04
+
 ### Added
 
 - **Field and method renames follow a name within a function.**
@@ -631,7 +633,8 @@ how each defect was verified.
 
 Hackathon prototype. Two hardcoded demo scenarios.
 
-[Unreleased]: https://github.com/FrimpsManu/patchahead/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/FrimpsManu/patchahead/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/FrimpsManu/patchahead/releases/tag/v0.5.0
 [0.4.0]: https://github.com/FrimpsManu/patchahead/releases/tag/v0.4.0
 [0.3.1]: https://github.com/FrimpsManu/patchahead/releases/tag/v0.3.1
 [0.3.0]: https://github.com/FrimpsManu/patchahead/releases/tag/v0.3.0
