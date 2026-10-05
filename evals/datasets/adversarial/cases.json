@@ -1178,6 +1178,22 @@
         "app/pages.py": "def deploy(session, base, owner, repo, deployment):\n    return session.post(f\"{base}/repos/{owner}/{repo}/pages/{deployment}\")\n"
       },
       "expect_patched": []
+    },
+    {
+      "id": "a_dotted_object_name_matches_its_last_part",
+      "note": "Stripe's `checkout.session` is a `session` in code; `customer.shipping` is another object's field.",
+      "change": {
+        "kind": "field_rename",
+        "symbol": "shipping",
+        "replacement": "shipping_details",
+        "owner": "checkout.session"
+      },
+      "files": {
+        "app/checkout.py": "def ship_to(session, customer):\n    return session.shipping, customer.shipping\n"
+      },
+      "expect_patched": [
+        "app/checkout.py:2"
+      ]
     }
   ]
 }

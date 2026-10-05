@@ -7,11 +7,13 @@ and 3.1 (``components.schemas``) and Swagger 2.0 (``definitions``).
 
 A property is compared by its **shape**: the type a client receives, written
 the same way however the spec spells it -- ``string/date-time``,
-``ref:Customer``, ``array<ref:LineItem>``. ``nullable`` and a 3.1 ``"null"``
-type are dropped from it: a rename that also makes a field nullable is still a
-rename. ``allOf`` members are merged into the schema that lists them, following
-``$ref``\\ s within the document; a reference to another file is not followed,
-and its properties are not read.
+``ref:Customer``, ``array<ref:LineItem>``, and for an object written inline its
+fields, ``object{data:array<ref:item>,has_more:boolean}``. A reference to a
+named schema that is only a value (``type: string``) is that value's shape.
+``nullable`` and a 3.1 ``"null"`` type are dropped from it: a rename that also
+makes a field nullable is still a rename. ``allOf`` members are merged into the
+schema that lists them, following ``$ref``\\ s within the document; a reference
+to another file is not followed, and its properties are not read.
 """
 
 from __future__ import annotations
@@ -215,6 +217,13 @@ class _Resolver:
             return "any"
         if "$ref" in schema:
             name = _ref_name(str(schema["$ref"]))
+            target = self.resolve(schema)
+            # A named schema that is only a value -- `dismissed-note: {type:
+            # string}` -- is that value to a client, whatever it is called. An
+            # object keeps its name: two objects of the same shape are not
+            # interchangeable.
+            if isinstance(target, dict) and _is_plain_value(target):
+                return self.shape({k: v for k, v in target.items() if k != "$ref"}, depth + 1)
             return f"ref:{name}" if name else "any"
         for combiner in ("oneOf", "anyOf"):
             if combiner in schema:
@@ -230,6 +239,14 @@ class _Resolver:
             kind = kinds[0] if len(kinds) == 1 else "|".join(kinds)
         if kind == "array":
             return f"array<{self.shape(schema.get('items'), depth + 1)}>"
+        if kind == "object" and schema.get("properties") and depth < 4:
+            # An object written inline is its structure: a list of returns and a
+            # list of line items are both "object", and not interchangeable.
+            fields = ",".join(
+                f"{name}:{self.shape(value, depth + 1)}"
+                for name, value in sorted(schema["properties"].items())
+            )
+            return f"object{{{fields}}}"
         fmt = schema.get("format")
         return f"{kind}/{fmt}" if fmt else str(kind)
 
@@ -247,6 +264,16 @@ def _base_path(document: dict[str, Any]) -> str:
             path = ""
     path = "/" + path.strip("/")
     return "" if path == "/" else path
+
+
+def _is_plain_value(schema: dict[str, Any]) -> bool:
+    kind = schema.get("type")
+    kinds = {kind} if isinstance(kind, str) else set(kind or []) - {"null"}
+    return (
+        bool(kinds)
+        and kinds <= {"string", "number", "integer", "boolean"}
+        and not any(key in schema for key in ("properties", "allOf", "oneOf", "anyOf"))
+    )
 
 
 def _ref_name(ref: str) -> str:

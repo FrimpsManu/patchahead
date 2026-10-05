@@ -287,6 +287,22 @@ class TestReceiverNames:
         assert receiver_matches_owner(receiver, owner) is expected
 
 
+class TestApiObjectNames:
+    @pytest.mark.parametrize(
+        "receiver, owner, matches",
+        [
+            ("session", "checkout.session", True),  # Stripe's dotted object names
+            ("checkout_session", "checkout.session", True),
+            ("self.session", "checkout.session", True),
+            ("customer", "checkout.session", False),
+            ("code_scanning_alert", "code-scanning-alert", True),  # GitHub's kebab-case
+            ("alert", "code-scanning-alert", False),
+        ],
+    )
+    def test_dotted_and_hyphenated_owners(self, receiver, owner, matches):
+        assert receiver_matches_owner(receiver, owner) is matches
+
+
 class TestAliases:
     """A local name that stands for another, and every way it can stop doing so."""
 
