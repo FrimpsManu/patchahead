@@ -26,6 +26,19 @@ this project uses [semantic versioning](https://semver.org/spec/v2.0.0.html).
   Names were checked against openapi-python-client's output. A name with a digit
   beside a letter gets no attribute rename, since generators disagree on it.
 
+### Fixed
+
+- **Another object's dictionary is no longer a leftover.** With a change that
+  names `order`, the "what is left" report listed a customer's
+  `{"name": "Ada", "total": 250}` in test data as unfinished. A dictionary
+  literal named for another object -- the value of a `"customer"` key, assigned
+  to `customer`, or passed as `customer=` -- is now left on purpose. One named
+  for the owner, or for nothing, stays unfinished.
+- **Unfinished work is never hidden on a shared line.** The report keeps one
+  entry per line, and the first reading won, so an unfinished key after another
+  object's on the same line was hidden. Unfinished now wins, and the token scan
+  no longer re-reads a site the handler already classified.
+
 ## [0.6.0] — 2026-10-05
 
 ### Added

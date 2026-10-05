@@ -20,6 +20,7 @@ Three sources, cheapest to read first:
 
 from __future__ import annotations
 
+import ast
 import builtins
 import io
 import logging
@@ -29,6 +30,7 @@ from pathlib import Path
 
 from patchahead.analysis import index as repo_index
 from patchahead.analysis.edits import read_source
+from patchahead.analysis.python_ast import ColumnMap, receiver_matches_owner
 from patchahead.config import Config
 from patchahead.domain.change import BreakingChange, ChangeKind
 from patchahead.domain.completeness import CompletenessReport, Residual, ResidualKind
@@ -70,6 +72,9 @@ def scan(
     old, new = _names(change)
     report = CompletenessReport(old=old, new=new)
     seen: set[tuple[str, int]] = set()
+    # Tokens the handler already read, site by site; the token scan below must
+    # not read them again, less precisely.
+    classified = {(f.path, f.reference.line, f.reference.col) for f in remaining.findings}
 
     for finding in remaining.findings:
         if finding.other_object:
@@ -99,7 +104,7 @@ def scan(
 
     for path in index.paths():
         module = index.modules[path]
-        _scan_python(report, seen, change, path, module.source, word)
+        _scan_python(report, seen, change, path, module.source, word, classified)
 
     for path in _text_files(root, config):
         try:
@@ -134,6 +139,7 @@ def _scan_python(
     path: str,
     source: str,
     word: re.Pattern[str],
+    classified: set[tuple[str, int, int]] = frozenset(),
 ) -> None:
     symbol = change.target.symbol
     is_test = repo_index.is_test_path(path)
@@ -156,6 +162,8 @@ def _scan_python(
         after_dot = previous is not None and previous.string == "."
         if token.type not in _INSIGNIFICANT:
             previous = token
+        if (path, line, token.start[1]) in classified:
+            continue
         if token.type == tokenize.NAME and token.string == symbol:
             if (
                 change.kind is ChangeKind.METHOD_RENAME
@@ -181,6 +189,14 @@ def _scan_python(
                 _add(report, seen, path, line, ResidualKind.CODE, text, _name_reason(text, symbol))
         elif token.type == tokenize.STRING and word.search(token.string):
             kind, reason = _string_residual(change, token, lines, text, is_test)
+            if kind in (ResidualKind.CODE, ResidualKind.TEST) and "dictionary" in reason:
+                other = _dict_owner(change, source, token.start)
+                if other:
+                    kind = ResidualKind.OTHER_OBJECT
+                    reason = (
+                        f"a dictionary for `{other}`, not `{change.target.owner}`: its "
+                        f"`{symbol}` is that object's own field"
+                    )
             _add(report, seen, path, line, kind, text, reason)
         elif token.type == tokenize.COMMENT and word.search(token.string):
             _add(
@@ -224,6 +240,57 @@ def _string_residual(
     return ResidualKind.STRING, f"a string mentions `{symbol}`"
 
 
+def _dict_owner(change: BreakingChange, source: str, start: tuple[int, int]) -> str:
+    """The other object a dictionary literal is named for, or ``""``.
+
+    ``{"name": "Ada", "total": 250}`` is a customer's when it is the value of a
+    ``"customer"`` key, assigned to ``customer``, or passed as ``customer=``. Only
+    an asserted owner is checked against; a dictionary named for the owner, or
+    for nothing, is not another object's.
+    """
+    owner = change.target.owner if change.target.owner_is_explicit else ""
+    if not owner:
+        return ""
+    try:
+        tree = ast.parse(source)
+    except (SyntaxError, ValueError):
+        return ""
+    columns = ColumnMap(source)
+    line, col = start
+    for node in ast.walk(tree):
+        named = _named_dicts(node)
+        for name, value in named:
+            if not isinstance(value, ast.Dict):
+                continue
+            for key in value.keys:
+                if (
+                    isinstance(key, ast.Constant)
+                    and key.lineno == line
+                    and columns.char_col(key.lineno, key.col_offset) == col
+                ):
+                    return "" if receiver_matches_owner(name, owner) else name
+    return ""
+
+
+def _named_dicts(node: ast.AST) -> list[tuple[str, ast.AST]]:
+    """``(name, value)`` for each value ``node`` gives a name to."""
+    if isinstance(node, ast.Dict):
+        return [
+            (key.value, value)
+            for key, value in zip(node.keys, node.values, strict=True)
+            if isinstance(key, ast.Constant) and isinstance(key.value, str)
+        ]
+    if isinstance(node, ast.Assign) and len(node.targets) == 1:
+        target = node.targets[0]
+        if isinstance(target, ast.Name):
+            return [(target.id, node.value)]
+    if isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name) and node.value:
+        return [(node.target.id, node.value)]
+    if isinstance(node, ast.Call):
+        return [(k.arg, k.value) for k in node.keywords if k.arg]
+    return []
+
+
 def _key_role(line: str, start: int, end: int) -> str:
     """How a string literal equal to a field name is used, if as a key at all.
 
@@ -258,13 +325,22 @@ def _add(
     snippet: str,
     reason: str,
 ) -> None:
-    """Record a residual once per line: the first, most specific reading wins."""
+    """Record a residual once per line: the first, most specific reading wins.
+
+    Except that unfinished work is never hidden: on a line with both a
+    customer's `{"total": 1}` and an order's `{"total": 2}`, the order's is what
+    the line reports, whichever comes first.
+    """
+    residual = Residual(path=path, line=line, kind=kind, snippet=snippet[:200], reason=reason)
     if (path, line) in seen:
+        for index, existing in enumerate(report.residuals):
+            if (existing.path, existing.line) == (path, line):
+                if kind.unfinished and not existing.kind.unfinished:
+                    report.residuals[index] = residual
+                return
         return
     seen.add((path, line))
-    report.residuals.append(
-        Residual(path=path, line=line, kind=kind, snippet=snippet[:200], reason=reason)
-    )
+    report.residuals.append(residual)
 
 
 def _text_files(root: Path, config: Config) -> list[str]:

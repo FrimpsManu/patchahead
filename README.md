@@ -281,7 +281,7 @@ special cases. More detail: [docs/architecture.md](docs/architecture.md).
 
 ## How it is measured
 
-- **643 automated tests**, covering unit, integration, and full end-to-end runs
+- **645 automated tests**, covering unit, integration, and full end-to-end runs
   with real test subprocesses.
 - **An evaluation benchmark of 188 cases**, run on every CI build: release notes
   written the way vendors write them, before-and-after library versions
