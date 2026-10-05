@@ -3,6 +3,6 @@
 Static evidence identifies risk. AI can propose. Tests verify. Humans approve.
 """
 
-__version__ = "0.7.0"
+__version__ = "0.8.0"
 
 __all__ = ["__version__"]
