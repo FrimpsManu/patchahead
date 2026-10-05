@@ -1,0 +1,1289 @@
+{
+  "description": "Can PatchAhead read breaking changes out of two versions of an OpenAPI spec? Each case is a spec before and after, and every change a correct reading finds. A property rename is read only when the evidence leaves one answer -- a deprecated property naming its replacement, or exactly one same-shape property added to the same schema -- and everything else is reported. A rename read where the spec made none fails the case, known gap or not.",
+  "cases": [
+    {
+      "id": "removed_and_added_with_the_same_type",
+      "note": "The common case: one property gone, one of the same type added to the same schema.",
+      "old_spec": {
+        "openapi": "3.0.3",
+        "info": {
+          "title": "API",
+          "version": "1"
+        },
+        "paths": {},
+        "components": {
+          "schemas": {
+            "Order": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "total": {
+                  "type": "number"
+                }
+              }
+            }
+          }
+        }
+      },
+      "new_spec": {
+        "openapi": "3.0.3",
+        "info": {
+          "title": "API",
+          "version": "1"
+        },
+        "paths": {},
+        "components": {
+          "schemas": {
+            "Order": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "amount": {
+                  "type": "number"
+                }
+              }
+            }
+          }
+        }
+      },
+      "expected_changes": [
+        {
+          "kind": "field_rename",
+          "symbol": "total",
+          "replacement": "amount",
+          "owner": "Order",
+          "owner_explicit": true
+        }
+      ]
+    },
+    {
+      "id": "deprecated_property_names_its_replacement",
+      "note": "The old property is kept, marked deprecated, and its description names the new one.",
+      "old_spec": {
+        "openapi": "3.0.3",
+        "info": {
+          "title": "API",
+          "version": "1"
+        },
+        "paths": {},
+        "components": {
+          "schemas": {
+            "Order": {
+              "type": "object",
+              "properties": {
+                "total": {
+                  "type": "number"
+                }
+              }
+            }
+          }
+        }
+      },
+      "new_spec": {
+        "openapi": "3.0.3",
+        "info": {
+          "title": "API",
+          "version": "1"
+        },
+        "paths": {},
+        "components": {
+          "schemas": {
+            "Order": {
+              "type": "object",
+              "properties": {
+                "total": {
+                  "type": "number",
+                  "deprecated": true,
+                  "description": "Deprecated: use `amount` instead."
+                },
+                "amount": {
+                  "type": "number"
+                }
+              }
+            }
+          }
+        }
+      },
+      "expected_changes": [
+        {
+          "kind": "field_rename",
+          "symbol": "total",
+          "replacement": "amount",
+          "owner": "Order",
+          "owner_explicit": true
+        }
+      ]
+    },
+    {
+      "id": "deprecated_without_a_pointer_is_not_a_rename",
+      "note": "Deprecated, but the description names no other property: nothing says what replaces it.",
+      "old_spec": {
+        "openapi": "3.0.3",
+        "info": {
+          "title": "API",
+          "version": "1"
+        },
+        "paths": {},
+        "components": {
+          "schemas": {
+            "Order": {
+              "type": "object",
+              "properties": {
+                "total": {
+                  "type": "number"
+                }
+              }
+            }
+          }
+        }
+      },
+      "new_spec": {
+        "openapi": "3.0.3",
+        "info": {
+          "title": "API",
+          "version": "1"
+        },
+        "paths": {},
+        "components": {
+          "schemas": {
+            "Order": {
+              "type": "object",
+              "properties": {
+                "total": {
+                  "type": "number",
+                  "deprecated": true,
+                  "description": "Will be removed."
+                },
+                "amount": {
+                  "type": "number"
+                }
+              }
+            }
+          }
+        }
+      },
+      "expected_changes": []
+    },
+    {
+      "id": "a_different_type_is_not_a_rename",
+      "note": "A string `total` replaced by a number `amount` is a different field, not the same one renamed.",
+      "old_spec": {
+        "openapi": "3.0.3",
+        "info": {
+          "title": "API",
+          "version": "1"
+        },
+        "paths": {},
+        "components": {
+          "schemas": {
+            "Order": {
+              "type": "object",
+              "properties": {
+                "total": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "new_spec": {
+        "openapi": "3.0.3",
+        "info": {
+          "title": "API",
+          "version": "1"
+        },
+        "paths": {},
+        "components": {
+          "schemas": {
+            "Order": {
+              "type": "object",
+              "properties": {
+                "amount": {
+                  "type": "number"
+                }
+              }
+            }
+          }
+        }
+      },
+      "expected_changes": [
+        {
+          "kind": "unsupported"
+        }
+      ]
+    },
+    {
+      "id": "two_candidates_are_ambiguous",
+      "note": "Two new numbers: which one replaces `total` cannot be told from the spec.",
+      "old_spec": {
+        "openapi": "3.0.3",
+        "info": {
+          "title": "API",
+          "version": "1"
+        },
+        "paths": {},
+        "components": {
+          "schemas": {
+            "Order": {
+              "type": "object",
+              "properties": {
+                "total": {
+                  "type": "number"
+                }
+              }
+            }
+          }
+        }
+      },
+      "new_spec": {
+        "openapi": "3.0.3",
+        "info": {
+          "title": "API",
+          "version": "1"
+        },
+        "paths": {},
+        "components": {
+          "schemas": {
+            "Order": {
+              "type": "object",
+              "properties": {
+                "amount": {
+                  "type": "number"
+                },
+                "tax": {
+                  "type": "number"
+                }
+              }
+            }
+          }
+        }
+      },
+      "expected_changes": [
+        {
+          "kind": "unsupported"
+        }
+      ]
+    },
+    {
+      "id": "two_removed_properties_sharing_one_candidate",
+      "note": "`total` and `subtotal` both gone, one number added: it cannot replace both.",
+      "old_spec": {
+        "openapi": "3.0.3",
+        "info": {
+          "title": "API",
+          "version": "1"
+        },
+        "paths": {},
+        "components": {
+          "schemas": {
+            "Order": {
+              "type": "object",
+              "properties": {
+                "total": {
+                  "type": "number"
+                },
+                "subtotal": {
+                  "type": "number"
+                }
+              }
+            }
+          }
+        }
+      },
+      "new_spec": {
+        "openapi": "3.0.3",
+        "info": {
+          "title": "API",
+          "version": "1"
+        },
+        "paths": {},
+        "components": {
+          "schemas": {
+            "Order": {
+              "type": "object",
+              "properties": {
+                "amount": {
+                  "type": "number"
+                }
+              }
+            }
+          }
+        }
+      },
+      "expected_changes": [
+        {
+          "kind": "unsupported"
+        },
+        {
+          "kind": "unsupported"
+        }
+      ]
+    },
+    {
+      "id": "two_renames_in_one_schema_of_different_types",
+      "note": "Each removed property has exactly one same-type candidate.",
+      "old_spec": {
+        "openapi": "3.0.3",
+        "info": {
+          "title": "API",
+          "version": "1"
+        },
+        "paths": {},
+        "components": {
+          "schemas": {
+            "Order": {
+              "type": "object",
+              "properties": {
+                "total": {
+                  "type": "number"
+                },
+                "createdAt": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              }
+            }
+          }
+        }
+      },
+      "new_spec": {
+        "openapi": "3.0.3",
+        "info": {
+          "title": "API",
+          "version": "1"
+        },
+        "paths": {},
+        "components": {
+          "schemas": {
+            "Order": {
+              "type": "object",
+              "properties": {
+                "amount": {
+                  "type": "number"
+                },
+                "created_at": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              }
+            }
+          }
+        }
+      },
+      "expected_changes": [
+        {
+          "kind": "field_rename",
+          "symbol": "total",
+          "replacement": "amount",
+          "owner": "Order",
+          "owner_explicit": true
+        },
+        {
+          "kind": "field_rename",
+          "symbol": "createdAt",
+          "replacement": "created_at",
+          "owner": "Order",
+          "owner_explicit": true
+        }
+      ]
+    },
+    {
+      "id": "format_tells_strings_apart",
+      "note": "A date-time string and a plain string are different shapes, so each finds its own pair.",
+      "old_spec": {
+        "openapi": "3.0.3",
+        "info": {
+          "title": "API",
+          "version": "1"
+        },
+        "paths": {},
+        "components": {
+          "schemas": {
+            "Order": {
+              "type": "object",
+              "properties": {
+                "note": {
+                  "type": "string"
+                },
+                "placedAt": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              }
+            }
+          }
+        }
+      },
+      "new_spec": {
+        "openapi": "3.0.3",
+        "info": {
+          "title": "API",
+          "version": "1"
+        },
+        "paths": {},
+        "components": {
+          "schemas": {
+            "Order": {
+              "type": "object",
+              "properties": {
+                "comment": {
+                  "type": "string"
+                },
+                "placed_at": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              }
+            }
+          }
+        }
+      },
+      "expected_changes": [
+        {
+          "kind": "field_rename",
+          "symbol": "note",
+          "replacement": "comment",
+          "owner": "Order",
+          "owner_explicit": true
+        },
+        {
+          "kind": "field_rename",
+          "symbol": "placedAt",
+          "replacement": "placed_at",
+          "owner": "Order",
+          "owner_explicit": true
+        }
+      ]
+    },
+    {
+      "id": "a_property_moved_to_another_schema_is_not_renamed",
+      "note": "`total` left `Order` and `amount` appeared on `Invoice`: different objects.",
+      "old_spec": {
+        "openapi": "3.0.3",
+        "info": {
+          "title": "API",
+          "version": "1"
+        },
+        "paths": {},
+        "components": {
+          "schemas": {
+            "Order": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "total": {
+                  "type": "number"
+                }
+              }
+            },
+            "Invoice": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "new_spec": {
+        "openapi": "3.0.3",
+        "info": {
+          "title": "API",
+          "version": "1"
+        },
+        "paths": {},
+        "components": {
+          "schemas": {
+            "Order": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                }
+              }
+            },
+            "Invoice": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "amount": {
+                  "type": "number"
+                }
+              }
+            }
+          }
+        }
+      },
+      "expected_changes": [
+        {
+          "kind": "unsupported"
+        }
+      ]
+    },
+    {
+      "id": "the_same_name_on_another_schema_is_its_own_field",
+      "note": "Only `Order.total` was renamed; `Customer.total` is unchanged and must not be read as renamed.",
+      "old_spec": {
+        "openapi": "3.0.3",
+        "info": {
+          "title": "API",
+          "version": "1"
+        },
+        "paths": {},
+        "components": {
+          "schemas": {
+            "Order": {
+              "type": "object",
+              "properties": {
+                "total": {
+                  "type": "number"
+                }
+              }
+            },
+            "Customer": {
+              "type": "object",
+              "properties": {
+                "total": {
+                  "type": "number"
+                }
+              }
+            }
+          }
+        }
+      },
+      "new_spec": {
+        "openapi": "3.0.3",
+        "info": {
+          "title": "API",
+          "version": "1"
+        },
+        "paths": {},
+        "components": {
+          "schemas": {
+            "Order": {
+              "type": "object",
+              "properties": {
+                "amount": {
+                  "type": "number"
+                }
+              }
+            },
+            "Customer": {
+              "type": "object",
+              "properties": {
+                "total": {
+                  "type": "number"
+                }
+              }
+            }
+          }
+        }
+      },
+      "expected_changes": [
+        {
+          "kind": "field_rename",
+          "symbol": "total",
+          "replacement": "amount",
+          "owner": "Order",
+          "owner_explicit": true
+        }
+      ]
+    },
+    {
+      "id": "a_reference_shape_must_match",
+      "note": "A `$ref` to `Customer` replaced by a `$ref` to `Customer` under a new name is a rename.",
+      "old_spec": {
+        "openapi": "3.0.3",
+        "info": {
+          "title": "API",
+          "version": "1"
+        },
+        "paths": {},
+        "components": {
+          "schemas": {
+            "Order": {
+              "type": "object",
+              "properties": {
+                "buyer": {
+                  "$ref": "#/components/schemas/Customer"
+                }
+              }
+            },
+            "Customer": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "new_spec": {
+        "openapi": "3.0.3",
+        "info": {
+          "title": "API",
+          "version": "1"
+        },
+        "paths": {},
+        "components": {
+          "schemas": {
+            "Order": {
+              "type": "object",
+              "properties": {
+                "customer": {
+                  "$ref": "#/components/schemas/Customer"
+                }
+              }
+            },
+            "Customer": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "expected_changes": [
+        {
+          "kind": "field_rename",
+          "symbol": "buyer",
+          "replacement": "customer",
+          "owner": "Order",
+          "owner_explicit": true
+        }
+      ]
+    },
+    {
+      "id": "an_array_of_one_type_is_not_an_array_of_another",
+      "note": "`items` of LineItem replaced by `lines` of Discount is not a rename.",
+      "old_spec": {
+        "openapi": "3.0.3",
+        "info": {
+          "title": "API",
+          "version": "1"
+        },
+        "paths": {},
+        "components": {
+          "schemas": {
+            "Order": {
+              "type": "object",
+              "properties": {
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/LineItem"
+                  }
+                }
+              }
+            },
+            "LineItem": {
+              "type": "object",
+              "properties": {
+                "sku": {
+                  "type": "string"
+                }
+              }
+            },
+            "Discount": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "new_spec": {
+        "openapi": "3.0.3",
+        "info": {
+          "title": "API",
+          "version": "1"
+        },
+        "paths": {},
+        "components": {
+          "schemas": {
+            "Order": {
+              "type": "object",
+              "properties": {
+                "lines": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Discount"
+                  }
+                }
+              }
+            },
+            "LineItem": {
+              "type": "object",
+              "properties": {
+                "sku": {
+                  "type": "string"
+                }
+              }
+            },
+            "Discount": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "expected_changes": [
+        {
+          "kind": "unsupported"
+        }
+      ]
+    },
+    {
+      "id": "allof_members_are_merged",
+      "note": "Properties inherited through `allOf` are the schema's own for a client.",
+      "old_spec": {
+        "openapi": "3.0.3",
+        "info": {
+          "title": "API",
+          "version": "1"
+        },
+        "paths": {},
+        "components": {
+          "schemas": {
+            "Base": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                }
+              }
+            },
+            "Order": {
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/Base"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "total": {
+                      "type": "number"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      },
+      "new_spec": {
+        "openapi": "3.0.3",
+        "info": {
+          "title": "API",
+          "version": "1"
+        },
+        "paths": {},
+        "components": {
+          "schemas": {
+            "Base": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                }
+              }
+            },
+            "Order": {
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/Base"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "amount": {
+                      "type": "number"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      },
+      "expected_changes": [
+        {
+          "kind": "field_rename",
+          "symbol": "total",
+          "replacement": "amount",
+          "owner": "Order",
+          "owner_explicit": true
+        }
+      ]
+    },
+    {
+      "id": "nullable_does_not_change_the_shape",
+      "note": "A rename that also makes the field nullable (3.1 `type: [number, \"null\"]`) is still a rename.",
+      "old_spec": {
+        "openapi": "3.0.3",
+        "info": {
+          "title": "API",
+          "version": "1"
+        },
+        "paths": {},
+        "components": {
+          "schemas": {
+            "Order": {
+              "type": "object",
+              "properties": {
+                "total": {
+                  "type": "number"
+                }
+              }
+            }
+          }
+        }
+      },
+      "new_spec": {
+        "openapi": "3.0.3",
+        "info": {
+          "title": "API",
+          "version": "1"
+        },
+        "paths": {},
+        "components": {
+          "schemas": {
+            "Order": {
+              "type": "object",
+              "properties": {
+                "amount": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "expected_changes": [
+        {
+          "kind": "field_rename",
+          "symbol": "total",
+          "replacement": "amount",
+          "owner": "Order",
+          "owner_explicit": true
+        }
+      ]
+    },
+    {
+      "id": "swagger_2_definitions",
+      "note": "Swagger 2.0 keeps schemas under `definitions`.",
+      "old_spec": {
+        "swagger": "2.0",
+        "info": {
+          "title": "API",
+          "version": "1"
+        },
+        "paths": {},
+        "definitions": {
+          "Order": {
+            "type": "object",
+            "properties": {
+              "total": {
+                "type": "number"
+              }
+            }
+          }
+        }
+      },
+      "new_spec": {
+        "swagger": "2.0",
+        "info": {
+          "title": "API",
+          "version": "2"
+        },
+        "paths": {},
+        "definitions": {
+          "Order": {
+            "type": "object",
+            "properties": {
+              "amount": {
+                "type": "number"
+              }
+            }
+          }
+        }
+      },
+      "expected_changes": [
+        {
+          "kind": "field_rename",
+          "symbol": "total",
+          "replacement": "amount",
+          "owner": "Order",
+          "owner_explicit": true
+        }
+      ]
+    },
+    {
+      "id": "operation_id_renamed_on_the_same_endpoint",
+      "note": "A generated client's `list_orders()` becomes `get_orders()`.",
+      "old_spec": {
+        "openapi": "3.0.3",
+        "info": {
+          "title": "API",
+          "version": "1"
+        },
+        "paths": {
+          "/orders": {
+            "get": {
+              "operationId": "listOrders",
+              "responses": {
+                "200": {
+                  "description": "ok"
+                }
+              }
+            }
+          }
+        },
+        "components": {
+          "schemas": {}
+        }
+      },
+      "new_spec": {
+        "openapi": "3.0.3",
+        "info": {
+          "title": "API",
+          "version": "1"
+        },
+        "paths": {
+          "/orders": {
+            "get": {
+              "operationId": "getOrders",
+              "responses": {
+                "200": {
+                  "description": "ok"
+                }
+              }
+            }
+          }
+        },
+        "components": {
+          "schemas": {}
+        }
+      },
+      "expected_changes": [
+        {
+          "kind": "method_rename",
+          "symbol": "list_orders",
+          "replacement": "get_orders",
+          "owner": "",
+          "owner_explicit": false
+        }
+      ]
+    },
+    {
+      "id": "operation_id_spelling_only",
+      "note": "`listOrders` -> `ListOrders` derives the same Python method, so nothing breaks for a client.",
+      "old_spec": {
+        "openapi": "3.0.3",
+        "info": {
+          "title": "API",
+          "version": "1"
+        },
+        "paths": {
+          "/orders": {
+            "get": {
+              "operationId": "listOrders",
+              "responses": {
+                "200": {
+                  "description": "ok"
+                }
+              }
+            }
+          }
+        },
+        "components": {
+          "schemas": {}
+        }
+      },
+      "new_spec": {
+        "openapi": "3.0.3",
+        "info": {
+          "title": "API",
+          "version": "1"
+        },
+        "paths": {
+          "/orders": {
+            "get": {
+              "operationId": "ListOrders",
+              "responses": {
+                "200": {
+                  "description": "ok"
+                }
+              }
+            }
+          }
+        },
+        "components": {
+          "schemas": {}
+        }
+      },
+      "expected_changes": []
+    },
+    {
+      "id": "a_parameter_rename_is_reported_not_migrated",
+      "note": "Query parameters are usually dict keys in `params={...}`, which no handler rewrites yet.",
+      "old_spec": {
+        "openapi": "3.0.3",
+        "info": {
+          "title": "API",
+          "version": "1"
+        },
+        "paths": {
+          "/orders": {
+            "get": {
+              "operationId": "listOrders",
+              "responses": {
+                "200": {
+                  "description": "ok"
+                }
+              },
+              "parameters": [
+                {
+                  "name": "page",
+                  "in": "query",
+                  "schema": {
+                    "type": "integer"
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "components": {
+          "schemas": {}
+        }
+      },
+      "new_spec": {
+        "openapi": "3.0.3",
+        "info": {
+          "title": "API",
+          "version": "1"
+        },
+        "paths": {
+          "/orders": {
+            "get": {
+              "operationId": "listOrders",
+              "responses": {
+                "200": {
+                  "description": "ok"
+                }
+              },
+              "parameters": [
+                {
+                  "name": "pageNumber",
+                  "in": "query",
+                  "schema": {
+                    "type": "integer"
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "components": {
+          "schemas": {}
+        }
+      },
+      "expected_changes": [
+        {
+          "kind": "unsupported"
+        }
+      ]
+    },
+    {
+      "id": "a_new_required_parameter_is_reported",
+      "note": "Every call must now pass it; what to pass is a decision, not a rename.",
+      "old_spec": {
+        "openapi": "3.0.3",
+        "info": {
+          "title": "API",
+          "version": "1"
+        },
+        "paths": {
+          "/orders": {
+            "get": {
+              "operationId": "listOrders",
+              "responses": {
+                "200": {
+                  "description": "ok"
+                }
+              }
+            }
+          }
+        },
+        "components": {
+          "schemas": {}
+        }
+      },
+      "new_spec": {
+        "openapi": "3.0.3",
+        "info": {
+          "title": "API",
+          "version": "1"
+        },
+        "paths": {
+          "/orders": {
+            "get": {
+              "operationId": "listOrders",
+              "responses": {
+                "200": {
+                  "description": "ok"
+                }
+              },
+              "parameters": [
+                {
+                  "name": "region",
+                  "in": "query",
+                  "required": true,
+                  "schema": {
+                    "type": "string"
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "components": {
+          "schemas": {}
+        }
+      },
+      "expected_changes": [
+        {
+          "kind": "unsupported"
+        }
+      ]
+    },
+    {
+      "id": "an_endpoint_moved_keeps_its_operation_id",
+      "note": "Same operationId at a new path: reported as a move, not read as anything to rewrite.",
+      "old_spec": {
+        "openapi": "3.0.3",
+        "info": {
+          "title": "API",
+          "version": "1"
+        },
+        "paths": {
+          "/orders": {
+            "get": {
+              "operationId": "listOrders",
+              "responses": {
+                "200": {
+                  "description": "ok"
+                }
+              }
+            }
+          }
+        },
+        "components": {
+          "schemas": {}
+        }
+      },
+      "new_spec": {
+        "openapi": "3.0.3",
+        "info": {
+          "title": "API",
+          "version": "1"
+        },
+        "paths": {
+          "/v2/orders": {
+            "get": {
+              "operationId": "listOrders",
+              "responses": {
+                "200": {
+                  "description": "ok"
+                }
+              }
+            }
+          }
+        },
+        "components": {
+          "schemas": {}
+        }
+      },
+      "expected_changes": [
+        {
+          "kind": "unsupported"
+        }
+      ]
+    },
+    {
+      "id": "an_added_property_alone_breaks_nothing",
+      "note": "New fields are additive for a client.",
+      "old_spec": {
+        "openapi": "3.0.3",
+        "info": {
+          "title": "API",
+          "version": "1"
+        },
+        "paths": {},
+        "components": {
+          "schemas": {
+            "Order": {
+              "type": "object",
+              "properties": {
+                "total": {
+                  "type": "number"
+                }
+              }
+            }
+          }
+        }
+      },
+      "new_spec": {
+        "openapi": "3.0.3",
+        "info": {
+          "title": "API",
+          "version": "1"
+        },
+        "paths": {},
+        "components": {
+          "schemas": {
+            "Order": {
+              "type": "object",
+              "properties": {
+                "total": {
+                  "type": "number"
+                },
+                "currency": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "expected_changes": []
+    }
+  ]
+}

@@ -7,6 +7,20 @@ this project uses [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **`patchahead openapi-diff`: breaking changes from two versions of an OpenAPI
+  spec.** OpenAPI 3.0/3.1 and Swagger 2.0, JSON or YAML. A renamed schema
+  property becomes a field rename owned by the schema, so `Order.total` ->
+  `amount` rewrites `order["total"]` and not `customer["total"]`. A rename is
+  read only when the old property is deprecated and names its replacement, or
+  exactly one property of the same type was added to the same schema. A changed
+  `operationId` becomes a method rename for generated clients. Parameter
+  changes, removals, moved endpoints and ambiguous cases are reported. A new
+  `openapi_diff` benchmark suite has 21 cases; run on GitHub's REST API
+  description (January 2024 against January 2025), it read three
+  `operationId` renames, all real, and no false ones.
+
 ## [0.5.0] — 2026-10-04
 
 ### Added

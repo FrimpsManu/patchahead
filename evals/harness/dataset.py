@@ -140,6 +140,20 @@ class ApiDiffCase(ReleaseNoteCase):
 
 
 @dataclass(frozen=True)
+class OpenApiDiffCase(ReleaseNoteCase):
+    """An OpenAPI spec before and after a version, and every change a correct reading finds.
+
+    ``old_spec`` and ``new_spec`` are the parsed documents (JSON, so the suite
+    needs no YAML library). ``expected_changes`` follows :class:`ReleaseNoteCase`.
+    """
+
+    old_spec: dict[str, Any] = field(default_factory=dict)
+    new_spec: dict[str, Any] = field(default_factory=dict)
+
+    REQUIRED = ("id", "old_spec", "new_spec", "expected_changes")
+
+
+@dataclass(frozen=True)
 class SiteCase(CaseSpec):
     """A change plus a repository, and the sites a correct tool patches.
 

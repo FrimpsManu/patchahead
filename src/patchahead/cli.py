@@ -22,6 +22,9 @@ Commands
 ``api-diff``
     Read two versions of a library and write the breaking changes between them
     as a change document, for when there is no release note to read.
+``openapi-diff``
+    The same for two versions of an OpenAPI spec: renamed schema properties and
+    operationIds become a change document.
 
 Exit codes are meaningful, because this is meant to run in CI:
 
@@ -75,6 +78,7 @@ examples:
   patchahead migrate  --repo ./my-service --change ./notes.md --use-llm
   patchahead handlers
   patchahead api-diff storekit 4.9.0 5.0.0 --out changes.json
+  patchahead openapi-diff openapi-v1.yaml openapi-v2.yaml --out changes.json
 
 PatchAhead never writes to your repository. `migrate` patches a temporary copy,
 runs the tests there, and prints the diff for you to review.
@@ -308,6 +312,25 @@ def build_parser() -> argparse.ArgumentParser:
     )
     api_diff.add_argument("--json", dest="as_json", action="store_true", help="print JSON")
 
+    openapi_diff = subparsers.add_parser(
+        "openapi-diff",
+        parents=[verbosity_parent],
+        help="find breaking changes by comparing two versions of an OpenAPI spec",
+        description=(
+            "Read two versions of an OpenAPI 3 or Swagger 2 spec (JSON, or YAML with "
+            "PyYAML) and report the breaking changes a client sees: renamed or removed "
+            "schema properties, renamed operationIds, and changed parameters. With "
+            "--out, the supported changes are written as a change document for "
+            "`patchahead migrate --change`."
+        ),
+    )
+    openapi_diff.add_argument("old", metavar="OLD", help="the spec you use")
+    openapi_diff.add_argument("new", metavar="NEW", help="the spec to upgrade to")
+    openapi_diff.add_argument(
+        "--out", metavar="FILE", help="write the changes as a JSON change document"
+    )
+    openapi_diff.add_argument("--json", dest="as_json", action="store_true", help="print JSON")
+
     subparsers.add_parser(
         "handlers",
         parents=[verbosity_parent],
@@ -359,6 +382,52 @@ def _cmd_handlers(args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
+def _cmd_openapi_diff(args: argparse.Namespace) -> int:
+    from patchahead import openapi
+    from patchahead.ingest.structured import change_to_mapping
+
+    try:
+        old, new = openapi.load(args.old), openapi.load(args.new)
+    except openapi.SpecError as exc:
+        log.error("%s", exc)
+        return EXIT_USAGE
+    diff = openapi.compare(old, new)
+    supported = [c for c in diff.changes if c.is_actionable]
+
+    if args.as_json:
+        print(json.dumps({"changes": [change_to_mapping(c) for c in diff.changes]}, indent=2))
+    else:
+        versions = f" {diff.old_version} -> {diff.new_version}" if diff.old_version else ""
+        print(
+            f"{diff.title or 'spec'}{versions}: compared {diff.schemas_compared} schema(s) "
+            f"and {diff.operations_compared} operation(s)"
+        )
+        for change in diff.changes:
+            kind = change.kind.value if change.is_actionable else "reported"
+            print(f"  {kind:<15} {change.title}")
+            print(f"  {'':<15} {change.classification_reason}")
+        if not diff.changes:
+            print("  no breaking changes a client would see")
+    return _write_change_document(args.out, supported)
+
+
+def _write_change_document(out: str | None, supported: list) -> int:
+    from patchahead.ingest.structured import change_to_mapping
+
+    if out:
+        if not supported:
+            print("nothing PatchAhead can migrate; no change document written", file=sys.stderr)
+        else:
+            document = {"changes": [change_to_mapping(c) for c in supported]}
+            Path(out).write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
+            print(
+                f"wrote {len(supported)} change(s) to {out}; review it, then run "
+                f"`patchahead migrate --change {out}`",
+                file=sys.stderr,
+            )
+    return EXIT_OK
+
+
 def _cmd_api_diff(args: argparse.Namespace) -> int:
     import tempfile
 
@@ -407,18 +476,7 @@ def _cmd_api_diff(args: argparse.Namespace) -> int:
         for module, reason in sorted({**old.skipped, **new.skipped}.items()):
             print(f"  skipped {module}: {reason}")
 
-    if args.out:
-        if not supported:
-            print("nothing PatchAhead can migrate; no change document written", file=sys.stderr)
-        else:
-            document = {"changes": [change_to_mapping(c) for c in supported]}
-            Path(args.out).write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
-            print(
-                f"wrote {len(supported)} change(s) to {args.out}; review it, then run "
-                f"`patchahead migrate --change {args.out}`",
-                file=sys.stderr,
-            )
-    return EXIT_OK
+    return _write_change_document(args.out, supported)
 
 
 def _render_scenarios() -> str:
@@ -602,6 +660,7 @@ def main(argv: list[str] | None = None) -> int:
         "web": _cmd_web,
         "handlers": _cmd_handlers,
         "api-diff": _cmd_api_diff,
+        "openapi-diff": _cmd_openapi_diff,
     }
 
     try:

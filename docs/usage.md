@@ -110,6 +110,35 @@ API) and checked against their published SHA-256. A release with only a source
 distribution is refused, because building one runs the package's code. A
 compiled library with no Python source has nothing to read.
 
+## Comparing two versions of an OpenAPI spec
+
+For a web API, the spec says what changed:
+
+```bash
+patchahead openapi-diff shop-v1.yaml shop-v2.yaml --out changes.json
+patchahead migrate --repo ./my-service --change changes.json
+```
+
+It reads OpenAPI 3.0 and 3.1 (`components.schemas`) and Swagger 2.0
+(`definitions`), as JSON, or as YAML with `pip install 'patchahead[yaml]'`.
+References within the file are followed; references to other files are not.
+
+| What changed | Read as |
+|---|---|
+| A property deprecated, its description naming exactly one other property of the same type | a field rename (high confidence) |
+| A property gone, exactly one property of the same type added to the same schema | a field rename (medium) |
+| The same endpoint's `operationId` changed | a method rename, for a generated client (`listOrders` -> `list_orders`) |
+| Several same-type candidates, a different type, a property moved to another schema | reported |
+| A parameter renamed or removed, a new required parameter, an endpoint moved or removed | reported |
+
+A field rename's owner is the schema: `Order.total` renamed to `amount`
+rewrites `order["total"]`, `self.order["total"]` and `current["total"]` after
+`current = order`, and never `customer["total"]`. Two things it does not do
+yet: rename the `snake_case` attribute a generated client gives a camelCase
+property (`totalAmount` becomes `total_amount`), and rewrite parameters, which
+code calling an API over HTTP usually passes as keys in a `params={...}`
+dictionary.
+
 ## GitHub Action
 
 ```yaml
