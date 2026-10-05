@@ -10,6 +10,9 @@ their release notes. This module reads both:
    versions are compared with :mod:`patchahead.apidiff`. That finds renames the
    notes never mention -- and it checks the notes: a rename to a name the new
    version does not have is a misreading, and is dropped with a note.
+3. **An OpenAPI spec kept in the repository.** For each spec file the workflow
+   names that this pull request changed, its version on the base branch is
+   compared with this branch's using :mod:`patchahead.openapi`.
 
 The changes are combined into one change document, migrated by the ordinary
 engine in a temporary copy, and reported the way GitHub Actions expects: step
@@ -28,11 +31,12 @@ import json
 import logging
 import os
 import re
+import subprocess
 import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from patchahead import apidiff, engine, reporting
+from patchahead import apidiff, engine, openapi, reporting
 from patchahead.config import ConfigError
 from patchahead.domain.change import BreakingChange, ChangeKind
 from patchahead.ingest import IngestError, parse_file
@@ -111,6 +115,9 @@ def plan(
     change_path: str = "",
     pull_request: dict | None = None,
     compare_versions: bool = True,
+    specs: list[str] | None = None,
+    base: str = "",
+    repo: str | Path = ".",
     scratch: Path,
 ) -> Plan:
     """Collect the changes to migrate from every source the run was given."""
@@ -147,6 +154,20 @@ def plan(
             compared.extend(diff.changes)
             result.sources.append(f"a comparison of {upgrade}")
 
+    if specs:
+        if not base:
+            result.notes.append(
+                "openapi-spec is set, but this run has no pull request whose base "
+                "branch it could compare the spec with"
+            )
+        for path in specs if base else []:
+            changes, note = _compare_spec(Path(repo), path, base)
+            if note:
+                result.notes.append(note)
+            if changes is not None:
+                compared.extend(changes)
+                result.sources.append(f"a comparison of `{path}` with the base branch's version")
+
     # A release note that renames something to a name the new version does not
     # have was misread -- or describes a different package. Either way it is
     # not something to rewrite code toward.
@@ -166,6 +187,48 @@ def plan(
             known.add(_identity(change))
             result.changes.append(change)
     return result
+
+
+def specs_in(value: str) -> list[str]:
+    """Spec paths from the action input: one per line, or separated by commas."""
+    return [part.strip() for part in re.split(r"[\n,]", value or "") if part.strip()]
+
+
+def _compare_spec(repo: Path, path: str, base: str) -> tuple[list[BreakingChange] | None, str]:
+    """The changes between a spec file's base-branch version and this one.
+
+    Returns ``(None, note)`` when there is nothing to compare, and ``(None, "")``
+    when the pull request did not change the file.
+    """
+    current = repo / path
+    if not current.is_file():
+        return None, f"could not compare `{path}`: no such file in the repository"
+    top = _git(repo, "rev-parse", "--show-toplevel")
+    if top is None:
+        return None, f"could not compare `{path}`: `{repo}` is not a git checkout"
+    relative = Path(os.path.relpath(current.resolve(), Path(top).resolve())).as_posix()
+    if _git(repo, "cat-file", "-e", f"{base}^{{commit}}") is None:
+        # A pull request checkout is shallow; the base commit may not be in it.
+        _git(repo, "fetch", "--no-tags", "--depth=1", "origin", base)
+    before = _git(repo, "show", f"{base}:{relative}", strip=False)
+    if before is None:
+        return None, f"`{path}` is new in this pull request; there is no earlier version to compare"
+    after = current.read_text(encoding="utf-8")
+    if before == after:
+        return None, ""
+    try:
+        old = openapi.read(openapi.parse(before, f"{path} (base)"), f"{path} (base)")
+        new = openapi.read(openapi.parse(after, path), path)
+    except openapi.SpecError as exc:
+        return None, f"could not compare `{path}`: {exc}"
+    return openapi.compare(old, new).changes, ""
+
+
+def _git(repo: Path, *args: str, strip: bool = True) -> str | None:
+    result = subprocess.run(["git", *args], cwd=repo, capture_output=True, text=True)
+    if result.returncode != 0:
+        return None
+    return result.stdout.strip() if strip else result.stdout
 
 
 def _identity(change: BreakingChange) -> tuple[str, str, str, str]:
@@ -194,9 +257,14 @@ def run(environ: dict[str, str] | None = None) -> dict[str, str]:
     out_dir = Path(env.get("RUNNER_TEMP") or tempfile.gettempdir()) / "patchahead"
     out_dir.mkdir(parents=True, exist_ok=True)
 
+    event = {}
+    if env.get("GITHUB_EVENT_PATH"):
+        event = json.loads(Path(env["GITHUB_EVENT_PATH"]).read_text(encoding="utf-8"))
+    # The spec comparison needs the base commit whether or not the pull
+    # request's text is read.
+    base = ((event.get("pull_request") or {}).get("base") or {}).get("sha", "")
     pull_request = None
     if _flag(env, "PATCHAHEAD_FROM_PULL_REQUEST") and env.get("GITHUB_EVENT_PATH"):
-        event = json.loads(Path(env["GITHUB_EVENT_PATH"]).read_text(encoding="utf-8"))
         pull_request = event.get("pull_request")
         if pull_request is None:
             log.warning("from-pull-request is set, but this run was not triggered by one")
@@ -208,6 +276,9 @@ def run(environ: dict[str, str] | None = None) -> dict[str, str]:
                 change_path=env.get("PATCHAHEAD_CHANGE", ""),
                 pull_request=pull_request,
                 compare_versions=_flag(env, "PATCHAHEAD_COMPARE_VERSIONS", default=True),
+                specs=specs_in(env.get("PATCHAHEAD_OPENAPI", "")),
+                base=base,
+                repo=env.get("PATCHAHEAD_REPO") or ".",
                 scratch=Path(scratch),
             )
         if not work.changes:
