@@ -22,6 +22,25 @@ this project uses [semantic versioning](https://semver.org/spec/v2.0.0.html).
   object is refused**, whatever it is called: `client = os.environ` then
   `client.fetch_orders()` is a dict call, not an SDK call.
 
+### Fixed
+
+Found by running the Action on a real Dependabot pull request (pydantic
+1.10.13 -> 2.13.5) in a test repository:
+
+- **A built-in that shares a renamed method's name is no longer a leftover.**
+  For pydantic's `.dict()` -> `.model_dump()`, the "what is left" report listed
+  `-> dict`, `isinstance(x, dict)` and `dict(...)` as unfinished uses of the old
+  method, so a correct migration was reported incomplete and would fail
+  `require-complete`. A bare `dict` is now the built-in unless the module
+  imports the name; `obj.dict` is still reported.
+- **Upgrades are read from the bot's own words only.** A library's release
+  notes mention its own dependency bumps ("Bump libc from 0.2.155 to 0.2.185"),
+  which were read as upgrades in this pull request. Text inside `<details>`
+  and `>` quotes is now skipped.
+- **The comment on the bump links to the fix.** With `open-pull-request`, the
+  comment said nothing was committed; it now names the fix's pull request. The
+  Action opens the pull request before it comments.
+
 ## [0.4.0] — 2026-10-04
 
 ### Added

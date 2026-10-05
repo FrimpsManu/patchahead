@@ -163,7 +163,8 @@ class MethodRenameHandler(MigrationHandler):
                         source_text=old,
                         patchable=patchable,
                         unpatchable_reason=blocked,
-                        other_object=bool(owner) and not receiver_matches_owner(receiver, owner),
+                        other_object=(bool(owner) and not receiver_matches_owner(receiver, owner))
+                        or (not is_method and bool(ambiguity.bare and ambiguity.bare.other_object)),
                     )
                 )
 
@@ -462,6 +463,9 @@ class _Reason:
     name: str
     why: str
     short: str
+    #: The call is to something else that shares the name -- Python's built-in
+    #: -- rather than possibly to the upstream one.
+    other_object: bool = False
 
 
 @dataclass(frozen=True)
@@ -512,6 +516,7 @@ def _ambiguity(name: str, module, other_definers: list[str]) -> _Ambiguity:
             f"`{name}` here is Python's built-in -- the module does not import a "
             f"`{name}` from anywhere",
             f"`{name}()` is the Python built-in, not an imported SDK function",
+            other_object=True,
         )
     else:
         bare = elsewhere

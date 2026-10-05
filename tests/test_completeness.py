@@ -15,6 +15,16 @@ METHOD_DOC = """
     - **Before:** `client.fetch_orders(limit=10)`
 """
 
+#: What `patchahead api-diff pydantic 1.10.13 2.13.5` reads for `.dict()`.
+PYDANTIC_DICT = """
+    {"changes": [{
+      "title": "`pydantic.main.BaseModel.dict` renamed to `model_dump`",
+      "kind": "method_rename",
+      "target": {"symbol": "dict", "replacement": "model_dump",
+                 "owner": "BaseModel", "owner_explicit": false}
+    }]}
+"""
+
 INCOMPLETE = {
     "app/__init__.py": "",
     "app/orders.py": """
@@ -110,6 +120,44 @@ class TestWhatIsLeft:
 
         assert found[("app/customers.py", 2)].kind is ResidualKind.OTHER_OBJECT
         assert run.complete is True
+
+    def test_the_built_in_that_shares_a_renamed_methods_name_is_not_left_over(
+        self, make_repo, write_change
+    ):
+        """pydantic's `.dict()` -> `.model_dump()`, in code that also uses the `dict` type.
+
+        Found by a real Dependabot run: `-> dict` was reported as a leftover use
+        of the old method, which would fail a `--require-complete` run.
+        """
+        files = {
+            "app/__init__.py": "",
+            "app/pricing.py": """
+                def to_payload(item) -> dict:
+                    data: dict = item.dict()
+                    return dict(data)
+            """,
+            "tests/test_pricing.py": """
+                def test_shape():
+                    assert isinstance({}, dict)
+            """,
+        }
+        run, found = residuals(make_repo(files), write_change(PYDANTIC_DICT, "changes.json"))
+
+        assert all(not r.kind.unfinished for r in found.values()), found
+        assert run.complete is True
+
+    def test_the_old_method_name_on_an_object_is_still_left_over(self, make_repo, write_change):
+        files = {
+            "app/__init__.py": "",
+            # The call is rewritten; the bare reference after it is not.
+            "app/pricing.py": "def later(item) -> dict:\n    return item.dict(), item.dict\n",
+        }
+
+        run, found = residuals(make_repo(files), write_change(PYDANTIC_DICT, "changes.json"))
+
+        assert found[("app/pricing.py", 2)].kind is ResidualKind.CODE
+        assert ("app/pricing.py", 1) not in found
+        assert run.complete is False
 
 
 class TestReporting:

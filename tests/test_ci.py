@@ -27,6 +27,20 @@ class TestReadingTheUpgrade:
     def test_dependabot_and_renovate_spellings(self, title, body):
         assert upgrades_in(title, body) == [Upgrade("storekit", "4.9.0", "5.0.0")]
 
+    def test_bumps_quoted_from_the_release_notes_are_not_this_pull_requests(self):
+        """Found by a real Dependabot run: pydantic's notes mention its own `libc` bump."""
+        body = (
+            "Bumps [pydantic](https://example.invalid) from 1.10.13 to 2.13.5.\n"
+            "<details>\n<summary>Release notes</summary>\n"
+            "<li>Bump libc from 0.2.155 to 0.2.185 by someone</li>\n"
+            "</details>\n"
+            "> Bump serde from 1.0 to 2.0\n"
+        )
+
+        assert upgrades_in("Bump pydantic from 1.10.13 to 2.13.5", body) == [
+            Upgrade("pydantic", "1.10.13", "2.13.5")
+        ]
+
     def test_a_grouped_update_lists_every_package_once(self):
         body = "Updates `a` from 1.0 to 2.0\nUpdates `b` from 0.1.0 to 0.2.0\nUpdates `a` from 1.0 to 2.0\n"
 

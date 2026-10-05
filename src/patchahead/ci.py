@@ -84,12 +84,23 @@ class Plan:
     notes: list[str] = field(default_factory=list)
 
 
+#: Quoted material in a bot's pull request: the release notes, changelog and
+#: commits it folds into ``<details>``, and ``>`` quotes. A library's notes
+#: mention its *own* dependency bumps ("Bump libc from 0.2.155 to 0.2.185"),
+#: which are not upgrades this pull request makes.
+_QUOTED = re.compile(r"<details>.*?</details>|^\s*>.*$", re.DOTALL | re.MULTILINE | re.IGNORECASE)
+
+
 def upgrades_in(*texts: str) -> list[Upgrade]:
-    """The package upgrades a Dependabot or Renovate pull request describes."""
+    """The package upgrades a Dependabot or Renovate pull request describes.
+
+    Read from the bot's own words only, never from the notes it quotes.
+    """
     found: dict[str, Upgrade] = {}
     for text in texts:
+        own_words = _QUOTED.sub("", text or "")
         for pattern in _UPGRADE_PATTERNS:
-            for match in pattern.finditer(text or ""):
+            for match in pattern.finditer(own_words):
                 package, old, new = match.group(1), match.group(2), match.group(3)
                 found.setdefault(package.lower(), Upgrade(package, old, new))
     return list(found.values())

@@ -242,6 +242,21 @@ def describe(target: Target, summary: str) -> tuple[str, str]:
     return title, body
 
 
+def _point_summary_at(path: Path, pull: dict, target: Target) -> None:
+    """Say in the run's summary -- and so in the comment -- where the fix went.
+
+    The summary says nothing was committed, which stopped being true the moment
+    the fix's pull request was opened.
+    """
+    where = f"#{pull['number']}" if target.number else pull["html_url"]
+    opened = (
+        f"PatchAhead committed the verified fix and opened it as {where}. Merging it "
+        f"adds the fix to `{target.branch}`. The diff and the evidence are below."
+    )
+    text = path.read_text(encoding="utf-8")
+    path.write_text(text.replace(NOT_COMMITTED, opened), encoding="utf-8")
+
+
 # --------------------------------------------------------------------------
 # entry point
 # --------------------------------------------------------------------------
@@ -292,6 +307,8 @@ def run(environ: dict[str, str] | None = None, api: GitHub | None = None) -> dic
             env.get("GITHUB_API_URL") or "https://api.github.com",
         )
     pull = open_or_update(api, target, title, body)
+    if summary_path:
+        _point_summary_at(Path(summary_path), pull, target)
     outputs["pull-request-url"] = pull["html_url"]
     outputs["pull-request-number"] = str(pull["number"])
     log.info("pull request: %s", pull["html_url"])

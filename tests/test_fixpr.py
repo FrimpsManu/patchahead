@@ -162,6 +162,21 @@ class TestOpeningThePullRequest:
         assert COMMENT_MARKER not in body
         assert "Committed by **PatchAhead**" in body and "Read from the release notes." in body
 
+    def test_the_summary_then_says_where_the_fix_went(self, tmp_path, checkout):
+        """The comment posted after this step links to the fix's pull request."""
+        from patchahead.ci import NOT_COMMITTED
+
+        work, _, sha = checkout
+        env = environment(tmp_path, work, sha)
+        summary = Path(env["PATCHAHEAD_SUMMARY"])
+        summary.write_text(f"## PatchAhead: verified migration\n\n{NOT_COMMITTED}\n")
+
+        fixpr.run(env, api=FakeGitHub())
+
+        text = summary.read_text()
+        assert "nothing was committed" not in text
+        assert "opened it as #7" in text and "`bump`" in text
+
     def test_the_checkout_is_left_alone(self, tmp_path, checkout):
         work, _, sha = checkout
 
