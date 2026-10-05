@@ -130,6 +130,19 @@ installed or run. A method counts as renamed only when the old one is gone or
 deprecated **and** the new one accepts every call the old one did. A
 replacement that takes different arguments is reported, never applied.
 
+For a web API, compare two versions of its OpenAPI spec instead:
+
+```console
+$ patchahead openapi-diff shop-v1.yaml shop-v2.yaml --out changes.json
+Shop API 1.0 -> 2.0: compared 2 schema(s) and 1 operation(s)
+  field_rename    `Order.total` renamed to `amount`
+```
+
+A property counts as renamed only when the spec leaves one answer: the old one
+is deprecated and names its replacement, or exactly one property of the same
+type was added to the same schema. The rename applies to `order["total"]` and
+never to `customer["total"]`.
+
 ## Use it in CI
 
 PatchAhead ships as a GitHub Action. Put it on the pull requests Dependabot or
@@ -262,13 +275,13 @@ special cases. More detail: [docs/architecture.md](docs/architecture.md).
 
 ## How it is measured
 
-- **594 automated tests**, covering unit, integration, and full end-to-end runs
+- **611 automated tests**, covering unit, integration, and full end-to-end runs
   with real test subprocesses.
-- **An evaluation benchmark of 152 cases**, run on every CI build: release notes
+- **An evaluation benchmark of 173 cases**, run on every CI build: release notes
   written the way vendors write them, before-and-after library versions
-  (including what requests and pydantic actually did), repositories built to
-  trick it (unrelated
-  objects with the same field name, `os.environ.get` next to a renamed
+  (including what requests and pydantic actually did), before-and-after OpenAPI
+  specs, repositories built to trick it (unrelated objects with the same field
+  name, `os.environ.get` next to a renamed
   `client.get`, Unicode, nested scopes), full migrations, and the checks
   themselves.
 - **Zero wrong edits** across all site cases, and **zero misread changes**

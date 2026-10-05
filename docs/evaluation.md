@@ -26,6 +26,7 @@ including the numbers quoted in the README and in pull request descriptions.
 | `classification` | Does it read a change document correctly, and refuse the ones it should? | `evals/datasets/classification/` |
 | `release_notes` | Does it find *every* change in a release note written the way vendors write them? | `evals/datasets/release_notes/` |
 | `api_diff` | Does it read the right changes out of two versions of a library? | `evals/datasets/api_diff/` |
+| `openapi_diff` | Does it read the right changes out of two versions of an OpenAPI spec? | `evals/datasets/openapi_diff/` |
 | `impact` | Which sites does it find, and which does it rewrite? | `evals/datasets/impact/` |
 | `adversarial` | The same, on cases written to fool it | `evals/datasets/adversarial/` |
 | `migrations` | Does a whole engine run take a real repository from red to green? | `evals/datasets/migrations/` |
@@ -90,6 +91,21 @@ deprecated function that calls a helper without naming a replacement), and
 pydantic 1 -> 2 (a re-export dropped from a secondary module, an argument
 warning mistaken for a deprecated method, `use_proxy` and `slots` sharing a
 parameter slot, `dict` -> `model_dump` as a compatible superset).
+
+### `openapi_diff`
+
+Specs written twice and every change a correct reading finds, scored the same
+way as `api_diff`. Most cases are things that must *not* read as a rename: a
+property replaced by one of a different type, two same-type candidates, one
+candidate for two removed properties, a property that moved to another schema,
+the same name on an unrelated schema, a deprecation that names no replacement,
+and an `operationId` change that derives the same Python method.
+
+It was also run on GitHub's REST API description, January 2024 against January
+2025 (694 schemas, 912 operations). It read three `operationId` renames, all
+real -- a typo fix and two Copilot renames -- and no property renames. Where
+`copilot_chat` was split into four new fields, it reported the property as
+ambiguous rather than picking one.
 
 ### `impact` and `adversarial`
 

@@ -11,7 +11,15 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from evals.harness.result import SuiteResult
-from evals.suites import api_diff, classification, migrations, release_notes, sites, validation
+from evals.suites import (
+    api_diff,
+    classification,
+    migrations,
+    openapi_diff,
+    release_notes,
+    sites,
+    validation,
+)
 
 #: Ordered cheapest-first, so a dataset mistake or a classification regression
 #: surfaces in milliseconds instead of after the suites that spawn subprocesses.
@@ -19,6 +27,7 @@ SUITES: dict[str, Callable[[], SuiteResult]] = {
     "classification": classification.run,
     "release_notes": release_notes.run,
     "api_diff": api_diff.run,
+    "openapi_diff": openapi_diff.run,
     "impact": sites.run_impact,
     "adversarial": sites.run_adversarial,
     "migrations": migrations.run,
@@ -30,6 +39,7 @@ __all__ = [
     "api_diff",
     "classification",
     "migrations",
+    "openapi_diff",
     "release_notes",
     "sites",
     "validation",
