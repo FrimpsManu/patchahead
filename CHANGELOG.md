@@ -7,6 +7,8 @@ this project uses [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.8.1] — 2026-10-05
+
 ### Added
 
 - **A third real-world study: five years of GitHub's and Stripe's OpenAPI
@@ -738,7 +740,8 @@ how each defect was verified.
 
 Hackathon prototype. Two hardcoded demo scenarios.
 
-[Unreleased]: https://github.com/FrimpsManu/patchahead/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/FrimpsManu/patchahead/compare/v0.8.1...HEAD
+[0.8.1]: https://github.com/FrimpsManu/patchahead/releases/tag/v0.8.1
 [0.8.0]: https://github.com/FrimpsManu/patchahead/releases/tag/v0.8.0
 [0.7.0]: https://github.com/FrimpsManu/patchahead/releases/tag/v0.7.0
 [0.6.0]: https://github.com/FrimpsManu/patchahead/releases/tag/v0.6.0
