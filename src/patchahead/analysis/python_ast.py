@@ -174,7 +174,9 @@ def receiver_matches_owner(receiver: str, owner: str) -> bool:
     # An API reference names the class (`Charge`, `PaymentIntent`); code names
     # the instance (`charge`, `payment_intent`) -- often with a qualifier in
     # front (`api_client`, `self._client` for a `Client`). Same object.
-    wanted = _snake(owner)
+    # A dotted object name (Stripe's `checkout.session`) is called by its last
+    # part in code: `session`, `checkout_session`.
+    wanted = _snake(owner.rsplit(".", 1)[-1])
 
     def names_owner(segment: str) -> bool:
         name = _snake(segment).lstrip("_")
@@ -184,8 +186,8 @@ def receiver_matches_owner(receiver: str, owner: str) -> bool:
 
 
 def _snake(name: str) -> str:
-    """``PaymentIntent`` -> ``payment_intent``; ``order`` is unchanged."""
-    return re.sub(r"(?<=[a-z0-9])(?=[A-Z])", "_", name).lower()
+    """``PaymentIntent`` -> ``payment_intent``; hyphens become underscores."""
+    return re.sub(r"(?<=[a-z0-9])(?=[A-Z])", "_", name).lower().replace("-", "_")
 
 
 def iter_own_scope(node: ast.AST) -> Iterator[ast.AST]:

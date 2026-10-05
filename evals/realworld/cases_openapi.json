@@ -1,0 +1,1189 @@
+{
+  "description": "Public repositories whose Python code contains the old name of a rename read from GitHub's or Stripe's OpenAPI spec history, found by GitHub code search in October 2026. Most use the same word for something else; those are the precision test. Each is pinned to the commit replayed, with the files the search matched.",
+  "renames": {
+    "q1": {
+      "kind": "field_rename",
+      "symbol": "usage_threshold_config",
+      "replacement": "usage_threshold",
+      "owner": "billing.alert",
+      "api": "Stripe",
+      "when": "2024-10"
+    },
+    "q2": {
+      "kind": "field_rename",
+      "symbol": "volume_decimal",
+      "replacement": "quantity_decimal",
+      "owner": "issuing_transaction_fuel_data",
+      "api": "Stripe",
+      "when": "2024-07"
+    },
+    "q3": {
+      "kind": "field_rename",
+      "symbol": "dismissed_note",
+      "replacement": "dismissed_comment",
+      "owner": "code-scanning-alert",
+      "api": "GitHub",
+      "when": "2022-06"
+    },
+    "q4": {
+      "kind": "field_rename",
+      "symbol": "shipping",
+      "replacement": "shipping_details",
+      "owner": "checkout.session",
+      "api": "Stripe",
+      "when": "2022-09"
+    },
+    "q6": {
+      "kind": "endpoint_move",
+      "symbol": "/repos/{owner}/{repo}/pages/deployment",
+      "replacement": "/repos/{owner}/{repo}/pages/deployments",
+      "owner": "POST /repos/{owner}/{repo}/pages/deployment",
+      "api": "GitHub",
+      "when": "2024-02"
+    }
+  },
+  "cases": [
+    {
+      "rename": "q1",
+      "repo": "Sideko-Inc/sideko-stripe-python",
+      "commit": "6cb5a276f95f3866b2d2634d5e45cb0cce68663e",
+      "paths": [
+        "sideko_stripe/types/models/billing_alert.py",
+        "sideko_stripe/types/models/__init__.py"
+      ]
+    },
+    {
+      "rename": "q1",
+      "repo": "mohdrayyan025/Online-Auction-System",
+      "commit": "84bde672750d32cfbdbe02922a2be0b9c14ddff1",
+      "paths": [
+        "venv/Lib/site-packages/stripe/billing/_alert.py"
+      ]
+    },
+    {
+      "rename": "q1",
+      "repo": "MukiibiVictor/Group_BSE24-32",
+      "commit": "321a11f55f2f6f7face8088d3039fb0dac0f8bf0",
+      "paths": [
+        ".venv/Lib/site-packages/stripe/billing/_alert.py"
+      ]
+    },
+    {
+      "rename": "q1",
+      "repo": "Msahoo876/Dendrite_Assignment",
+      "commit": "c60526ac86cf700a1aa20d74c57b28f5c8663345",
+      "paths": [
+        "dendrite/Lib/site-packages/stripe/billing/_alert.py"
+      ]
+    },
+    {
+      "rename": "q1",
+      "repo": "ellipsis52/accept-a-payment-on-webtechnicom",
+      "commit": "fabf3659127ff6150a4a5e38063f91cff904224e",
+      "paths": [
+        "webtechnicom-payment.py"
+      ]
+    },
+    {
+      "rename": "q1",
+      "repo": "RennexTech/CyberIOT",
+      "commit": "5841ca6f8dca6d605c46dabce2865b661ce94c43",
+      "paths": [
+        "venv/Lib/site-packages/stripe/billing/_alert.py",
+        "venv/Lib/site-packages/stripe/billing/_alert_service.py"
+      ]
+    },
+    {
+      "rename": "q1",
+      "repo": "bardsley/merseysidelatinfestival",
+      "commit": "da277a83561f3fe041a6c4d9a37de3f90a8b4bb3",
+      "paths": [
+        "functions/_layers/stripe/python/stripe/billing/_alert.py",
+        "functions/_layers/stripe/python/stripe/billing/_alert_service.py"
+      ]
+    },
+    {
+      "rename": "q1",
+      "repo": "HawaKallon/_SmartRent",
+      "commit": "c78fb96f58aeb36699d53aabf4f139ec36443bdf",
+      "paths": [
+        "Smart_Rent/.venv/Lib/site-packages/stripe/billing/_alert.py"
+      ]
+    },
+    {
+      "rename": "q1",
+      "repo": "md-asif-iqbal/job_portal",
+      "commit": "2d299d8133d64bf455f1fabee7c85507703d0a42",
+      "paths": [
+        "new_env/Lib/site-packages/stripe/billing/_alert.py"
+      ]
+    },
+    {
+      "rename": "q1",
+      "repo": "Hadil-Ben-Abdallah/Smartimo",
+      "commit": "9287003911df9ccd67c48261e5a344c9ad65fb7a",
+      "paths": [
+        "backend/venv/Lib/site-packages/stripe/billing/_alert.py",
+        "backend/venv/Lib/site-packages/stripe/billing/_alert_service.py"
+      ]
+    },
+    {
+      "rename": "q1",
+      "repo": "Nomee07/ShopEase",
+      "commit": "edc940d184ddc86596d908f275038b266945aea5",
+      "paths": [
+        "backend/venv/lib/site-packages/stripe/billing/_alert.py",
+        "backend/venv/lib/site-packages/stripe/billing/_alert_service.py"
+      ]
+    },
+    {
+      "rename": "q1",
+      "repo": "EmanuelSolver/Kenya-Data-Viz",
+      "commit": "b207bfc1e77f0d11b79c236f1e2917e792c384fa",
+      "paths": [
+        "venv/Lib/site-packages/stripe/billing/_alert.py",
+        "venv/Lib/site-packages/stripe/billing/_alert_service.py"
+      ]
+    },
+    {
+      "rename": "q1",
+      "repo": "DSwithSiam/restaurant_management",
+      "commit": "11ee88d6531ce7c0023619e4303fa89333d39f81",
+      "paths": [
+        "venv/Lib/site-packages/stripe/billing/_alert.py",
+        "venv/Lib/site-packages/stripe/billing/_alert_service.py"
+      ]
+    },
+    {
+      "rename": "q1",
+      "repo": "Ethra8/english-grows",
+      "commit": "b33c23483f47ed69797a113944e05fac37fa3766",
+      "paths": [
+        "venv/Lib/site-packages/stripe/billing/_alert.py",
+        "venv/Lib/site-packages/stripe/billing/_alert_service.py"
+      ]
+    },
+    {
+      "rename": "q1",
+      "repo": "Kenneth12222/backend-ecommerce-app",
+      "commit": "312e8f9ccd432b2f707831fc17127368353fdc6e",
+      "paths": [
+        "venv/Lib/site-packages/stripe/billing/_alert.py",
+        "venv/Lib/site-packages/stripe/billing/_alert_service.py"
+      ]
+    },
+    {
+      "rename": "q1",
+      "repo": "jandejager10/boutique_ado_v1",
+      "commit": "f019fc48496f79b9fb027b7c1f37886274d02b89",
+      "paths": [
+        "venv/Lib/site-packages/stripe/billing/_alert.py",
+        "venv/Lib/site-packages/stripe/billing/_alert_service.py"
+      ]
+    },
+    {
+      "rename": "q1",
+      "repo": "Nandhu2024/Cineon",
+      "commit": "781f71378335dbf1d418d85e436e820db11190ed",
+      "paths": [
+        "myenv/Lib/site-packages/stripe/billing/_alert.py",
+        "myenv/Lib/site-packages/stripe/billing/_alert_service.py"
+      ]
+    },
+    {
+      "rename": "q1",
+      "repo": "godwinj96/iweminewbackend",
+      "commit": "5437c4fdb9c5d00bc44d4645b5cc2b8d5bddcab0",
+      "paths": [
+        ".venv/Lib/site-packages/stripe/billing/_alert.py",
+        ".venv/Lib/site-packages/stripe/billing/_alert_service.py"
+      ]
+    },
+    {
+      "rename": "q1",
+      "repo": "mparker-landt/Milestone_Project_4",
+      "commit": "f72f63a5ca5203d0a8211d8e7b5cf6ce928c25b7",
+      "paths": [
+        ".venv/Lib/site-packages/stripe/billing/_alert.py",
+        ".venv/Lib/site-packages/stripe/billing/_alert_service.py"
+      ]
+    },
+    {
+      "rename": "q1",
+      "repo": "martinvega2003/ecom-django-react",
+      "commit": "70834459f1013f54f7933d1e6531fe35441431fb",
+      "paths": [
+        "myenv/Lib/site-packages/stripe/billing/_alert.py",
+        "myenv/Lib/site-packages/stripe/billing/_alert_service.py"
+      ]
+    },
+    {
+      "rename": "q1",
+      "repo": "Alexander1411/DjangoOnlineBook",
+      "commit": "1afe9fdc6e7d55b84e7a4039641f773fba8ca292",
+      "paths": [
+        "my_env/Lib/site-packages/stripe/billing/_alert.py",
+        "my_env/Lib/site-packages/stripe/billing/_alert_service.py"
+      ]
+    },
+    {
+      "rename": "q1",
+      "repo": "nickswaya/Winerr",
+      "commit": "61daa23879b4e9773c732f670cac5dcd20bfaa21",
+      "paths": [
+        "venv/Lib/site-packages/stripe/billing/_alert_service.py"
+      ]
+    },
+    {
+      "rename": "q1",
+      "repo": "DaisukeHori/stripe-customer-search-lambda",
+      "commit": "61ba65e5f4bdd1493bd05f820991eb604fa65842",
+      "paths": [
+        ".aws-sam/build/FastApiFunction/stripe/billing/_alert.py",
+        ".aws-sam/build/FastApiFunction/stripe/billing/_alert_service.py"
+      ]
+    },
+    {
+      "rename": "q1",
+      "repo": "CrisMachuca/RaverTroters",
+      "commit": "c66f83164ef85a674160aaf5016e2f0f66d6a4ee",
+      "paths": [
+        "backend/venv/Lib/site-packages/stripe/billing/_alert.py",
+        "backend/venv/Lib/site-packages/stripe/billing/_alert_service.py"
+      ]
+    },
+    {
+      "rename": "q1",
+      "repo": "ENOCK2008/enoch-shopping",
+      "commit": "2924acd0ca49c5e359d3ebc00e94abf21ccfffd6",
+      "paths": [
+        "venv/Lib/python3.12/site-packages/stripe/billing/_alert.py",
+        "venv/Lib/python3.12/site-packages/stripe/billing/_alert_service.py"
+      ]
+    },
+    {
+      "rename": "q2",
+      "repo": "BeckmaR/CoinbaseData",
+      "commit": "9deec0aafbd24f6d4835bf9620fb029640734d92",
+      "paths": [
+        "python_influx/Coinbase/trade.py"
+      ]
+    },
+    {
+      "rename": "q2",
+      "repo": "louz514/oraclexbt",
+      "commit": "e474a9cfd138fb9d82e55a6b157586da325c4c9a",
+      "paths": [
+        "oraclyst_sdk/models/markets.py"
+      ]
+    },
+    {
+      "rename": "q2",
+      "repo": "Finnlayy/Neo_Fabel",
+      "commit": "62895ec3f948387793ce7efa6ffc18f9ba62b57e",
+      "paths": [
+        "backend/app/signals/schemas.py",
+        "backend/app/signals/service.py"
+      ]
+    },
+    {
+      "rename": "q2",
+      "repo": "garethdmm/gryphon",
+      "commit": "73e19fa2d0b64c3fc7dac9e0036fc92e25e5b694",
+      "paths": [
+        "gryphon/lib/exchange/gemini_zec_usd.py",
+        "gryphon/lib/exchange/gemini_eth_usd.py",
+        "gryphon/lib/exchange/gemini_eth_btc.py",
+        "gryphon/lib/exchange/gemini_ltc_usd.py",
+        "gryphon/lib/exchange/bitstamp_btc_eur.py",
+        "gryphon/lib/exchange/bitstamp_eth_btc.py",
+        "gryphon/lib/exchange/bitstamp_bch_usd.py",
+        "gryphon/lib/exchange/bitstamp_bch_eur.py",
+        "gryphon/lib/exchange/bitstamp_bch_btc.py",
+        "gryphon/lib/exchange/gemini_btc_usd.py",
+        "gryphon/lib/exchange/bitstamp_btc_usd.py"
+      ]
+    },
+    {
+      "rename": "q2",
+      "repo": "shane-mason/FieldStation42",
+      "commit": "ca585d3ae8038e8d3e3c67ce902a48e8b8e61199",
+      "paths": [
+        "fs42/fs42_server/api/player.py"
+      ]
+    },
+    {
+      "rename": "q2",
+      "repo": "sbalghari/sbdots",
+      "commit": "20b6eaaaa579ef60f8bc3de9bbab193b2a0c1d01",
+      "paths": [
+        "src/sbdots/actions/volume.py"
+      ]
+    },
+    {
+      "rename": "q2",
+      "repo": "Jeonghwan-Cheon/lob-deep-learning",
+      "commit": "91b8d2ef13c6c5a3d6ae1bd78c4d7bc34eb512ef",
+      "paths": [
+        "loaders/krx_preprocess.py"
+      ]
+    },
+    {
+      "rename": "q2",
+      "repo": "taos-im/sn-79",
+      "commit": "47932d4c7bca8403f9a2942903d153a39caa7f5f",
+      "paths": [
+        "GenTRX/src/util/state_replay.py",
+        "taos/im/utils/history.py",
+        "GenTRX/src/util/schema.py"
+      ]
+    },
+    {
+      "rename": "q2",
+      "repo": "tigerfintech/openapi-python-sdk",
+      "commit": "e30d794489d09ce899536333d278d5356883dc13",
+      "paths": [
+        "tigeropen/quote/quote_client.py"
+      ]
+    },
+    {
+      "rename": "q2",
+      "repo": "massive-com/community",
+      "commit": "79d00b49f42fa7b4ca35583a7b19a7f6a26cb9b9",
+      "paths": [
+        "examples/rest/fractional-share-precision/main.py"
+      ]
+    },
+    {
+      "rename": "q2",
+      "repo": "c3g/freezeman",
+      "commit": "742de62e235bebf8a63617f326c5f354886c8f2b",
+      "paths": [
+        "backend/fms_core/template_importer/importers/extraction.py"
+      ]
+    },
+    {
+      "rename": "q2",
+      "repo": "loxjbve/cyberwaifu_bot",
+      "commit": "703b4eda9ba47879e1b2920c80b969733014797e",
+      "paths": [
+        "agent/tools.py"
+      ]
+    },
+    {
+      "rename": "q2",
+      "repo": "RA-CONSULTING/Aureon-OS",
+      "commit": "c5812d8fac79e5409a31f312b1f135f8d228a7e6",
+      "paths": [
+        "aureon/exchanges/kraken_client.py"
+      ]
+    },
+    {
+      "rename": "q2",
+      "repo": "ronb1964/TalkType",
+      "commit": "642ab7e8411e0ed0a0b7b4bd19fad015959b6f74",
+      "paths": [
+        "src/talktype/prefs.py"
+      ]
+    },
+    {
+      "rename": "q2",
+      "repo": "MTES-MCT/carbure",
+      "commit": "80b76989ecc4eb695084bae83cec21426d0ab96d",
+      "paths": [
+        "web/tiruert/services/operation.py"
+      ]
+    },
+    {
+      "rename": "q2",
+      "repo": "nicolasrocha0809-png/V-Inc-TCC",
+      "commit": "605304bf809c54846f672a71ccd91f9e943df97f",
+      "paths": [
+        "teste_voz.py"
+      ]
+    },
+    {
+      "rename": "q2",
+      "repo": "kevinwan/souchela",
+      "commit": "5f288a585ab116782a3afc62fcb85d4ee1e8e288",
+      "paths": [
+        "souche/apps/carmodel/fields.py"
+      ]
+    },
+    {
+      "rename": "q2",
+      "repo": "Karthik7i/ai-research-agent",
+      "commit": "0f937a47b9357602b81d5a2e2a80f5808b3289dc",
+      "paths": [
+        "src/data_quality.py"
+      ]
+    },
+    {
+      "rename": "q2",
+      "repo": "lopoliu/BlockChain",
+      "commit": "7a52d332d5d40a5b9bcd22e5bc904c46913d8977",
+      "paths": [
+        "services/counterServer.py"
+      ]
+    },
+    {
+      "rename": "q2",
+      "repo": "hichang4u/upbit_auto_trading",
+      "commit": "3e8cdd828758cff87c0a4241c06171139b0c891b",
+      "paths": [
+        "config/config.py"
+      ]
+    },
+    {
+      "rename": "q2",
+      "repo": "Ra2den/Solino-Intelligent-Speaking-Alarm",
+      "commit": "e580290c57374022412b2c5bbadd15d435426f9a",
+      "paths": [
+        "backend/src/play_audio.py"
+      ]
+    },
+    {
+      "rename": "q2",
+      "repo": "weihong931021/MaiCoin-Hackathon",
+      "commit": "1d778f5c419fa4354c23a971e7b0ff4cbdc2e69c",
+      "paths": [
+        "backend/app/core/trade.py"
+      ]
+    },
+    {
+      "rename": "q2",
+      "repo": "ndmichael/ump-crypto-predictor",
+      "commit": "e6c91e556b4ef362076159bf5a666a5cf16b48dd",
+      "paths": [
+        "predictor/views.py"
+      ]
+    },
+    {
+      "rename": "q2",
+      "repo": "raymizzou/open_trader",
+      "commit": "999d3af9bf1d45b05add09bc92cf528f48142e7b",
+      "paths": [
+        "src/open_trader/polymarket_trading.py"
+      ]
+    },
+    {
+      "rename": "q2",
+      "repo": "Hunndayne/VNUTOUR",
+      "commit": "4aacd7c2b6d1893fac08c1891d50544364b0a317",
+      "paths": [
+        "backend/src/commands/music_commands.py"
+      ]
+    },
+    {
+      "rename": "q3",
+      "repo": "judder659/Forven",
+      "commit": "d0e16264561bbcad89d0af2eff73a92fd2d99669",
+      "paths": [
+        "forven/api_domains/tasks.py",
+        "forven/db.py",
+        "tests/test_api_domains_tasks.py"
+      ]
+    },
+    {
+      "rename": "q3",
+      "repo": "Squiblydoo/moonshine",
+      "commit": "8abd9b5fe0108e95f941ee8dde136a7ba4efd01d",
+      "paths": [
+        "moonshine/storage/db.py"
+      ]
+    },
+    {
+      "rename": "q3",
+      "repo": "Framework-R-D/phlex",
+      "commit": "78ebe9112859ed8c79f20afb83bfa2ad71176f3b",
+      "paths": [
+        "scripts/check_codeql_alerts.py",
+        "scripts/test/test_check_codeql_alerts.py"
+      ]
+    },
+    {
+      "rename": "q3",
+      "repo": "Szesnasty/Jarvis",
+      "commit": "ea466359bcc23906411f5ef1ba4ca6c48a90ca41",
+      "paths": [
+        "backend/services/dismissed_suggestions.py"
+      ]
+    },
+    {
+      "rename": "q3",
+      "repo": "ThePyProgrammer/ResearchOS",
+      "commit": "856a5a251cf3d30f27f8ab4b06f1ae5ffe98ea3e",
+      "paths": [
+        "backend/agents/gap_analyzer.py"
+      ]
+    },
+    {
+      "rename": "q3",
+      "repo": "ukantjadia/robodialer",
+      "commit": "c73ee28a82c4ee714e669319b0eda50af9142be3",
+      "paths": [
+        "backend-database/backend/models/user_model.py",
+        "backend-database/backend/routes/release_note_routes.py"
+      ]
+    },
+    {
+      "rename": "q3",
+      "repo": "torchy55/Shelfarr",
+      "commit": "ff74dc39538c62a0701b41298bdb972fd5286595",
+      "paths": [
+        "shelfarr/db/persistence.py"
+      ]
+    },
+    {
+      "rename": "q3",
+      "repo": "nexis84/Rusty-ESI",
+      "commit": "da3b9fdc32e7dc13e99105571dcd3f9c1a78ed43",
+      "paths": [
+        "database/models.py",
+        "app.py"
+      ]
+    },
+    {
+      "rename": "q3",
+      "repo": "nuk3s/soc-ai",
+      "commit": "2528aab91903eea39183f1be29245c8363ab57e6",
+      "paths": [
+        "soc_ai/store/migrations/versions/0053_lead_decisions.py",
+        "soc_ai/store/leads.py",
+        "soc_ai/store/migrations/versions/0047_hunt_starters_and_lead_status.py",
+        "soc_ai/hunting/leads.py",
+        "soc_ai/store/models.py",
+        "soc_ai/api/webui/routes_hunts.py",
+        "tests/test_leads.py",
+        "tests/test_hunts_api.py",
+        "tests/test_leads_store.py"
+      ]
+    },
+    {
+      "rename": "q3",
+      "repo": "jwlai-cloud/crisis_resource_slack_nav",
+      "commit": "0b3edc5d6c9f66083fc711a55f28b16684e26ab9",
+      "paths": [
+        "listeners/actions/crisis_buttons.py"
+      ]
+    },
+    {
+      "rename": "q3",
+      "repo": "myblueprint-spaces/DistrictSync",
+      "commit": "bf9ce6fc55323d2f0d24ad5a1224c53d764cde4d",
+      "paths": [
+        "src/ui_flet/screens/home.py",
+        "tests/test_ui_flet_home_identity_cards.py"
+      ]
+    },
+    {
+      "rename": "q3",
+      "repo": "ShaivPandya/talisman",
+      "commit": "2bc76f6c90c24339267d5128d03141dc7345aaa2",
+      "paths": [
+        "api/gcp_state_migration.py",
+        "migrations/versions/20260509_0001_optimization_alert_resolution.py"
+      ]
+    },
+    {
+      "rename": "q3",
+      "repo": "rtrimble13/fafnir",
+      "commit": "5097644964eca2d343d7c3dc3e0ac3ebe40e7cea",
+      "paths": [
+        "src/fafnir/db/repository.py",
+        "test/fafnir/test_security_merge.py"
+      ]
+    },
+    {
+      "rename": "q3",
+      "repo": "bajutsu-e2e/bajutsu",
+      "commit": "ee570d84f08917d8f227f8f5d10cd75d1bf1f717",
+      "paths": [
+        "bajutsu/common/orchestrator/types/alert_guard_config.py",
+        "tests/orchestrator/test_native_alert_guard.py"
+      ]
+    },
+    {
+      "rename": "q3",
+      "repo": "mattwilson02/athena",
+      "commit": "aa137931774f70e4cffd1c850bb590ccc554b3a9",
+      "paths": [
+        "archive/mentor_agent.py"
+      ]
+    },
+    {
+      "rename": "q3",
+      "repo": "anjeelupreti/nirova",
+      "commit": "bdd3d6343cf2dc736719acb5ff47ed0791da6bca",
+      "paths": [
+        "backend/apps/notifications/api.py",
+        "backend/apps/notifications/services.py",
+        "backend/apps/notifications/models.py",
+        "backend/apps/notifications/migrations/0001_initial.py"
+      ]
+    },
+    {
+      "rename": "q3",
+      "repo": "Hydra-Of-Malice/caterpillar-hackathon",
+      "commit": "95c9df43c1fc087f4e7dd216249a67ccd516be07",
+      "paths": [
+        "sentinel/taskcentre/efficiency.py",
+        "tests/taskcentre/test_efficiency.py"
+      ]
+    },
+    {
+      "rename": "q3",
+      "repo": "porsche-design-system/testing",
+      "commit": "0e192ffa602d839ec70f42222b5c8b8e8b9daaf9",
+      "paths": [
+        ".agents/skills/a11y-severity-scoring/scripts/normalize-findings.py"
+      ]
+    },
+    {
+      "rename": "q3",
+      "repo": "linguistic76/skuel",
+      "commit": "045307b39005ff963c41751a6f8bb7fc7eb4f90e",
+      "paths": [
+        "app/core/models/insight/persisted_insight.py",
+        "app/adapters/inbound/insights_history_ui.py",
+        "app/adapters/persistence/neo4j/insight_backend.py"
+      ]
+    },
+    {
+      "rename": "q3",
+      "repo": "dushu2006/CrimeLink",
+      "commit": "ff672573e01a65eaf46359c3a816eabc918278a2",
+      "paths": [
+        "backend/app/investigator/hypotheses.py",
+        "backend/app/investigator/network_analysis.py",
+        "backend/app/investigator/orchestrator.py",
+        "backend/app/investigator/patterns.py",
+        "backend/tests/test_investigator.py"
+      ]
+    },
+    {
+      "rename": "q3",
+      "repo": "peeringdb/peeringdb",
+      "commit": "a296c6ed482f01826b8d8e041d8670dd4414455c",
+      "paths": [
+        "tests/test_ixf_member_views.py"
+      ]
+    },
+    {
+      "rename": "q3",
+      "repo": "imbue-ai/mngr",
+      "commit": "70a839affc8f6538c43533a899982e21b73d4800",
+      "paths": [
+        "apps/minds/imbue/minds/desktop_client/workspace_update_state_test.py"
+      ]
+    },
+    {
+      "rename": "q3",
+      "repo": "Braydenh563/MemoryMap-AI",
+      "commit": "f2ccd52af65852048c3b53ef753c1ad311d35127",
+      "paths": [
+        "tests/test_resurface_spec.py"
+      ]
+    },
+    {
+      "rename": "q3",
+      "repo": "ku-ro-wa/postprocessing-auto-caption-corrector",
+      "commit": "a6e82d819b9a27b91eaec7d0ceb01972f33390a4",
+      "paths": [
+        "tests/test_web_app.py"
+      ]
+    },
+    {
+      "rename": "q3",
+      "repo": "Adel199223/accessible_reader",
+      "commit": "948a0e1cbdf64677d7f15530fe21507609202894",
+      "paths": [
+        "backend/tests/test_api.py"
+      ]
+    },
+    {
+      "rename": "q4",
+      "repo": "franciscobmacedo/ecommerce-site",
+      "commit": "b557b882497581c7b03f581360865b61b6781891",
+      "paths": [
+        "ecommerce/views.py"
+      ]
+    },
+    {
+      "rename": "q4",
+      "repo": "JavaMorant/ZeroHours-Ecommerce",
+      "commit": "3e6cc02b523cdd155c4911557dcbc1c0d695338f",
+      "paths": [
+        "backend/app.py"
+      ]
+    },
+    {
+      "rename": "q4",
+      "repo": "pac-dan/pawsitive_training",
+      "commit": "e1d7c2314057860e5c7ed332d09eb79732fca69d",
+      "paths": [
+        "payments/views.py"
+      ]
+    },
+    {
+      "rename": "q4",
+      "repo": "kilbey-lyle/rockdrop",
+      "commit": "92ae6c715485af0e89f5858ee11316ef9aa84140",
+      "paths": [
+        "checkout/views.py"
+      ]
+    },
+    {
+      "rename": "q4",
+      "repo": "Jamie12341324/Book_Shop",
+      "commit": "55efc76a5cc42492543e3a7a5334e3c6ae6901fd",
+      "paths": [
+        "products/views.py"
+      ]
+    },
+    {
+      "rename": "q4",
+      "repo": "ryskkkkw/eFarm",
+      "commit": "a281e4af2c246e7a2e9e2d10c5678448dd95cfff",
+      "paths": [
+        "payments/views.py"
+      ]
+    },
+    {
+      "rename": "q4",
+      "repo": "Tymec/ProjektIO",
+      "commit": "391582af7bdce274401a4e0dab590ab6ae6faad1",
+      "paths": [
+        "backend/payments/views.py"
+      ]
+    },
+    {
+      "rename": "q4",
+      "repo": "kyan12/locoganga",
+      "commit": "57e38ecb23b5bff42df52b99e7f50beb1b561bb5",
+      "paths": [
+        "app/blueprints/checkout.py"
+      ]
+    },
+    {
+      "rename": "q4",
+      "repo": "AlexandraH-code/ms4-bookishnook",
+      "commit": "6bc77f8f8e1498bd8dc94bd9393a1ff0d8ac1cdc",
+      "paths": [
+        "checkout/views.py"
+      ]
+    },
+    {
+      "rename": "q4",
+      "repo": "ZahinHaqueKhan/dolly-bergmann",
+      "commit": "9708a97f5f9ea535a20de7577fc45652dec71304",
+      "paths": [
+        "backend/app/routers/webhooks.py"
+      ]
+    },
+    {
+      "rename": "q4",
+      "repo": "afnaann/Ecommerce-Backend",
+      "commit": "15306f87f095ee2d08819c97a4d297c3745f2cf9",
+      "paths": [
+        "payments/views.py"
+      ]
+    },
+    {
+      "rename": "q4",
+      "repo": "liamfrager/lakeshore-labradoodles-merch",
+      "commit": "bbbb13f8063f92436a6f51488168b1853b4a34e7",
+      "paths": [
+        "merch_shop/shop.py"
+      ]
+    },
+    {
+      "rename": "q4",
+      "repo": "ninjathlete/Bimini",
+      "commit": "22e0a22955a7359fe150aae9a6fe95a0baba6a49",
+      "paths": [
+        "backend/server.py"
+      ]
+    },
+    {
+      "rename": "q4",
+      "repo": "CharlesTWood/game",
+      "commit": "1e981d094f16dedf2fc031dcb9ca5a2c5db0526c",
+      "paths": [
+        "World-Wizard-API/server/website/api/orders/routes.py"
+      ]
+    },
+    {
+      "rename": "q4",
+      "repo": "liamfrager/python-practice",
+      "commit": "92a16b9eda2ac3d10a2f07fd293fd4c7f43e861e",
+      "paths": [
+        "97 Online Shop/lakeshore_labradoodles_online_shop/merch_shop/shop.py"
+      ]
+    },
+    {
+      "rename": "q4",
+      "repo": "EchoNin9/orangewhip.surf",
+      "commit": "465384fe5533af690f40327d3b7cc09a55850bcd",
+      "paths": [
+        "src/lambda/api/handler.py"
+      ]
+    },
+    {
+      "rename": "q4",
+      "repo": "jtrax22/delus-website",
+      "commit": "e2a6cb274d7b8959563a09de3dbccd379b2a0f9d",
+      "paths": [
+        "app.py"
+      ]
+    },
+    {
+      "rename": "q4",
+      "repo": "BLCtbc/dehy",
+      "commit": "35fb700bf4e211d5ceed825ce33cfdda04f11f1a",
+      "paths": [
+        "dehy/appz/checkout/views.py"
+      ]
+    },
+    {
+      "rename": "q4",
+      "repo": "carlosblancosierra/django-casspea",
+      "commit": "edd836512393af50415c991fd5ea9d1cc7ce4ea0",
+      "paths": [
+        "checkout/stripe_views.py",
+        "orders/models.py"
+      ]
+    },
+    {
+      "rename": "q4",
+      "repo": "carlosblancosierra/casspea-v2",
+      "commit": "8a53c3e23afa6cf87f11a8b3f761a36e8a77624e",
+      "paths": [
+        "checkout/stripe_utils.py",
+        "checkout/stripe_views.py",
+        "orders/models.py",
+        "checkout/tests.py"
+      ]
+    },
+    {
+      "rename": "q4",
+      "repo": "Njanja2025/Baddy-Agent",
+      "commit": "b95060592464ac1ed9aebb24290411d485aa3ec7",
+      "paths": [
+        "site/stripe_backend.py"
+      ]
+    },
+    {
+      "rename": "q4",
+      "repo": "bluemens/mowthosOS",
+      "commit": "7b74c314bf09e16123e1a2c7a13e01bcbf4f312a",
+      "paths": [
+        "src/services/payment/stripe_service.py"
+      ]
+    },
+    {
+      "rename": "q4",
+      "repo": "francescofum/wemake-django",
+      "commit": "dfcd107a9fae6f425ecbd756eacef6f476b9ceba",
+      "paths": [
+        "core/views.py"
+      ]
+    },
+    {
+      "rename": "q4",
+      "repo": "hardik-jabbar/FP",
+      "commit": "352869d97cd6dd23781e233528a186ce9f878ef6",
+      "paths": [
+        "FARMPOWER/app.py"
+      ]
+    },
+    {
+      "rename": "q4",
+      "repo": "Nsjminecraft/ShimplyShop",
+      "commit": "2f5a6eeb640485c5fde8c0fc85f53c561c4c5f97",
+      "paths": [
+        "app.py"
+      ]
+    },
+    {
+      "rename": "q4",
+      "repo": "Musaddikul/Bunoraa",
+      "commit": "dfceb216805a9c4d29d71c2c2c05511b15a436c7",
+      "paths": [
+        "apps/orders/services.py",
+        "apps/commerce/views.py"
+      ]
+    },
+    {
+      "rename": "q4",
+      "repo": "onecore/LineCMS",
+      "commit": "8604c6c8c4d3acc26ee10a272358048ddef9b4a8",
+      "paths": [
+        "engine/product.py"
+      ]
+    },
+    {
+      "rename": "q4",
+      "repo": "RosarioManny/Rugly_Barnacle_BE_2",
+      "commit": "00be78e320a587ac7ce1ef6aab61379945066b2f",
+      "paths": [
+        "main_app/services/email_service.py"
+      ]
+    },
+    {
+      "rename": "q4",
+      "repo": "RalIlieva/ecommerce-app-api",
+      "commit": "755af9d2466a6c76c37a41bbab17b4805fec3050",
+      "paths": [
+        "app/checkout/views.py"
+      ]
+    },
+    {
+      "rename": "q4",
+      "repo": "bashkimhashani/ecommerce-backend",
+      "commit": "e52b0afcc3754bae9d3407922f9d1c55985952ac",
+      "paths": [
+        "checkout/services.py",
+        "checkout/tests.py"
+      ]
+    },
+    {
+      "rename": "q4",
+      "repo": "MDSR-Tech/E-commerce_project",
+      "commit": "044c9638d3dfb10d4baebe536462fe4fd533ff57",
+      "paths": [
+        "backend/checkout.py"
+      ]
+    },
+    {
+      "rename": "q4",
+      "repo": "interactive-decision-support-system/idss-backend",
+      "commit": "04932fd2d85137de963efe38191a262e7a108ac4",
+      "paths": [
+        "mcp-server/app/acp_endpoints.py",
+        "mcp-server/app/acp_schemas.py"
+      ]
+    },
+    {
+      "rename": "q6",
+      "repo": "hunvreus/devpush",
+      "commit": "d67a99b62b3e2b044f1e0e9b06a3296fe1939fe3",
+      "paths": [
+        "app/routers/project.py"
+      ]
+    },
+    {
+      "rename": "q6",
+      "repo": "mathematical-tours/mathematical-tours.github.io",
+      "commit": "f90cff3e467d03e8af40a15743cd3fbaaf519fab",
+      "paths": [
+        "tools/deploy-pages.py"
+      ]
+    },
+    {
+      "rename": "q6",
+      "repo": "gtrivedi88/content-editorial-assistant",
+      "commit": "e5bf73008501af9e5b9383b6823e24423b76067d",
+      "paths": [
+        "docs/convert_adoc_to_md.py",
+        "legacy/docs/convert_adoc_to_md.py"
+      ]
+    },
+    {
+      "rename": "q6",
+      "repo": "Dev228-afk/ml-docs",
+      "commit": "9ece8536984e03af2314fe026de242f94a31f1b2",
+      "paths": [
+        "streamlit_app.py"
+      ]
+    },
+    {
+      "rename": "q6",
+      "repo": "bingooyong/repo-wiki-agent",
+      "commit": "1fe6840fc417454528f8fe50a7b4a8da5f6b237d",
+      "paths": [
+        "repo_wiki/planner/llm_planner.py",
+        "repo_wiki/planner/rule_first.py",
+        "repo_wiki/orchestration/service.py",
+        "repo_wiki/orchestration/content_layout_writer.py",
+        "tests/test_qoder_like_planner.py",
+        "tests/test_content_layout_writer.py"
+      ]
+    },
+    {
+      "rename": "q6",
+      "repo": "emcd/gh-repositor",
+      "commit": "df05a4a1887313b0694684a02c553afa1b7d711b",
+      "paths": [
+        "create-repo.py"
+      ]
+    },
+    {
+      "rename": "q6",
+      "repo": "mongodb/mongodb-ai-search",
+      "commit": "ad209d7703bd12bcefcdf8b9088e4cfdef262d7a",
+      "paths": [
+        "tools/build_docs_site.py"
+      ]
+    },
+    {
+      "rename": "q6",
+      "repo": "isard-vdi/isard",
+      "commit": "070b720e7648edf4b46d38f07109b2c1c18a69ca",
+      "paths": [
+        "webapp/src/webapp/views/AdminViews.py",
+        "webapp/tests/test_views.py"
+      ]
+    },
+    {
+      "rename": "q6",
+      "repo": "LianjiaTech/sosotest",
+      "commit": "091863dee531b5726650bb63efd6f169267cbeb4",
+      "paths": [
+        "AutotestWebD/apps/deployment_tool/views/deployment_tool.py"
+      ]
+    },
+    {
+      "rename": "q6",
+      "repo": "duanechanxj-cloud/sci-diagnostic",
+      "commit": "c29fd3d3f3bdf9b8ff492ca839875be34962abe9",
+      "paths": [
+        "app/streamlit_app.py",
+        "scripts/verify_v252_release.py",
+        "tests/test_v250.py",
+        "tests/test_v252.py"
+      ]
+    },
+    {
+      "rename": "q6",
+      "repo": "auraofintelligence/JRA-Product-Engine-Plan",
+      "commit": "eca1940cfe7f6f9b9eb359f1f3eaf58cd53fd0a7",
+      "paths": [
+        "scripts/connections.py"
+      ]
+    },
+    {
+      "rename": "q6",
+      "repo": "kuhlman-labs/octopy-admin",
+      "commit": "7e9318fe1de15f347f747a6d5583b8b96c96ec9e",
+      "paths": [
+        "octopy_admin/rest/apis/repos/repos.py",
+        "octopy_admin/rest_enterprise_cloud/apis_enterprise_cloud/repos/repos.py"
+      ]
+    },
+    {
+      "rename": "q6",
+      "repo": "adrianfagerland/hackeurope",
+      "commit": "a36ddbaf4b477bac5c6cef284d652feabbaf1443",
+      "paths": [
+        "guard/seed_demo_data.py"
+      ]
+    },
+    {
+      "rename": "q6",
+      "repo": "pallaprolus/kube-foresight",
+      "commit": "76677f96f00dc6be5204b7caa401f3ad90cd665a",
+      "paths": [
+        "kube_foresight/dashboard/routes/pages.py"
+      ]
+    },
+    {
+      "rename": "q6",
+      "repo": "xxxyz1949/SimpleWinPlayer",
+      "commit": "8d0aeaae1f483480581c043ec11dd2f53d94d9a2",
+      "paths": [
+        "GradeEstimate/preflight_check.py"
+      ]
+    },
+    {
+      "rename": "q6",
+      "repo": "xxxyz1949/xjtlu-marks",
+      "commit": "d59784320810778d56690333da2cca83fa0fb79f",
+      "paths": [
+        "GradeEstimate/preflight_check.py"
+      ]
+    },
+    {
+      "rename": "q6",
+      "repo": "charis-angelos/presenter",
+      "commit": "9cdd7f97a3284f03e91971888c9b6dd5e36e0391",
+      "paths": [
+        "docs-site/conf.py"
+      ]
+    },
+    {
+      "rename": "q6",
+      "repo": "ian-t-adams/AI4IA",
+      "commit": "84d9662fa185368827bd6a78f712dd86fe3ac996",
+      "paths": [
+        "scripts/gen-proxy-provenance.py",
+        "scripts/tests/test_proxy_provenance.py"
+      ]
+    },
+    {
+      "rename": "q6",
+      "repo": "trevorhobenshield/github_api_sdk",
+      "commit": "fe7f776c273ff99a6dbfde07047b9f9e84ad8cbc",
+      "paths": [
+        "github_api_sdk/resources/repos/pages/deployments.py"
+      ]
+    },
+    {
+      "rename": "q6",
+      "repo": "afraznein/KTPInfrastructure",
+      "commit": "be83b05bf38017052461e9c5f5bcbf04bb121f20",
+      "paths": [
+        "scripts/prepare_lane_b_pages.py",
+        "tests/unit/test_lane_b_pages_workflow.py"
+      ]
+    },
+    {
+      "rename": "q6",
+      "repo": "HingeCraftGlobal/hingecraft-global",
+      "commit": "25f893588f72763a6c7c4c219bc5c160a1051a3a",
+      "paths": [
+        "comprehensive_project_organization.py"
+      ]
+    },
+    {
+      "rename": "q6",
+      "repo": "s3c2/cosseter",
+      "commit": "6ba44ae7ada81d4cd4ec78a75bd21e90d28b048e",
+      "paths": [
+        "artifact/ActionAnalyzer/permissionExtraction/endpointsUpdated.py"
+      ]
+    },
+    {
+      "rename": "q6",
+      "repo": "nckslvrmn/github_cleaner",
+      "commit": "f1f5574d1a374cbce38cc9998b313b60d52eaf99",
+      "paths": [
+        "cleaners/pages.py"
+      ]
+    },
+    {
+      "rename": "q6",
+      "repo": "hispark-rs/hisi-riscv-rs",
+      "commit": "5f109fe5456c357fb5d5f012668739e634a261a3",
+      "paths": [
+        "scripts/deploy-pages.py"
+      ]
+    },
+    {
+      "rename": "q6",
+      "repo": "neknaj/NEPL3",
+      "commit": "0c91be4bed6d38845644b49869b7827eeb3aa81d",
+      "paths": [
+        "tools/site/deployment/receipt.py",
+        "tools/site/deployment/create.py",
+        "tools/site/test_deployment.py",
+        "tools/site/test_poll.py",
+        "tools/site/test_status_worker.py",
+        "tools/site/test_transport.py",
+        "tools/site/test_submit_callbacks.py",
+        "tools/site/test_create.py",
+        "tools/site/test_receipt_journal.py"
+      ]
+    }
+  ]
+}

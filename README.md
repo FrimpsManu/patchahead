@@ -283,9 +283,9 @@ special cases. More detail: [docs/architecture.md](docs/architecture.md).
 
 ## How it is measured
 
-- **668 automated tests**, covering unit, integration, and full end-to-end runs
+- **675 automated tests**, covering unit, integration, and full end-to-end runs
   with real test subprocesses.
-- **An evaluation benchmark of 195 cases**, run on every CI build: release notes
+- **An evaluation benchmark of 198 cases**, run on every CI build: release notes
   written the way vendors write them, before-and-after library versions
   (including what requests and pydantic actually did), before-and-after OpenAPI
   specs, repositories built to trick it (unrelated objects with the same field
@@ -299,8 +299,13 @@ special cases. More detail: [docs/architecture.md](docs/architecture.md).
   re-migrated by PatchAhead: pydantic 1 -> 2 from nothing but the two library
   versions, and Python 3.12's `unittest` removals from CPython's own release
   note. **509 edits, 337 identical to the maintainers', 0 wrong**; the rest were
-  checked against each receiver's class. Method, results, and the wrong edits
-  earlier runs made and how they were fixed: [docs/real-world.md](docs/real-world.md).
+  checked against each receiver's class.
+- **Run on five years of real API specs.** `openapi-diff` on every month of
+  GitHub's and Stripe's OpenAPI specs from 2021 to 2025 read 98 renames and
+  moves, all checked and correct. Applied to 132 public repositories that use
+  the same words, it made 13 edits, all correct, and none on the unrelated
+  code. Method, results, and the mistakes earlier runs made and how they were
+  fixed: [docs/real-world.md](docs/real-world.md).
 - **Known gaps are recorded, not hidden.** Four cases describe things it does
   not do yet, and all of them fail safely by doing nothing. They are listed in
   [docs/evaluation.md](docs/evaluation.md#the-gaps-that-remain).
@@ -334,7 +339,7 @@ Run it yourself with `python evals/run.py`.
 | [docs/migrations.md](docs/migrations.md) | Each kind of change in detail, including what it refuses |
 | [docs/safety.md](docs/safety.md) | What it protects you from, and what it does not |
 | [docs/evaluation.md](docs/evaluation.md) | The benchmark, and how to add a case |
-| [docs/real-world.md](docs/real-world.md) | Replaying real migrations: pydantic 1 -> 2, and Python 3.12's unittest removals |
+| [docs/real-world.md](docs/real-world.md) | Replaying real migrations: pydantic 1 -> 2, Python 3.12's unittest removals, and five years of GitHub's and Stripe's OpenAPI specs |
 | [docs/contributing.md](docs/contributing.md) | Setting up, and adding a new kind of change |
 
 ## License

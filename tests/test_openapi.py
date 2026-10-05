@@ -60,6 +60,32 @@ class TestReading:
             "either": "string",
         }
 
+    def test_a_named_plain_value_is_its_value_and_an_inline_object_its_fields(self):
+        """Both found replaying real specs: GitHub's `dismissed_note` -> `dismissed_comment`
+        (two named `type: string` schemas) was missed, and Stripe's `returns` and
+        `line_items` (two inline objects) were read as one renamed to the other."""
+        document = spec(
+            {
+                "Note": {"type": "string", "nullable": True},
+                "Owner": obj(name=STRING),
+                "Order": obj(
+                    note={"$ref": "#/components/schemas/Note"},
+                    owner={"$ref": "#/components/schemas/Owner"},
+                    returns={"type": "object", "properties": {"data": {"type": "array"}}},
+                ),
+            }
+        )
+
+        shapes = {
+            p.name: p.shape for p in openapi.read(document).schemas["Order"].properties.values()
+        }
+
+        assert shapes == {
+            "note": "string",
+            "owner": "ref:Owner",
+            "returns": "object{data:array<any>}",
+        }
+
     def test_all_of_members_are_merged_and_cycles_stop(self):
         document = spec(
             {
