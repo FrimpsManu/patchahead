@@ -160,6 +160,56 @@ class TestWhatIsLeft:
         assert run.complete is False
 
 
+class TestWhoseDictionary:
+    """A dictionary literal with the old key is unfinished -- unless it is another object's."""
+
+    FILES = {
+        "app/__init__.py": "",
+        "app/report.py": 'def revenue(orders):\n    return sum(order["total"] for order in orders)\n',
+        "tests/test_report.py": """
+            ORDERS = [
+                {"id": "1", "total": 10, "customer": {"name": "Ada", "total": 250}},
+            ]
+            customer = {"name": "Bo", "total": 20}
+            order = {"id": "2", "total": 5}
+
+
+            def make(**kwargs):
+                return kwargs
+
+
+            ARGS = make(customer={"total": 1}, order={"total": 2})
+        """,
+    }
+
+    def found(self, make_repo, write_change):
+        _, found = residuals(make_repo(self.FILES), write_change(FIELD_RENAME_DOC))
+        return {line: r.kind for (path, line), r in found.items() if path == "tests/test_report.py"}
+
+    def test_a_dictionary_named_for_another_object_is_left_on_purpose(
+        self, make_repo, write_change
+    ):
+        kinds = self.found(make_repo, write_change)
+
+        # Line 2 has both: the order's own key is reported once, as unfinished.
+        assert kinds[2] is ResidualKind.TEST
+        assert kinds[4] is ResidualKind.OTHER_OBJECT  # customer = {...}
+        assert kinds[5] is ResidualKind.TEST  # order = {...}
+        # customer={...} comes first on line 12, but the order's key beside it is
+        # unfinished, and unfinished work is never hidden behind a mention.
+        assert kinds[12] is ResidualKind.TEST
+
+    def test_the_customer_value_of_a_key_is_the_customers(self, make_repo, write_change):
+        files = dict(
+            self.FILES,
+            **{"tests/test_report.py": 'C = {"customer": {"name": "Ada", "total": 250}}\n'},
+        )
+        _, found = residuals(make_repo(files), write_change(FIELD_RENAME_DOC))
+
+        assert found[("tests/test_report.py", 1)].kind is ResidualKind.OTHER_OBJECT
+        assert "`customer`" in found[("tests/test_report.py", 1)].reason
+
+
 class TestReporting:
     def test_the_terminal_lists_unfinished_work_and_counts_mentions(self, make_repo, write_change):
         run, _ = residuals(make_repo(INCOMPLETE), write_change(METHOD_DOC))

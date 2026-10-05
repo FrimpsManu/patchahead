@@ -270,8 +270,13 @@ the old name still appears, and sorts what it finds:
 | `code` | `from sdk import fetch_orders`; `{"total": 5}` sent to an API that renamed the field | yes |
 | `dynamic` | `getattr(client, "fetch_orders")`, which fails only at runtime | yes |
 | `test` | `client.fetch_orders.return_value = []` | yes |
-| `other_object` | `customer["total"]` when the note was about `order` | no, left on purpose |
+| `other_object` | `customer["total"]`, or `{"customer": {"total": 250}}`, when the note was about `order` | no, left on purpose |
 | `string`, `comment`, `config`, `docs` | a label, a comment, `settings.yaml`, a README | no, worth a look |
+
+A dictionary literal with the old key is the owner's unless the code names it
+for something else: the value of a `"customer"` key, assigned to `customer`, or
+passed as `customer=`. One named for nothing stays unfinished, and when a line
+holds both, the unfinished one is what the line reports.
 
 The terminal lists the unfinished ones and counts the rest (`-v` lists them
 too); `--json` and the pull-request summary carry all of them. With
