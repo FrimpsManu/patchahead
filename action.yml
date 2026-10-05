@@ -138,26 +138,6 @@ runs:
         PATCHAHEAD_REQUIRE_COMPLETE: ${{ inputs.require-complete }}
       run: python -m patchahead.ci
 
-    - name: Comment on the pull request
-      if: inputs.comment == 'true' && github.event.pull_request.number
-      shell: bash
-      env:
-        GH_TOKEN: ${{ inputs.github-token }}
-        PR_NUMBER: ${{ github.event.pull_request.number }}
-        SUMMARY: ${{ steps.run.outputs.summary }}
-        REPOSITORY: ${{ github.repository }}
-      run: |
-        # Update PatchAhead's earlier comment if there is one, so a re-run does
-        # not add another.
-        existing=$(gh api "repos/$REPOSITORY/issues/$PR_NUMBER/comments" --paginate \
-          --jq '[.[] | select(.body | startswith("<!-- patchahead -->"))][-1].id // empty')
-        body=$(jq -Rs '{body: .}' < "$SUMMARY")
-        if [ -n "$existing" ]; then
-          echo "$body" | gh api --method PATCH "repos/$REPOSITORY/issues/comments/$existing" --input - > /dev/null
-        else
-          echo "$body" | gh api --method POST "repos/$REPOSITORY/issues/$PR_NUMBER/comments" --input - > /dev/null
-        fi
-
     - name: Apply the verified patch
       if: inputs.apply == 'true' && steps.run.outputs.succeeded == 'true' && steps.run.outputs.diff != ''
       shell: bash
@@ -178,6 +158,27 @@ runs:
         PATCHAHEAD_SUMMARY: ${{ steps.run.outputs.summary }}
         PATCHAHEAD_GITHUB_TOKEN: ${{ inputs.github-token }}
       run: python -m patchahead.fixpr
+
+    # After the fix's pull request, so the comment can link to it.
+    - name: Comment on the pull request
+      if: ${{ !cancelled() && steps.run.outcome == 'success' && inputs.comment == 'true' && github.event.pull_request.number }}
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        PR_NUMBER: ${{ github.event.pull_request.number }}
+        SUMMARY: ${{ steps.run.outputs.summary }}
+        REPOSITORY: ${{ github.repository }}
+      run: |
+        # Update PatchAhead's earlier comment if there is one, so a re-run does
+        # not add another.
+        existing=$(gh api "repos/$REPOSITORY/issues/$PR_NUMBER/comments" --paginate \
+          --jq '[.[] | select(.body | startswith("<!-- patchahead -->"))][-1].id // empty')
+        body=$(jq -Rs '{body: .}' < "$SUMMARY")
+        if [ -n "$existing" ]; then
+          echo "$body" | gh api --method PATCH "repos/$REPOSITORY/issues/comments/$existing" --input - > /dev/null
+        else
+          echo "$body" | gh api --method POST "repos/$REPOSITORY/issues/$PR_NUMBER/comments" --input - > /dev/null
+        fi
 
     - name: Decide the step's result
       shell: bash

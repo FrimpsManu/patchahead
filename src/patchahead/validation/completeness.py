@@ -20,6 +20,7 @@ Three sources, cheapest to read first:
 
 from __future__ import annotations
 
+import builtins
 import io
 import logging
 import re
@@ -51,6 +52,7 @@ TEXT_FILES: dict[str, ResidualKind] = {
 #: A text file larger than this is skipped rather than read.
 MAX_TEXT_BYTES = 1_000_000
 _DYNAMIC_ACCESS = re.compile(r"\b(?:getattr|hasattr|setattr|delattr)\s*\(")
+_INSIGNIFICANT = (tokenize.NL, tokenize.NEWLINE, tokenize.COMMENT, tokenize.INDENT, tokenize.DEDENT)
 
 
 def scan(
@@ -141,10 +143,27 @@ def _scan_python(
     except (tokenize.TokenError, SyntaxError):
         return
 
+    # `dict` the method and `dict` the built-in type share a name. A bare `dict`
+    # -- in `-> dict`, `isinstance(x, dict)`, `dict(...)` -- is the built-in,
+    # unless this module imports the name from somewhere.
+    shadows_builtin = symbol in vars(builtins) and not re.search(
+        rf"^\s*(?:from\s+\S+\s+)?import\b[^\n#]*\b{re.escape(symbol)}\b", source, re.MULTILINE
+    )
+    previous = None
     for token in tokens:
         line = token.start[0]
         text = lines[line - 1].strip() if 0 < line <= len(lines) else ""
+        after_dot = previous is not None and previous.string == "."
+        if token.type not in _INSIGNIFICANT:
+            previous = token
         if token.type == tokenize.NAME and token.string == symbol:
+            if (
+                change.kind is ChangeKind.METHOD_RENAME
+                and shadows_builtin
+                and not after_dot
+                and not re.match(rf"(?:async\s+)?def\s+{re.escape(symbol)}\b", text)
+            ):
+                continue
             if is_test:
                 _add(
                     report,
