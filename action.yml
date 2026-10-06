@@ -1,8 +1,7 @@
 name: PatchAhead
 description: >-
-  Migrate Python code for a breaking change in a dependency, prove the fix with
-  your tests, and report what is left. Reads Dependabot and Renovate pull
-  requests: their release notes, and the two versions of each bumped package.
+  Fixes Python code broken by dependency and API updates, proves each fix with
+  your tests, and opens it as a pull request.
 author: Augustine Manu-Frimpong
 branding:
   icon: git-pull-request
