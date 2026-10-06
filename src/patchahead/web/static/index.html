@@ -98,6 +98,8 @@
   .headline { color: var(--secondary); font-size: 15px; padding: 18px 0 0; max-width: 70ch; margin: 0; }
   .headline code, .headline b { color: var(--text); }
 
+  .toggle { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; color: var(--secondary); cursor: pointer; }
+  .toggle input { accent-color: var(--accent); }
   .banner { font-size: 13px; color: var(--tertiary); margin: 14px 0 0; max-width: 80ch; }
   .banner code { color: var(--secondary); }
 
@@ -210,6 +212,9 @@
   <div class="runbar">
     <button id="run" class="primary">Run this scenario</button>
     <button id="analyze">Analyze only</button>
+    <label class="toggle" id="llm-toggle" hidden>
+      <input type="checkbox" id="use-llm" /> Ask Claude when PatchAhead won't fix it
+    </label>
     <span class="note" id="status"></span>
   </div>
   <p class="banner">
@@ -397,8 +402,10 @@ function renderPatch(proposal, outcome) {
       <div class="card">
         <div class="body"><p class="reason" style="margin:0">
           <b>${proposal.diff_line_count}</b> changed line(s) across
-          <b>${proposal.changed_files.length}</b> file(s), by
-          ${esc(proposal.engine)} edits to exact source ranges. Everything else is left as it was.
+          <b>${proposal.changed_files.length}</b> file(s).
+          ${proposal.engine === "llm"
+            ? "Written by Claude, for only the functions PatchAhead flagged, and held to the same five checks as any patch."
+            : "Edits to exact source ranges; everything else is left as it was."}
         </p></div>
         <pre class="diff">${renderDiff(proposal.diff)}</pre>
       </div>`;
@@ -564,6 +571,7 @@ async function act(kind) {
       const params = selected
         ? { document: name, scenario: selected.id }
         : { document: name };
+      if (!$("llm-toggle").hidden && $("use-llm").checked) params.use_llm = "true";
       const [data, source] = await Promise.all([
         call("/api/migrate", params),
         documentSource(name),
@@ -631,6 +639,11 @@ async function init() {
   $("context-line").textContent = context.repo;
   $("context-line").title = context.repo;
   $("test-command").textContent = context.config.test_command;
+  if (context.llm && context.llm.available) {
+    $("llm-toggle").hidden = false;
+    $("llm-toggle").title = `Only when PatchAhead finds the affected code and refuses to plan a fix. `
+      + `${context.llm.model} sees only the affected functions; its patch goes through the same five checks.`;
+  }
   renderChooser();
 }
 
