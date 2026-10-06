@@ -7,6 +7,21 @@ this project uses [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **A benchmark for the LLM fallback** (`evals/llm/`). Ten repositories in which
+  the deterministic handlers refuse to plan, five with a correct fix and five
+  traps where the same word is another object's field -- two of them with no
+  test covering it, so only the model's judgement keeps a wrong edit out. Run
+  three times each with `claude-opus-5-5`, all 30 attempts were verified by the
+  tests and none changed another object's field. Not run in CI, since it calls a
+  model.
+
+### Changed
+
+- **The LLM fallback defaults to `claude-opus-5-5`**, from `claude-opus-5`.
+  `PATCHAHEAD_MODEL` still overrides it.
+
 ## [0.8.1] — 2026-10-05
 
 ### Added

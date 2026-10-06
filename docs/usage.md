@@ -334,11 +334,23 @@ unfamiliar.
   run there without `ANTHROPIC_API_KEY`.
 - **Opting out:** `allow_llm = false` in a repository's config forbids it, and
   `--use-llm` cannot override that.
+- **Model:** `claude-opus-5-5` by default; set `PATCHAHEAD_MODEL` to use another.
 
 ```bash
 export ANTHROPIC_API_KEY=...
 patchahead migrate --repo ./my-service --change ./notes.md --use-llm
 ```
+
+**How well it works.** `evals/llm/` holds ten repositories in which the
+deterministic handlers find the affected code and refuse to plan: an order
+reached through `enumerate`, `zip`, `.values()`, a lambda, or a helper's return
+value, and traps where the same word is another object's field. Run three times
+each with `claude-opus-5-5`, all 30 attempts were verified by the tests, and the
+model never changed another object's field -- including in the two traps where
+no test covers that field, so a wrong edit would have passed every gate. It is a
+small benchmark, of field renames only, written for this project: evidence that
+the fallback behaves, not an accuracy figure for code in general. It is not run
+in CI, since it calls a model; `python evals/llm/run.py` reruns it.
 
 ## Web UI
 

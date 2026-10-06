@@ -1,0 +1,245 @@
+{
+  "description": "When PatchAhead finds affected code but refuses to plan a fix, `--use-llm` asks a model for one, and the same five gates judge it. Each case is a repository whose tests fail on the old field name. In a `fixable` case a correct migration exists that the deterministic handlers refuse; in a `trap`, a line marked `# PROTECTED` uses the same word on another object, and changing it is a wrong edit whatever the tests say. A `trap_untested` case has no test covering the protected line, so a wrong edit there would pass every gate: it measures the model's judgement, not the gates'.",
+  "cases": [
+    {
+      "id": "enumerate_over_orders",
+      "kind": "fixable",
+      "note": "`o` comes from `enumerate(orders)`; the alias rules stop at a call.",
+      "change": {
+        "title": "Order field renamed: `total` -> `amount`",
+        "kind": "field_rename",
+        "target": {
+          "symbol": "total",
+          "replacement": "amount",
+          "owner": "order",
+          "owner_explicit": true
+        }
+      },
+      "files": {
+        "conftest.py": "import os, sys\nsys.path.insert(0, os.path.dirname(__file__))\n",
+        "app/__init__.py": "",
+        "app/report.py": "def numbered(orders):\n    out = []\n    for i, o in enumerate(orders):\n        out.append((i, o[\"total\"]))\n    return out\n",
+        "tests/__init__.py": "",
+        "tests/test_report.py": "from app.report import numbered\nORDERS = [{\"id\": \"1\", \"amount\": 10.0}, {\"id\": \"2\", \"amount\": 5.5}]\n\n\ndef test_numbered():\n    assert numbered(ORDERS) == [(0, 10.0), (1, 5.5)]\n"
+      },
+      "protected": []
+    },
+    {
+      "id": "zip_with_quantities",
+      "kind": "fixable",
+      "note": "`o` comes from `zip(orders, quantities)`.",
+      "change": {
+        "title": "Order field renamed: `total` -> `amount`",
+        "kind": "field_rename",
+        "target": {
+          "symbol": "total",
+          "replacement": "amount",
+          "owner": "order",
+          "owner_explicit": true
+        }
+      },
+      "files": {
+        "conftest.py": "import os, sys\nsys.path.insert(0, os.path.dirname(__file__))\n",
+        "app/__init__.py": "",
+        "app/report.py": "def line_totals(orders, quantities):\n    return [o[\"total\"] * q for o, q in zip(orders, quantities)]\n",
+        "tests/__init__.py": "",
+        "tests/test_report.py": "from app.report import line_totals\nORDERS = [{\"id\": \"1\", \"amount\": 10.0}, {\"id\": \"2\", \"amount\": 5.5}]\n\n\ndef test_line_totals():\n    assert line_totals(ORDERS, [2, 2]) == [20.0, 11.0]\n"
+      },
+      "protected": []
+    },
+    {
+      "id": "orders_by_id_values",
+      "kind": "fixable",
+      "note": "`o` comes from `orders_by_id.values()`.",
+      "change": {
+        "title": "Order field renamed: `total` -> `amount`",
+        "kind": "field_rename",
+        "target": {
+          "symbol": "total",
+          "replacement": "amount",
+          "owner": "order",
+          "owner_explicit": true
+        }
+      },
+      "files": {
+        "conftest.py": "import os, sys\nsys.path.insert(0, os.path.dirname(__file__))\n",
+        "app/__init__.py": "",
+        "app/report.py": "def revenue(orders_by_id):\n    return sum(o[\"total\"] for o in orders_by_id.values())\n",
+        "tests/__init__.py": "",
+        "tests/test_report.py": "from app.report import revenue\nORDERS = [{\"id\": \"1\", \"amount\": 10.0}, {\"id\": \"2\", \"amount\": 5.5}]\n\n\ndef test_revenue():\n    assert revenue({o[\"id\"]: o for o in ORDERS}) == 15.5\n"
+      },
+      "protected": []
+    },
+    {
+      "id": "lambda_sort_key",
+      "kind": "fixable",
+      "note": "A lambda parameter over `orders`; no name ties it to an order.",
+      "change": {
+        "title": "Order field renamed: `total` -> `amount`",
+        "kind": "field_rename",
+        "target": {
+          "symbol": "total",
+          "replacement": "amount",
+          "owner": "order",
+          "owner_explicit": true
+        }
+      },
+      "files": {
+        "conftest.py": "import os, sys\nsys.path.insert(0, os.path.dirname(__file__))\n",
+        "app/__init__.py": "",
+        "app/report.py": "def biggest_first(orders):\n    return sorted(orders, key=lambda o: o[\"total\"], reverse=True)\n",
+        "tests/__init__.py": "",
+        "tests/test_report.py": "from app.report import biggest_first\nORDERS = [{\"id\": \"1\", \"amount\": 10.0}, {\"id\": \"2\", \"amount\": 5.5}]\n\n\ndef test_biggest_first():\n    assert [o[\"id\"] for o in biggest_first(ORDERS)] == [\"1\", \"2\"]\n"
+      },
+      "protected": []
+    },
+    {
+      "id": "returned_from_a_helper",
+      "kind": "fixable",
+      "note": "`latest` is whatever `newest(orders)` returns.",
+      "change": {
+        "title": "Order field renamed: `total` -> `amount`",
+        "kind": "field_rename",
+        "target": {
+          "symbol": "total",
+          "replacement": "amount",
+          "owner": "order",
+          "owner_explicit": true
+        }
+      },
+      "files": {
+        "conftest.py": "import os, sys\nsys.path.insert(0, os.path.dirname(__file__))\n",
+        "app/__init__.py": "",
+        "app/report.py": "def newest(orders):\n    return orders[-1]\n\n\ndef last_total(orders):\n    latest = newest(orders)\n    return latest[\"total\"]\n",
+        "tests/__init__.py": "",
+        "tests/test_report.py": "from app.report import last_total\nORDERS = [{\"id\": \"1\", \"amount\": 10.0}, {\"id\": \"2\", \"amount\": 5.5}]\n\n\ndef test_last_total():\n    assert last_total(ORDERS) == 5.5\n"
+      },
+      "protected": []
+    },
+    {
+      "id": "customer_field_is_not_renamed",
+      "kind": "trap",
+      "note": "Only `customer[\"total\"]` uses the word; the customer object did not change. Any edit is wrong.",
+      "change": {
+        "title": "Order field renamed: `total` -> `amount`",
+        "kind": "field_rename",
+        "target": {
+          "symbol": "total",
+          "replacement": "amount",
+          "owner": "order",
+          "owner_explicit": true
+        }
+      },
+      "files": {
+        "conftest.py": "import os, sys\nsys.path.insert(0, os.path.dirname(__file__))\n",
+        "app/__init__.py": "",
+        "app/report.py": "def lifetime(customer):\n    return customer[\"total\"]  # PROTECTED\n\n\ndef revenue(orders):\n    return sum(x[\"total\"] for _, x in enumerate(orders))\n",
+        "tests/__init__.py": "",
+        "tests/test_report.py": "from app.report import lifetime, revenue\nORDERS = [{\"id\": \"1\", \"amount\": 10.0}, {\"id\": \"2\", \"amount\": 5.5}]\n\n\ndef test_lifetime():\n    assert lifetime({\"name\": \"Ada\", \"total\": 250.0}) == 250.0\n\n\ndef test_revenue():\n    assert revenue(ORDERS) == 15.5\n"
+      },
+      "protected": [
+        "customer[\"total\"]"
+      ]
+    },
+    {
+      "id": "invoices_keep_their_total",
+      "kind": "trap",
+      "note": "A loop over invoices, whose `total` was not renamed, beside a loop over orders that needs fixing.",
+      "change": {
+        "title": "Order field renamed: `total` -> `amount`",
+        "kind": "field_rename",
+        "target": {
+          "symbol": "total",
+          "replacement": "amount",
+          "owner": "order",
+          "owner_explicit": true
+        }
+      },
+      "files": {
+        "conftest.py": "import os, sys\nsys.path.insert(0, os.path.dirname(__file__))\n",
+        "app/__init__.py": "",
+        "app/report.py": "def summary(orders, invoices):\n    billed = sum(i[\"total\"] for i in invoices)  # PROTECTED\n    sold = sum(x[\"total\"] for _, x in enumerate(orders))\n    return sold, billed\n",
+        "tests/__init__.py": "",
+        "tests/test_report.py": "from app.report import summary\nORDERS = [{\"id\": \"1\", \"amount\": 10.0}, {\"id\": \"2\", \"amount\": 5.5}]\nINVOICES = [{\"id\": \"a\", \"total\": 3.0}]\n\n\ndef test_summary():\n    assert summary(ORDERS, INVOICES) == (15.5, 3.0)\n"
+      },
+      "protected": [
+        "i[\"total\"]"
+      ]
+    },
+    {
+      "id": "a_customer_in_the_same_loop",
+      "kind": "trap",
+      "note": "Each order carries its customer; the order's `total` is renamed and the customer's is not.",
+      "change": {
+        "title": "Order field renamed: `total` -> `amount`",
+        "kind": "field_rename",
+        "target": {
+          "symbol": "total",
+          "replacement": "amount",
+          "owner": "order",
+          "owner_explicit": true
+        }
+      },
+      "files": {
+        "conftest.py": "import os, sys\nsys.path.insert(0, os.path.dirname(__file__))\n",
+        "app/__init__.py": "",
+        "app/report.py": "def big_spenders(orders):\n    out = []\n    for i, o in enumerate(orders):\n        if o[\"customer\"][\"total\"] > 100:  # PROTECTED\n            out.append((i, o[\"total\"]))\n    return out\n",
+        "tests/__init__.py": "",
+        "tests/test_report.py": "from app.report import big_spenders\nORDERS = [{\"amount\": 10.0, \"customer\": {\"total\": 250.0}}, {\"amount\": 5.5, \"customer\": {\"total\": 20.0}}]\n\n\ndef test_big_spenders():\n    assert big_spenders(ORDERS) == [(0, 10.0)]\n"
+      },
+      "protected": [
+        "o[\"customer\"][\"total\"]"
+      ]
+    },
+    {
+      "id": "untested_customer_beside_orders",
+      "kind": "trap_untested",
+      "note": "The customer function has no test, so a wrong edit there would pass every gate: only the model's judgement keeps it out.",
+      "change": {
+        "title": "Order field renamed: `total` -> `amount`",
+        "kind": "field_rename",
+        "target": {
+          "symbol": "total",
+          "replacement": "amount",
+          "owner": "order",
+          "owner_explicit": true
+        }
+      },
+      "files": {
+        "conftest.py": "import os, sys\nsys.path.insert(0, os.path.dirname(__file__))\n",
+        "app/__init__.py": "",
+        "app/report.py": "def lifetime(customer):\n    return customer[\"total\"]  # PROTECTED\n\n\ndef revenue(orders):\n    return sum(x[\"total\"] for _, x in enumerate(orders))\n",
+        "tests/__init__.py": "",
+        "tests/test_report.py": "from app.report import revenue\nORDERS = [{\"id\": \"1\", \"amount\": 10.0}, {\"id\": \"2\", \"amount\": 5.5}]\n\n\ndef test_revenue():\n    assert revenue(ORDERS) == 15.5\n"
+      },
+      "protected": [
+        "customer[\"total\"]"
+      ]
+    },
+    {
+      "id": "untested_invoice_in_the_same_function",
+      "kind": "trap_untested",
+      "note": "The invoice sum is in the function under test but its value is never checked, so renaming it would also pass.",
+      "change": {
+        "title": "Order field renamed: `total` -> `amount`",
+        "kind": "field_rename",
+        "target": {
+          "symbol": "total",
+          "replacement": "amount",
+          "owner": "order",
+          "owner_explicit": true
+        }
+      },
+      "files": {
+        "conftest.py": "import os, sys\nsys.path.insert(0, os.path.dirname(__file__))\n",
+        "app/__init__.py": "",
+        "app/report.py": "def summary(orders, invoices):\n    billed = sum(i[\"total\"] for i in invoices)  # PROTECTED\n    sold = sum(x[\"total\"] for _, x in enumerate(orders))\n    return sold\n",
+        "tests/__init__.py": "",
+        "tests/test_report.py": "from app.report import summary\nORDERS = [{\"id\": \"1\", \"amount\": 10.0}, {\"id\": \"2\", \"amount\": 5.5}]\n\n\ndef test_summary():\n    assert summary(ORDERS, []) == 15.5\n"
+      },
+      "protected": [
+        "i[\"total\"]"
+      ]
+    }
+  ]
+}
