@@ -22,7 +22,7 @@ from dataclasses import dataclass
 log = logging.getLogger(__name__)
 
 #: Default model. Overridable with ``PATCHAHEAD_MODEL``.
-DEFAULT_MODEL = "claude-opus-5"
+DEFAULT_MODEL = "claude-opus-5-5"
 DEFAULT_MAX_TOKENS = 8000
 
 
