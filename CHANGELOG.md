@@ -9,6 +9,14 @@ this project uses [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **An AI-mode switch in the web UI.** "Ask Claude when PatchAhead won't fix it"
+  appears when an API key and the `anthropic` package are present and the
+  repository allows it, off by default, and runs a migration with `--use-llm`.
+  A patch Claude wrote says so, and goes through the same five checks. The key
+  is never sent to the page.
+
+### Added
+
 - **A benchmark for the LLM fallback** (`evals/llm/`). Ten repositories in which
   the deterministic handlers refuse to plan, five with a correct fix and five
   traps where the same word is another object's field -- two of them with no

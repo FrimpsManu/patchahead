@@ -119,6 +119,20 @@ class TestContext:
 
         assert names == [h.name for h in handlers.registered()]
 
+    def test_ai_mode_is_offered_only_with_a_key(self, client, monkeypatch):
+        """The page shows the AI-mode switch from this; without a key it says why not."""
+        pytest.importorskip("anthropic")
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        monkeypatch.delenv("ANTHROPIC_AUTH_TOKEN", raising=False)
+
+        without = client.get("/api/context").json()["llm"]
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test-not-a-real-key")
+        with_key = client.get("/api/context").json()["llm"]
+
+        assert without["available"] is False and "ANTHROPIC_API_KEY" in without["why_not"]
+        assert with_key["available"] is True and with_key["model"]
+        assert "sk-ant" not in str(with_key), "the key itself is never sent to the page"
+
     def test_every_handler_reports_its_limitations(self, client):
         for handler in client.get("/api/context").json()["handlers"]:
             assert handler["limitations"]

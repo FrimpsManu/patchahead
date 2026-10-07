@@ -144,9 +144,20 @@ def create_app(repo: Path, changes_dir: Path, scenarios: Sequence[Scenario] = ()
             config = load_config(repo)
         except ConfigError as exc:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
+        from patchahead.llm.client import available, model_name
+
+        usable, why_not = available()
         return JSONResponse(
             {
                 "version": __version__,
+                # Whether AI mode can be offered: a key and the client library
+                # are present, and the repository's config does not forbid it.
+                "llm": {
+                    "available": usable and config.allow_llm,
+                    "why_not": why_not
+                    or ("" if config.allow_llm else "`allow_llm = false` in this repository"),
+                    "model": model_name(),
+                },
                 "repo": str(repo),
                 "repo_name": repo.name,
                 "changes_dir": str(changes_dir),
