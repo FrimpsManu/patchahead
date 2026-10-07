@@ -7,6 +7,8 @@ this project uses [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.8.2] — 2026-10-07
+
 ### Added
 
 - **An AI-mode switch in the web UI.** "Ask Claude when PatchAhead won't fix it"
@@ -14,9 +16,6 @@ this project uses [semantic versioning](https://semver.org/spec/v2.0.0.html).
   repository allows it, off by default, and runs a migration with `--use-llm`.
   A patch Claude wrote says so, and goes through the same five checks. The key
   is never sent to the page.
-
-### Added
-
 - **A benchmark for the LLM fallback** (`evals/llm/`). Ten repositories in which
   the deterministic handlers refuse to plan, five with a correct fix and five
   traps where the same word is another object's field -- two of them with no
@@ -29,6 +28,9 @@ this project uses [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 - **The LLM fallback defaults to `claude-opus-5-5`**, from `claude-opus-5`.
   `PATCHAHEAD_MODEL` still overrides it.
+- **A shorter description for the GitHub Action**, 120 characters instead of
+  225, so the Marketplace listing card shows all of it, and it now says that
+  the Action opens the fix as a pull request.
 
 ## [0.8.1] — 2026-10-05
 
@@ -763,7 +765,8 @@ how each defect was verified.
 
 Hackathon prototype. Two hardcoded demo scenarios.
 
-[Unreleased]: https://github.com/FrimpsManu/patchahead/compare/v0.8.1...HEAD
+[Unreleased]: https://github.com/FrimpsManu/patchahead/compare/v0.8.2...HEAD
+[0.8.2]: https://github.com/FrimpsManu/patchahead/releases/tag/v0.8.2
 [0.8.1]: https://github.com/FrimpsManu/patchahead/releases/tag/v0.8.1
 [0.8.0]: https://github.com/FrimpsManu/patchahead/releases/tag/v0.8.0
 [0.7.0]: https://github.com/FrimpsManu/patchahead/releases/tag/v0.7.0
