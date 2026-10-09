@@ -110,6 +110,7 @@ def change_from_mapping(data: dict[str, Any], path: str, source: str) -> Breakin
         # A generator that knows the class but not what callers name its
         # instance (`api-diff`) writes `"owner_explicit": false` instead.
         owner_is_explicit=bool(owner) and explicit,
+        module=str(raw_target.get("module", "") or ""),
     )
 
     raw_pagination = data.get("pagination")
@@ -153,6 +154,8 @@ def change_to_mapping(change: BreakingChange) -> dict[str, Any]:
             "owner": change.target.owner,
             "owner_explicit": change.target.owner_is_explicit,
         }
+        if change.target.module:
+            entry["target"]["module"] = change.target.module
     if change.kind is ChangeKind.PAGINATION_PAGE_TO_CURSOR:
         entry["pagination"] = change.pagination.to_dict()
     if change.evidence:

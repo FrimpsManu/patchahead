@@ -280,6 +280,22 @@ class MethodRenameHandler(MigrationHandler):
                     )
                 )
 
+        # A rename read from `pydantic.main` says nothing about a project
+        # whose `BaseModel` comes from `pydantic.v1`, which kept the old name.
+        elsewhere = _imported_from_elsewhere(index, change.target.owner, change.target.module)
+        if elsewhere:
+            path, source = elsewhere
+            cls = change.target.owner.rsplit(".", 1)[-1]
+            blocked = (
+                f"`{path}` imports `{cls}` from `{source}`, not `{change.target.module}`, "
+                f"where `{old}` was renamed"
+            )
+            for finding in findings:
+                if finding.patchable:
+                    finding.confidence, finding.patchable = Confidence.LOW, False
+                    finding.unpatchable_reason = blocked
+                    finding.reason = f"{finding.reason}; but {blocked}"
+
         findings.sort(key=lambda f: (f.reference.path, f.reference.line, f.reference.col))
         return ImpactReport(
             change=change,
@@ -633,6 +649,33 @@ def _import_sources(module, name: str) -> list[str | None]:
         for alias in node.names
         if (alias.asname or alias.name) == name
     ]
+
+
+def _imported_from_elsewhere(index: RepoIndex, owner: str, library: str) -> tuple[str, str] | None:
+    """A file importing the owner class from another module of the same library.
+
+    ``library`` is the module the rename was read from, ``pydantic.main``. An
+    import from it or from a package above it (``from pydantic import
+    BaseModel``, a re-export) is the same class; one from a sibling module of
+    the same library (``from pydantic.v1 import BaseModel``) is not. Returns
+    the first such file and module, or ``None``.
+    """
+    if not owner or not library:
+        return None
+    cls = owner.rsplit(".", 1)[-1]
+    top = library.split(".", 1)[0]
+    for path in sorted(index.modules):
+        for node in ast.walk(index.modules[path].tree):
+            if not isinstance(node, ast.ImportFrom) or node.level or not node.module:
+                continue
+            source = node.module
+            if source.split(".", 1)[0] != top:
+                continue
+            if library == source or library.startswith(f"{source}."):
+                continue
+            if any(alias.name == cls for alias in node.names):
+                return path, source
+    return None
 
 
 def _is_repo_module(dotted: str, definers: list[str]) -> bool:

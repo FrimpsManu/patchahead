@@ -371,6 +371,7 @@ def _rename(
             # The class is known; what a caller names its instance is not. A
             # hint ranks a matching receiver higher without vetoing the rest.
             owner_is_explicit=False,
+            module=before.module,
         ),
         severity=Severity.HIGH,
         confidence=confidence,
