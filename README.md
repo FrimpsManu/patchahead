@@ -304,8 +304,14 @@ special cases. More detail: [docs/architecture.md](docs/architecture.md).
   GitHub's and Stripe's OpenAPI specs from 2021 to 2025 read 98 renames and
   moves, all checked and correct. Applied to 132 public repositories that use
   the same words, it made 13 edits, all correct, and none on the unrelated
-  code. Method, results, and the mistakes earlier runs made and how they were
-  fixed: [docs/real-world.md](docs/real-world.md).
+  code.
+- **Run on live upgrades, judged by the projects' own tests.** Two active
+  projects with open Dependabot pull requests for pydantic 1 -> 2: on one,
+  PatchAhead's 31 edits fixed **104 of its 401 tests and broke none**, and on
+  the other it refused to rewrite `.dict()` on a model that defines its own.
+  Neither upgrade is one-click; both need changes PatchAhead does not make.
+  Method, results, and the mistakes earlier runs made and how they were fixed:
+  [docs/real-world.md](docs/real-world.md).
 - **Known gaps are recorded, not hidden.** Four cases describe things it does
   not do yet, and all of them fail safely by doing nothing. They are listed in
   [docs/evaluation.md](docs/evaluation.md#the-gaps-that-remain).
@@ -339,7 +345,7 @@ Run it yourself with `python evals/run.py`.
 | [docs/migrations.md](docs/migrations.md) | Each kind of change in detail, including what it refuses |
 | [docs/safety.md](docs/safety.md) | What it protects you from, and what it does not |
 | [docs/evaluation.md](docs/evaluation.md) | The benchmark, and how to add a case |
-| [docs/real-world.md](docs/real-world.md) | Replaying real migrations: pydantic 1 -> 2, Python 3.12's unittest removals, and five years of GitHub's and Stripe's OpenAPI specs |
+| [docs/real-world.md](docs/real-world.md) | Replaying real migrations: pydantic 1 -> 2, Python 3.12's unittest removals, five years of GitHub's and Stripe's OpenAPI specs, and two live pydantic 2 upgrades |
 | [docs/contributing.md](docs/contributing.md) | Setting up, and adding a new kind of change |
 
 ## License

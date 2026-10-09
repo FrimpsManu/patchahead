@@ -7,6 +7,18 @@ this project uses [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **A fourth real-world study: two live pydantic 1 -> 2 upgrades**
+  (`docs/real-world.md`). Two active projects with open Dependabot pull
+  requests were migrated as the Action would, and measured with their own
+  tests. On technocore-rosetta, PatchAhead's 31 edits fixed 104 of its 401
+  tests and broke none; on videbo, its 10 edits were checked against pydantic
+  2's own source, and it refused 13 `.dict()` calls on a model that defines
+  its own `dict`. Neither upgrade is one-click: both need validator or settings
+  changes PatchAhead does not make. `evals/realworld/live_pydantic2.py`
+  reproduces the rosetta run.
+
 ## [0.8.2] — 2026-10-07
 
 ### Added

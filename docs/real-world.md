@@ -10,6 +10,7 @@ compares what PatchAhead did with what the people did, call by call.
 | [pydantic 1 -> 2](#study-1-pydantic-1---2) | two versions of the library (`api-diff`) | 10 | 97 | 49 | **0** |
 | [Python 3.12's unittest removals](#study-2-python-312-removes-the-unittest-aliases) | the release note (CPython's "What's New") | 12 | 412 | 288 | **0** |
 | [GitHub's and Stripe's OpenAPI specs](#study-3-five-years-of-github-and-stripe-openapi-specs) | two versions of the spec (`openapi-diff`) | 132 | 13 | no hand migrations to compare with | **0** |
+| [Two live pydantic 2 upgrades](#study-4-two-live-pydantic-1---2-upgrades-with-the-projects-own-tests) | two versions of the library (`api-diff`) | 2 | 41 | judged by the projects' own tests | **0** |
 
 Study 3 is built differently: it checks every rename `openapi-diff` reads in
 five years of two real specs, then applies the real renames to public code that
@@ -231,6 +232,71 @@ and GitHub's kebab-case ones (`code-scanning-alert`) never matched a receiver.
 A dotted name now matches by its last part (`session`), and hyphens count as
 underscores.
 
+## Study 4: two live pydantic 1 -> 2 upgrades, with the projects' own tests
+
+The studies above judge edits by comparing with people or by reading them.
+This one runs them. Two active open-source projects had an open, unmerged
+Dependabot pull request bumping pydantic from 1.10.26 to 2.13.5:
+[technocore-rosetta](https://github.com/RosettaTcore/technocore-rosetta) (pull
+request #15, 401 tests) and [videbo](https://github.com/innocampus/videbo)
+(pull request #190, 289 tests). Each was migrated exactly as the GitHub Action
+would: the change read from the two pydantic releases, nothing else given.
+
+Neither project imports on pydantic 2 as it stands, and not because of a
+rename. rosetta's six validators need changes pydantic 2 requires
+(`@root_validator` now needs `skip_on_failure=True`; a validator taking
+`field` now takes `info`); videbo's settings are built on pydantic 1 internals
+that pydantic 2 removed (`ModelField`, field shapes, `customise_sources`).
+PatchAhead does not do either, so neither upgrade is one-click.
+
+### technocore-rosetta: what the edits did, measured by its tests
+
+PatchAhead made 31 edits in 15 files, all `parse_obj` -> `model_validate`, and
+refused 59 `dict` sites: most are Python's built-in `dict()`, and the project
+defines its own `dict` method. To measure the edits, the six validators were
+changed by hand in two copies -- one with PatchAhead's edits, one without -- and
+pydantic 2's deprecation warning for `parse_obj` was made an error, so a call
+left on the old name fails. Then the project's 401 tests ran on pydantic
+2.13.5:
+
+| | Failed | Passed |
+|---|---|---|
+| pydantic 1.10.26, before the upgrade | 1 | 400 |
+| pydantic 2.13.5, validators fixed, **without** PatchAhead's edits | 136 | 265 |
+| pydantic 2.13.5, validators fixed, **with** PatchAhead's edits | 32 | 369 |
+
+**104 tests fixed by PatchAhead's edits, and none broken**: every test failing
+with them also fails without them. The 32 left are pydantic 2 changes
+PatchAhead does not rewrite: 17 because a URL is no longer a string, 9 because
+`.json()` no longer accepts `json.dumps` arguments -- which is why
+`api-diff` reported `.json()` rather than renaming it -- 5 because validation
+is stricter, and the one already failing on pydantic 1.
+
+It also hit PatchAhead's own limit: a change may touch at most 10 files by
+default (`max_changed_files`), and this one touches 15, so a real run stops for
+a person to raise the limit.
+
+### videbo: what the edits are, read against pydantic's source
+
+videbo's tests cannot run on pydantic 2 until its settings are redesigned, so
+its edits were checked against pydantic 2.13.5's own implementation instead.
+PatchAhead made 10: eight `parse_obj` -> `model_validate`, one `from_orm` ->
+`model_validate`, one `construct` -> `model_construct`. In pydantic 2,
+`parse_obj` is `return cls.model_validate(obj)`; `construct` is `return
+cls.model_construct(...)`; and `from_orm` checks that the model reads
+attributes and then calls `model_validate` -- which videbo's models do, through
+`orm_mode = True`. Each edit calls what the old method called.
+
+It refused all 13 `.dict()` calls, and that refusal matters: videbo defines its
+own `dict` on its JWT model, to control how tokens are encoded. Rewriting the
+calls to `model_dump()` would have skipped that code.
+
+### What this shows
+
+On a real major upgrade, PatchAhead does the mechanical part -- here, 104 tests'
+worth -- with no wrong edits, and stops where a person has to decide. It is a
+head start on pydantic 1 -> 2, not the whole migration.
+
 ## What this does and does not show
 
 - **It measures editing, not verification.** The projects' tests were not run:
@@ -252,6 +318,12 @@ proof that its edit worked. The second replay, with tests in scope, found the
 as the built-in `dict()`. Both are fixed and in the benchmark.
 
 ## Reproduce it
+
+Study 4 (technocore-rosetta; needs `uv`):
+
+```bash
+python evals/realworld/live_pydantic2.py
+```
 
 Study 3:
 
