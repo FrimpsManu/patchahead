@@ -163,7 +163,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: FrimpsManu/patchahead@v0.8.2
+      - uses: FrimpsManu/patchahead@v0.8.3
         with:
           from-pull-request: true
           install-command: pip install -r requirements-dev.txt

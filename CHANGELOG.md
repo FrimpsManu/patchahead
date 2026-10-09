@@ -7,6 +7,20 @@ this project uses [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.8.3] — 2026-10-09
+
+### Added
+
+- **A fourth real-world study: two live pydantic 1 -> 2 upgrades**
+  (`docs/real-world.md`). Two active projects with open Dependabot pull
+  requests were migrated as the Action would, and measured with their own
+  tests. On technocore-rosetta, PatchAhead's 31 edits fixed 104 of its 401
+  tests and broke none; on videbo, its 10 edits were checked against pydantic
+  2's own source, and it refused 13 `.dict()` calls on a model that defines
+  its own `dict`. Neither upgrade is one-click: both need validator or settings
+  changes PatchAhead does not make. `evals/realworld/live_pydantic2.py`
+  reproduces the rosetta run.
+
 ### Fixed
 
 - **A rename read from one module of a library is not applied to a class from
@@ -41,20 +55,6 @@ Found by running `api-diff` on pandas 2.3.3 -> 3.0.6, the current major upgrade:
 With these, `api-diff` reads all three of pandas 3's `applymap` renames
 (`DataFrame`, `Styler`, `Styler.applymap_index` -> `map_index`) and no longer
 the `to_dict` one. Its pydantic readings are unchanged.
-
-### Added
-
-- **A fourth real-world study: two live pydantic 1 -> 2 upgrades**
-  (`docs/real-world.md`). Two active projects with open Dependabot pull
-  requests were migrated as the Action would, and measured with their own
-  tests. On technocore-rosetta, PatchAhead's 31 edits fixed 104 of its 401
-  tests and broke none; on videbo, its 10 edits were checked against pydantic
-  2's own source, and it refused 13 `.dict()` calls on a model that defines
-  its own `dict`. Neither upgrade is one-click: both need validator or settings
-  changes PatchAhead does not make. `evals/realworld/live_pydantic2.py`
-  reproduces the rosetta run.
-
-### Fixed
 
 - **A compatibility wrapper is not made to call itself.** In python-swat's test
   helpers, `def assertRegex(self, ...)` falls back to
@@ -822,7 +822,8 @@ how each defect was verified.
 
 Hackathon prototype. Two hardcoded demo scenarios.
 
-[Unreleased]: https://github.com/FrimpsManu/patchahead/compare/v0.8.2...HEAD
+[Unreleased]: https://github.com/FrimpsManu/patchahead/compare/v0.8.3...HEAD
+[0.8.3]: https://github.com/FrimpsManu/patchahead/releases/tag/v0.8.3
 [0.8.2]: https://github.com/FrimpsManu/patchahead/releases/tag/v0.8.2
 [0.8.1]: https://github.com/FrimpsManu/patchahead/releases/tag/v0.8.1
 [0.8.0]: https://github.com/FrimpsManu/patchahead/releases/tag/v0.8.0
