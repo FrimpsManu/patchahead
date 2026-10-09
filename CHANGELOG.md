@@ -19,6 +19,16 @@ this project uses [semantic versioning](https://semver.org/spec/v2.0.0.html).
   changes PatchAhead does not make. `evals/realworld/live_pydantic2.py`
   reproduces the rosetta run.
 
+### Fixed
+
+- **A compatibility wrapper is not made to call itself.** In python-swat's test
+  helpers, `def assertRegex(self, ...)` falls back to
+  `self.assertRegexpMatches(...)` on old Pythons; the `unittest` rename rewrote
+  that call to `self.assertRegex(...)`, inside `assertRegex` itself. A call to
+  the old name inside a method already named the replacement is now reported,
+  not rewritten. Found by running the Python 3.12 `unittest` release note on
+  live projects; the unittest real-world study's numbers are unchanged.
+
 ## [0.8.2] — 2026-10-07
 
 ### Added

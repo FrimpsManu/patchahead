@@ -1194,6 +1194,25 @@
       "expect_patched": [
         "app/checkout.py:2"
       ]
+    },
+    {
+      "id": "a_compatibility_wrapper_is_not_made_to_call_itself",
+      "note": "From python-swat's test helpers: `def assertRegex(self, ...)` falls back to `self.assertRegexpMatches(...)` on old Pythons. Renaming that call makes `assertRegex` call itself. A call to the old name elsewhere is still migrated.",
+      "change": {
+        "kind": "method_rename",
+        "symbol": "assertRegexpMatches",
+        "replacement": "assertRegex",
+        "owner": ""
+      },
+      "files": {
+        "tests/helpers.py": "import unittest\n\n\nclass TestCase(unittest.TestCase):\n    def assertRegex(self, *args, **kwargs):\n        if hasattr(unittest.TestCase, 'assertRegex'):\n            return unittest.TestCase.assertRegex(self, *args, **kwargs)\n        return self.assertRegexpMatches(*args, **kwargs)\n\n    def test_name(self):\n        self.assertRegexpMatches('abc', 'b')\n"
+      },
+      "expect_patched": [
+        "tests/helpers.py:11"
+      ],
+      "expect_reported_only": [
+        "tests/helpers.py:8"
+      ]
     }
   ]
 }

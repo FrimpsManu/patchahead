@@ -145,6 +145,18 @@ class MethodRenameHandler(MigrationHandler):
                     stdlib_source=_stdlib_source(stdlib, call),
                 )
                 reason = f"{reason}; {via}" if via else reason
+                # Inside a method already named the replacement -- a
+                # compatibility wrapper, `def assertRegex(self): return
+                # self.assertRegexpMatches(...)` -- the rename would make the
+                # method call itself.
+                new = change.target.replacement
+                if patchable and is_method and call.symbol.rsplit(".", 1)[-1] == new:
+                    confidence, patchable = Confidence.LOW, False
+                    blocked = f"inside `{new}` itself: renaming would make it call itself"
+                    reason = (
+                        f"call to `{old}()` inside a method named `{new}`, probably a "
+                        f"compatibility wrapper; renaming it would make `{new}` call itself"
+                    )
                 findings.append(
                     ImpactFinding(
                         reference=CodeReference(
