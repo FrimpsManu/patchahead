@@ -97,11 +97,11 @@
       "note": "Most libraries define in `_impl` and re-export from `__init__`; the public path is what matters.",
       "old_files": {
         "sdk/__init__.py": "from sdk._client import Client\n",
-        "sdk/_client.py": "class Client:\n    def fetch_all(self):\n        return []\n"
+        "sdk/_client.py": "class Client:\n    def fetch_all(self, limit=10):\n        return []\n"
       },
       "new_files": {
         "sdk/__init__.py": "from sdk._client import Client\n",
-        "sdk/_client.py": "class Client:\n    def list_all(self):\n        return []\n"
+        "sdk/_client.py": "class Client:\n    def list_all(self, limit=10):\n        return []\n"
       },
       "expected_changes": [
         {
@@ -117,12 +117,12 @@
       "note": "Found on pydantic 1 -> 2: a class re-exported from a secondary module disappeared from there but not from where it is defined. Picking the secondary path made the whole class look removed.",
       "old_files": {
         "sdk/__init__.py": "",
-        "sdk/main.py": "class Model:\n    def dict(self):\n        return {}\n",
+        "sdk/main.py": "class Model:\n    def dict(self, include=None):\n        return {}\n",
         "sdk/aaa_helpers.py": "from sdk.main import Model\n"
       },
       "new_files": {
         "sdk/__init__.py": "",
-        "sdk/main.py": "class Model:\n    def model_dump(self):\n        return {}\n",
+        "sdk/main.py": "class Model:\n    def model_dump(self, include=None):\n        return {}\n",
         "sdk/aaa_helpers.py": ""
       },
       "expected_changes": [
@@ -322,6 +322,65 @@
         "sdk/__init__.py": "class Client:\n    def get(self, key, default=None):\n        return key\n"
       },
       "expected_changes": []
+    },
+    {
+      "id": "an_empty_signature_is_no_evidence",
+      "note": "From pandas 2.3 -> 3.0: an internal `BlockManager.to_dict()` went and `to_iter_dict()` came, neither taking anything. A signature with no parameters matches any other, so this was read as a rename -- which would rewrite every `df.to_dict()`. With nothing to compare, it is a removal.",
+      "old_files": {
+        "lib/__init__.py": "",
+        "lib/blocks.py": "class Manager:\n    def to_dict(self):\n        return {}\n"
+      },
+      "new_files": {
+        "lib/__init__.py": "",
+        "lib/blocks.py": "class Manager:\n    def to_iter_dict(self):\n        return iter(())\n"
+      },
+      "expected_changes": [
+        {
+          "kind": "unsupported"
+        }
+      ]
+    },
+    {
+      "id": "deprecated_in_the_old_version_then_removed",
+      "note": "The usual two-step rename, from pandas: 2.1 deprecated `DataFrame.applymap` for `map`, which already existed, and 3.0 removed it. The new version alone shows only a removal; the old one says where it went.",
+      "old_files": {
+        "lib/__init__.py": "",
+        "lib/frame.py": "import warnings\n\n\nclass Frame:\n    def map(self, func, na_action=None):\n        return self\n\n    def applymap(self, func, na_action=None):\n        warnings.warn(\"Frame.applymap has been deprecated. Use Frame.map instead.\", FutureWarning)\n        return self.map(func, na_action=na_action)\n"
+      },
+      "new_files": {
+        "lib/__init__.py": "",
+        "lib/frame.py": "class Frame:\n    def map(self, func, na_action=None):\n        return self\n"
+      },
+      "expected_changes": [
+        {
+          "kind": "method_rename",
+          "symbol": "applymap",
+          "replacement": "map",
+          "owner": "Frame",
+          "owner_explicit": false
+        }
+      ]
+    },
+    {
+      "id": "the_warning_names_one_sibling_and_the_docstring_several",
+      "note": "pandas' `DataFrame.applymap` warns 'Use DataFrame.map instead.', while its docstring's See Also names `apply` and `replace` too. The warning is the message to callers and is read first.",
+      "old_files": {
+        "lib/__init__.py": "",
+        "lib/frame.py": "import warnings\n\n\nclass Frame:\n    def map(self, func):\n        return self\n\n    def apply(self, func):\n        return self\n\n    def replace(self, a, b):\n        return self\n\n    def applymap(self, func):\n        \"\"\"Deprecated.\n\n        See Also\n        --------\n        Frame.apply\n        Frame.replace\n        Frame.map\n        \"\"\"\n        warnings.warn(\"Frame.applymap has been deprecated. Use Frame.map instead.\", FutureWarning)\n        return self.map(func)\n"
+      },
+      "new_files": {
+        "lib/__init__.py": "",
+        "lib/frame.py": "class Frame:\n    def map(self, func):\n        return self\n\n    def apply(self, func):\n        return self\n\n    def replace(self, a, b):\n        return self\n"
+      },
+      "expected_changes": [
+        {
+          "kind": "method_rename",
+          "symbol": "applymap",
+          "replacement": "map",
+          "owner": "Frame",
+          "owner_explicit": false
+        }
+      ]
     }
   ]
 }
