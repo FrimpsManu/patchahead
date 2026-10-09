@@ -239,6 +239,8 @@ class TestCommand:
         assert (change.target.symbol, change.target.replacement) == ("fetch_all", "list_all")
         # The class is known; what callers name their instance is not.
         assert (change.target.owner, change.target.owner_is_explicit) == ("Client", False)
+        # And where the class came from, so another module's `Client` is not renamed.
+        assert change.target.module == "sdk"
 
     def test_the_document_migrates_a_receiver_with_any_name(self, tmp_path, make_repo, capsys):
         old, new = library(tmp_path, "old", OLD), library(tmp_path, "new", NEW)
@@ -251,6 +253,28 @@ class TestCommand:
         )
 
         assert "api_client.list_all()" in run.results[0].diff
+
+    def test_a_class_imported_from_another_module_of_the_library_is_not_renamed(
+        self, tmp_path, make_repo
+    ):
+        """`pydantic.v1.BaseModel` kept `dict` when `pydantic.main.BaseModel` renamed it."""
+        old, new = library(tmp_path, "old", OLD), library(tmp_path, "new", NEW)
+        out = tmp_path / "changes.json"
+        main(["api-diff", "--old", str(old), "--new", str(new), "--out", str(out)])
+        repo = make_repo(
+            {
+                "app/base.py": "from sdk.legacy import Client\n",
+                "app/a.py": "def go(api_client):\n    return api_client.fetch_all()\n",
+            }
+        )
+
+        run = engine.migrate(
+            repo, out, engine.EngineOptions(run_tests=False, write_artifacts=False)
+        )
+
+        assert run.diff == ""
+        [finding] = run.results[0].impact.findings
+        assert "imports `Client` from `sdk.legacy`, not `sdk`" in finding.unpatchable_reason
 
     def test_old_and_new_paths_go_together(self, tmp_path):
         assert main(["api-diff", "--old", str(tmp_path)]) == EXIT_USAGE

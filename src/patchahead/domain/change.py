@@ -175,6 +175,11 @@ class SymbolTarget:
     #: Whether the document *asserted* the owner rather than it being inferred
     #: from an illustrative snippet. See the class docstring.
     owner_is_explicit: bool = False
+    #: The library module the old name was read from, e.g. ``pydantic.main``,
+    #: when the change comes from comparing two releases. A repository that
+    #: imports the owner from another module of the same library
+    #: (``pydantic.v1``) is using a different class, and is not renamed.
+    module: str = ""
 
     @property
     def is_rename(self) -> bool:
@@ -186,6 +191,7 @@ class SymbolTarget:
             "replacement": self.replacement,
             "owner": self.owner,
             "owner_is_explicit": self.owner_is_explicit,
+            "module": self.module,
         }
 
 

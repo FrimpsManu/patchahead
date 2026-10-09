@@ -1213,6 +1213,46 @@
       "expect_reported_only": [
         "tests/helpers.py:8"
       ]
+    },
+    {
+      "id": "a_class_from_the_librarys_v1_module_keeps_its_old_methods",
+      "note": "From ecog-io/iso15118, which runs on pydantic 2 through `from pydantic.v1 import BaseModel`. The `dict` -> `model_dump` rename was read from `pydantic.main`; `pydantic.v1.BaseModel` still has `dict` and no `model_dump`, so renaming its calls breaks them (133 of 240 tests failed).",
+      "change": {
+        "kind": "method_rename",
+        "symbol": "dict",
+        "replacement": "model_dump",
+        "owner": "BaseModel",
+        "owner_explicit": false,
+        "module": "pydantic.main"
+      },
+      "files": {
+        "app/models.py": "from pydantic.v1 import BaseModel as PydanticBaseModel\n\n\nclass BaseModel(PydanticBaseModel):\n    class Config:\n        extra = 'forbid'\n\n\nclass Order(BaseModel):\n    total: int\n",
+        "app/report.py": "from app.models import Order\n\n\ndef as_row(order: Order):\n    return order.dict()\n"
+      },
+      "expect_patched": [],
+      "expect_reported_only": [
+        "app/report.py:5"
+      ]
+    },
+    {
+      "id": "a_class_reexported_by_the_library_package_is_the_same_class",
+      "note": "`from pydantic import BaseModel` is `pydantic.main.BaseModel` re-exported, so the rename read from `pydantic.main` applies.",
+      "change": {
+        "kind": "method_rename",
+        "symbol": "dict",
+        "replacement": "model_dump",
+        "owner": "BaseModel",
+        "owner_explicit": false,
+        "module": "pydantic.main"
+      },
+      "files": {
+        "app/models.py": "from pydantic import BaseModel\n\n\nclass Order(BaseModel):\n    total: int\n",
+        "app/report.py": "from app.models import Order\n\n\ndef as_row(order: Order):\n    return order.dict()\n"
+      },
+      "expect_patched": [
+        "app/report.py:5"
+      ],
+      "expect_reported_only": []
     }
   ]
 }

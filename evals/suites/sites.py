@@ -58,6 +58,7 @@ def _change_from(spec: dict) -> BreakingChange:
             # the same way a structured change document does. A case that wants
             # the looser inferred-owner grading sets it to false explicitly.
             owner_is_explicit=spec.get("owner_explicit", True),
+            module=spec.get("module", ""),
         ),
         pagination=PaginationContract(**spec.get("pagination", {})),
     )

@@ -9,6 +9,18 @@ this project uses [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **A rename read from one module of a library is not applied to a class from
+  another.** ecog-io/iso15118 runs on pydantic 2 through
+  `from pydantic.v1 import BaseModel`, the compatibility layer that kept
+  pydantic 1's method names. The `dict` -> `model_dump` and `parse_obj` ->
+  `model_validate` renames, read from `pydantic.main`, were applied to its 27
+  calls anyway, and 133 of its 240 tests then failed. A rename from `api-diff`
+  now records the module it was read from, and when the repository imports the
+  class from a different module of the same library, every site is reported
+  with that import as the reason. `from pydantic import BaseModel`, a
+  re-export of `pydantic.main`, still migrates; the technocore-rosetta replay
+  is unchanged at 104 tests fixed and 0 broken.
+
 Found by running `api-diff` on pandas 2.3.3 -> 3.0.6, the current major upgrade:
 
 - **A signature with no parameters is no evidence of a rename.** pandas'
