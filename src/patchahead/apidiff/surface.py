@@ -281,7 +281,10 @@ def _deprecation(node, scope: list[ast.stmt]) -> tuple[bool, str]:
     The replacement must be *named*: a sibling (a method of the same class, or
     a function of the same module) mentioned in the warning, the decorator, or
     the docstring. Calling a sibling is not naming it -- a deprecated function
-    usually calls helpers, often as its whole body.
+    usually calls helpers, often as its whole body. The warning and decorator
+    are read first: they are the message to callers, while a docstring's "See
+    also" names several siblings (pandas' ``DataFrame.applymap``) and is read
+    only when the warning names none.
     """
     texts: list[str] = []
     deprecated = False
@@ -305,18 +308,25 @@ def _deprecation(node, scope: list[ast.stmt]) -> tuple[bool, str]:
             texts.extend(_strings(call))
     if not deprecated:
         return False, ""
-    docstring = ast.get_docstring(node)
-    if docstring:
-        texts.append(docstring)
 
     siblings = {
         n.name
         for n in scope
         if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and n.name != node.name
     }
-    named = {
-        name for name in siblings for text in texts if re.search(rf"\b{re.escape(name)}\b", text)
-    }
+
+    def named_in(sources: list[str]) -> set[str]:
+        return {
+            name
+            for name in siblings
+            for text in sources
+            if re.search(rf"\b{re.escape(name)}\b", text)
+        }
+
+    named = named_in(texts)
+    if not named:
+        docstring = ast.get_docstring(node)
+        named = named_in([docstring]) if docstring else set()
     return True, named.pop() if len(named) == 1 else ""
 
 

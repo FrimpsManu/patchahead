@@ -144,6 +144,35 @@ def _gone(
     module, _, _ = path.rpartition(f".{before.qualname}")
     added = {p: m for p, m in new.public.items() if p not in old_paths}
 
+    # Deprecated in the old version in favor of a sibling, then removed: the
+    # usual two-step rename (pandas 2.1 deprecated `applymap` for `map`, and
+    # 3.0 removed it). The old version says where it went.
+    if before.deprecated and before.deprecated_for and before.kind != "class":
+        replacement = f"{before.container + '.' if before.container else ''}{before.deprecated_for}"
+        target = new.public.get(f"{module}.{replacement}")
+        if target is not None and _accepts_every_call(before.params, target.params):
+            return _rename(
+                path,
+                before,
+                replacement,
+                Confidence.HIGH,
+                f"`{before.qualname}` was already deprecated in favor of `{replacement}`, "
+                f"and is now removed; `{replacement}` accepts every call it did",
+            )
+        why = (
+            "which is not in the new version"
+            if target is None
+            else "which does not accept every call it did"
+        )
+        return _unsupported(
+            path,
+            before,
+            f"`{path}` was removed; it had been deprecated in favor of `{replacement}`",
+            f"`{before.qualname}` was deprecated in favor of `{replacement}`, {why} -- not a "
+            f"rename PatchAhead can apply",
+            target,
+        )
+
     # Same name, different module: a move, not a rename.
     elsewhere = [p for p, m in added.items() if m.qualname == before.qualname]
     if elsewhere:
@@ -162,6 +191,12 @@ def _gone(
             return False
         if before.kind == "class":
             return bool(before.methods) and member.methods == before.methods
+        # A signature with no parameters matches every other one: it is no
+        # evidence that two members are the same (pandas' internal
+        # `to_dict()` "renamed" to `to_iter_dict()` would rewrite every
+        # `df.to_dict()`).
+        if not before.params:
+            return False
         return _accepts_every_call(before.params, member.params) and _accepts_every_call(
             member.params, before.params
         )

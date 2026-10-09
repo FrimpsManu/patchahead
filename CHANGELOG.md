@@ -7,6 +7,29 @@ this project uses [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+Found by running `api-diff` on pandas 2.3.3 -> 3.0.6, the current major upgrade:
+
+- **A signature with no parameters is no evidence of a rename.** pandas'
+  internal `BlockManager.to_dict()` went and `to_iter_dict()` came, and the
+  two empty signatures were read as a rename -- applied to real code, it
+  rewrote `df.to_dict(orient="records")` to a method DataFrames do not have.
+  A member is now read as renamed from its signature alone only when the
+  signature has a parameter to compare.
+- **A member deprecated in the old version, then removed, is a rename.** The
+  usual two steps: pandas 2.1 deprecated `DataFrame.applymap` in favor of
+  `map`, and 3.0 removed it. The new version shows only a removal; the old
+  one's warning says where it went. `api-diff` now reads it as a rename, at
+  high confidence, when the replacement still accepts every call.
+- **A deprecation warning is read before the docstring.** `DataFrame.applymap`'s
+  warning names `map`, but its docstring's See Also names `apply` and `replace`
+  as well, so no single replacement was found. The warning is now read first.
+
+With these, `api-diff` reads all three of pandas 3's `applymap` renames
+(`DataFrame`, `Styler`, `Styler.applymap_index` -> `map_index`) and no longer
+the `to_dict` one. Its pydantic readings are unchanged.
+
 ### Added
 
 - **A fourth real-world study: two live pydantic 1 -> 2 upgrades**
