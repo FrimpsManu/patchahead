@@ -23,6 +23,7 @@ A parameter folded into ``**kwargs`` is still accepted, so it is not a break.
 
 from __future__ import annotations
 
+import difflib
 import re
 from dataclasses import dataclass, field
 
@@ -197,8 +198,16 @@ def _gone(
         # `df.to_dict()`).
         if not before.params:
             return False
-        return _accepts_every_call(before.params, member.params) and _accepts_every_call(
-            member.params, before.params
+        # Nor is a matching signature on its own. A function renamed outright
+        # keeps its body and returns what it did: numpy's f2py replaced
+        # `get_includes(iline)` with `get_newer_options(iline)`, the same code
+        # returning three values instead of two, so `ipaths, rest =
+        # get_includes(...)` would break if renamed.
+        return (
+            _accepts_every_call(before.params, member.params)
+            and _accepts_every_call(member.params, before.params)
+            and before.returns == member.returns
+            and _same_body(before.body, member.body)
         )
 
     candidates = sorted(
@@ -302,6 +311,17 @@ def _parameter_changes(path: str, before: Member, after: Member) -> list[Breakin
                 )
             )
     return changes
+
+
+def _same_body(old: str, new: str) -> bool:
+    """Whether two function bodies are the same code, allowing small edits."""
+    if old == new:
+        return True
+    return difflib.SequenceMatcher(None, old, new, autojunk=False).ratio() >= _SAME_BODY
+
+
+#: How similar two bodies must be for a signature match to count as a rename.
+_SAME_BODY = 0.8
 
 
 def _related(old: str, new: str) -> bool:

@@ -381,6 +381,40 @@
           "owner_explicit": false
         }
       ]
+    },
+    {
+      "id": "a_matching_signature_that_returns_something_else_is_no_rename",
+      "note": "From numpy 1.26 -> 2.3: f2py's `get_includes(iline)` went and `get_newer_options(iline)` came, the same code returning three values instead of two. Renaming `ipaths, rest = get_includes(...)` would break the unpacking, so it is reported, not read as a rename.",
+      "old_files": {
+        "lib/__init__.py": "",
+        "lib/cli.py": "def get_includes(iline):\n    iline = ' '.join(iline).split()\n    parser = include_parser()\n    args, remain = parser.parse_known_args(iline)\n    ipaths = args.include_paths or []\n    return ipaths, remain\n"
+      },
+      "new_files": {
+        "lib/__init__.py": "",
+        "lib/cli.py": "def get_newer_options(iline):\n    iline = ' '.join(iline).split()\n    parser = f2py_parser()\n    args, remain = parser.parse_known_args(iline)\n    ipaths = args.include_paths or []\n    return ipaths, args.ftcompat, remain\n"
+      },
+      "expected_changes": [
+        {
+          "kind": "unsupported"
+        }
+      ]
+    },
+    {
+      "id": "a_matching_signature_with_different_code_is_no_rename",
+      "note": "Two functions that take the same arguments and return the same name, but do different work: one went, the other came. A matching signature is not evidence of a rename; the code has to match too.",
+      "old_files": {
+        "lib/__init__.py": "",
+        "lib/io.py": "def read_rows(path, limit=None):\n    with open(path) as f:\n        rows = f.readlines()\n    return rows[:limit]\n"
+      },
+      "new_files": {
+        "lib/__init__.py": "",
+        "lib/io.py": "import random\n\n\ndef sample_rows(path, limit=None):\n    population = list(open(path))\n    rows = random.sample(population, k=min(len(population), limit or 10))\n    rows.sort(key=len)\n    return rows[:limit]\n"
+      },
+      "expected_changes": [
+        {
+          "kind": "unsupported"
+        }
+      ]
     }
   ]
 }

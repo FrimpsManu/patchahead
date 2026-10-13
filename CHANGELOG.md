@@ -7,6 +7,18 @@ this project uses [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- **A matching signature alone is no longer read as a rename.** Running
+  `api-diff` on numpy 1.26 -> 2.3 read f2py's `get_includes(iline)` ->
+  `get_newer_options(iline)` as a rename: the same arguments, but the new
+  function returns three values instead of two, so renaming
+  `ipaths, rest = get_includes(...)` would break it. A rename read from the
+  signature alone, with no deprecation pointing at the new name, now also needs
+  the same `return` statements and the same code (allowing small edits); two
+  functions that only share arguments are reported as a removal. The readings
+  of pydantic 1 -> 2 and pandas 2 -> 3 are unchanged.
+
 ## [0.8.3] — 2026-10-09
 
 ### Added

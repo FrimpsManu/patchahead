@@ -62,6 +62,11 @@ class Member:
     #: warning, decorator, or docstring.
     deprecated_for: str = ""
     line: int = 0
+    #: For a function or method: its body, without the docstring, as an AST
+    #: dump. A rename read from the signature alone needs the body to match.
+    body: str = ""
+    #: Its ``return`` statements, as AST dumps: what a caller gets back.
+    returns: tuple[str, ...] = ()
 
     @property
     def name(self) -> str:
@@ -240,7 +245,36 @@ def _function(dotted: str, qualname: str, node, kind: str, scope: list[ast.stmt]
         deprecated=deprecated,
         deprecated_for=replacement,
         line=node.lineno,
+        body=_body(node),
+        returns=_returns(node),
     )
+
+
+def _returns(node) -> tuple[str, ...]:
+    """The function's own ``return`` statements, not those of functions inside it."""
+    found: list[str] = []
+    pending = list(node.body)
+    while pending:
+        child = pending.pop()
+        if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda, ast.ClassDef)):
+            continue
+        if isinstance(child, ast.Return):
+            found.append(ast.dump(child))
+        pending.extend(ast.iter_child_nodes(child))
+    return tuple(sorted(found))
+
+
+def _body(node) -> str:
+    """A function's statements, without its docstring, as a comparable string."""
+    statements = node.body
+    first = statements[0] if statements else None
+    if (
+        isinstance(first, ast.Expr)
+        and isinstance(first.value, ast.Constant)
+        and isinstance(first.value.value, str)
+    ):
+        statements = statements[1:]
+    return "\n".join(ast.dump(statement) for statement in statements)
 
 
 def _params(node, drop_first: bool) -> tuple[Param, ...]:
